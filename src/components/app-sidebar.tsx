@@ -1,12 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import {
-  LayoutDashboard,
-  Users,
-  ListChecks,
-  Settings as SettingsIcon,
-  Plus,
-  UserCircle,
-} from "lucide-react";
+import { LayoutDashboard, Users, ListChecks, Plus, UserCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
