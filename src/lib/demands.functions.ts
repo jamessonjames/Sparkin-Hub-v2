@@ -74,7 +74,7 @@ export const createDemand = createServerFn({ method: "POST" })
         status: data.status,
         priority: data.priority,
         due_date: data.due_date || null,
-        estimated_credits: data.estimated_credits ?? null,
+        estimated_credits: data.estimated_credits ?? undefined,
         internal_notes: data.internal_notes || null,
         created_by_user_id: context.userId,
       })
@@ -99,7 +99,7 @@ export const updateDemand = createServerFn({ method: "POST" })
         status: rest.status,
         priority: rest.priority,
         due_date: rest.due_date || null,
-        estimated_credits: rest.estimated_credits ?? null,
+        estimated_credits: rest.estimated_credits ?? undefined,
         internal_notes: rest.internal_notes || null,
       })
       .eq("id", id);
