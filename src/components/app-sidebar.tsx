@@ -26,12 +26,12 @@ import { listClients } from "@/lib/clients.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 
-const NAV_ITEMS = [
+type NavItem = { title: string; to: string; icon: typeof LayoutDashboard; exact?: boolean };
+const NAV_ITEMS: NavItem[] = [
   { title: "Dashboard", to: "/", icon: LayoutDashboard, exact: true },
   { title: "Clientes", to: "/clients", icon: Users },
   { title: "Demandas", to: "/demands", icon: ListChecks },
-  { title: "Configurações", to: "/settings", icon: SettingsIcon },
-] as const;
+];
 
 export function AppSidebar() {
   const { state } = useSidebar();
