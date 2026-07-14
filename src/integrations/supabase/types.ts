@@ -14,16 +14,432 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      client_sessions: {
+        Row: {
+          client_id: string
+          created_at: string
+          expires_at: string
+          token: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          expires_at: string
+          token: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          expires_at?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_sessions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          access_active: boolean
+          billing_model: Database["public"]["Enums"]["billing_model"]
+          commercial_notes: string | null
+          contact_name: string | null
+          created_at: string
+          credits_enabled: boolean
+          deleted_at: string | null
+          email: string | null
+          fixed_type: Database["public"]["Enums"]["fixed_type"] | null
+          id: string
+          internal_notes: string | null
+          monthly_value: number | null
+          name: string
+          password_hash: string | null
+          phone: string | null
+          require_password: boolean
+          slug: string
+          sort_order: number | null
+          updated_at: string
+          work_type_id: string | null
+        }
+        Insert: {
+          access_active?: boolean
+          billing_model?: Database["public"]["Enums"]["billing_model"]
+          commercial_notes?: string | null
+          contact_name?: string | null
+          created_at?: string
+          credits_enabled?: boolean
+          deleted_at?: string | null
+          email?: string | null
+          fixed_type?: Database["public"]["Enums"]["fixed_type"] | null
+          id?: string
+          internal_notes?: string | null
+          monthly_value?: number | null
+          name: string
+          password_hash?: string | null
+          phone?: string | null
+          require_password?: boolean
+          slug: string
+          sort_order?: number | null
+          updated_at?: string
+          work_type_id?: string | null
+        }
+        Update: {
+          access_active?: boolean
+          billing_model?: Database["public"]["Enums"]["billing_model"]
+          commercial_notes?: string | null
+          contact_name?: string | null
+          created_at?: string
+          credits_enabled?: boolean
+          deleted_at?: string | null
+          email?: string | null
+          fixed_type?: Database["public"]["Enums"]["fixed_type"] | null
+          id?: string
+          internal_notes?: string | null
+          monthly_value?: number | null
+          name?: string
+          password_hash?: string | null
+          phone?: string | null
+          require_password?: boolean
+          slug?: string
+          sort_order?: number | null
+          updated_at?: string
+          work_type_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_work_type_id_fkey"
+            columns: ["work_type_id"]
+            isOneToOne: false
+            referencedRelation: "work_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_tiers: {
+        Row: {
+          extra_per_credit: number | null
+          id: string
+          max_credits: number | null
+          min_credits: number
+          price: number
+          sort_order: number
+        }
+        Insert: {
+          extra_per_credit?: number | null
+          id?: string
+          max_credits?: number | null
+          min_credits: number
+          price: number
+          sort_order: number
+        }
+        Update: {
+          extra_per_credit?: number | null
+          id?: string
+          max_credits?: number | null
+          min_credits?: number
+          price?: number
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      demand_comments: {
+        Row: {
+          author_label: string | null
+          author_type: string
+          author_user_id: string | null
+          body: string
+          created_at: string
+          demand_id: string
+          id: string
+        }
+        Insert: {
+          author_label?: string | null
+          author_type: string
+          author_user_id?: string | null
+          body: string
+          created_at?: string
+          demand_id: string
+          id?: string
+        }
+        Update: {
+          author_label?: string | null
+          author_type?: string
+          author_user_id?: string | null
+          body?: string
+          created_at?: string
+          demand_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demand_comments_demand_id_fkey"
+            columns: ["demand_id"]
+            isOneToOne: false
+            referencedRelation: "demands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demand_types: {
+        Row: {
+          created_at: string
+          default_credits: number
+          id: string
+          name: string
+          per_slide: boolean
+        }
+        Insert: {
+          created_at?: string
+          default_credits?: number
+          id?: string
+          name: string
+          per_slide?: boolean
+        }
+        Update: {
+          created_at?: string
+          default_credits?: number
+          id?: string
+          name?: string
+          per_slide?: boolean
+        }
+        Relationships: []
+      }
+      demands: {
+        Row: {
+          approved_credits: number | null
+          assignee_user_id: string | null
+          client_id: string
+          created_at: string
+          created_by_client: boolean
+          created_by_user_id: string | null
+          deleted_at: string | null
+          demand_type_id: string | null
+          description: string | null
+          due_date: string | null
+          estimated_credits: number
+          id: string
+          internal_notes: string | null
+          priority: Database["public"]["Enums"]["demand_priority"]
+          reference_month: string
+          sort_order: number | null
+          status: Database["public"]["Enums"]["demand_status"]
+          status_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          approved_credits?: number | null
+          assignee_user_id?: string | null
+          client_id: string
+          created_at?: string
+          created_by_client?: boolean
+          created_by_user_id?: string | null
+          deleted_at?: string | null
+          demand_type_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          estimated_credits?: number
+          id?: string
+          internal_notes?: string | null
+          priority?: Database["public"]["Enums"]["demand_priority"]
+          reference_month?: string
+          sort_order?: number | null
+          status?: Database["public"]["Enums"]["demand_status"]
+          status_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          approved_credits?: number | null
+          assignee_user_id?: string | null
+          client_id?: string
+          created_at?: string
+          created_by_client?: boolean
+          created_by_user_id?: string | null
+          deleted_at?: string | null
+          demand_type_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          estimated_credits?: number
+          id?: string
+          internal_notes?: string | null
+          priority?: Database["public"]["Enums"]["demand_priority"]
+          reference_month?: string
+          sort_order?: number | null
+          status?: Database["public"]["Enums"]["demand_status"]
+          status_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demands_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demands_demand_type_id_fkey"
+            columns: ["demand_type_id"]
+            isOneToOne: false
+            referencedRelation: "demand_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notes: {
+        Row: {
+          client_id: string
+          content: string | null
+          created_at: string
+          created_by_user_id: string | null
+          deleted_at: string | null
+          id: string
+          note_type: Database["public"]["Enums"]["note_type"]
+          title: string
+          updated_at: string
+          visibility: Database["public"]["Enums"]["note_visibility"]
+        }
+        Insert: {
+          client_id: string
+          content?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          deleted_at?: string | null
+          id?: string
+          note_type?: Database["public"]["Enums"]["note_type"]
+          title: string
+          updated_at?: string
+          visibility?: Database["public"]["Enums"]["note_visibility"]
+        }
+        Update: {
+          client_id?: string
+          content?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          deleted_at?: string | null
+          id?: string
+          note_type?: Database["public"]["Enums"]["note_type"]
+          title?: string
+          updated_at?: string
+          visibility?: Database["public"]["Enums"]["note_visibility"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          id: string
+          name?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          can_create_demands: boolean
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          can_create_demands?: boolean
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          can_create_demands?: boolean
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      work_types: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_team: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "owner" | "admin" | "collaborator"
+      billing_model: "fixed" | "credits"
+      demand_priority: "low" | "medium" | "high" | "urgent"
+      demand_status:
+        | "rascunho"
+        | "nao_iniciado"
+        | "fazendo"
+        | "para_analise"
+        | "com_ajustes"
+        | "concluido"
+      fixed_type: "monthly" | "one_off"
+      note_type:
+        | "reuniao"
+        | "briefing"
+        | "ideias"
+        | "copy"
+        | "planejamento"
+        | "observacoes"
+      note_visibility: "private" | "shared"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +566,28 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["owner", "admin", "collaborator"],
+      billing_model: ["fixed", "credits"],
+      demand_priority: ["low", "medium", "high", "urgent"],
+      demand_status: [
+        "rascunho",
+        "nao_iniciado",
+        "fazendo",
+        "para_analise",
+        "com_ajustes",
+        "concluido",
+      ],
+      fixed_type: ["monthly", "one_off"],
+      note_type: [
+        "reuniao",
+        "briefing",
+        "ideias",
+        "copy",
+        "planejamento",
+        "observacoes",
+      ],
+      note_visibility: ["private", "shared"],
+    },
   },
 } as const
