@@ -10,7 +10,7 @@ const upsertSchema = z.object({
   email: z.string().email().optional().or(z.literal("")).nullable(),
   phone: z.string().optional().nullable(),
   billing_model: z.enum(["fixed", "credits"]).default("fixed"),
-  fixed_type: z.enum(["monthly", "one_time"]).optional().nullable(),
+  fixed_type: z.enum(["monthly", "one_off"]).optional().nullable(),
   monthly_value: z.number().optional().nullable(),
   commercial_notes: z.string().optional().nullable(),
   internal_notes: z.string().optional().nullable(),
