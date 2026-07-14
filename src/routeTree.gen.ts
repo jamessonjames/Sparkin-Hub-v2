@@ -13,6 +13,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.index'
+import { Route as AuthenticatedDemandsRouteImport } from './routes/_authenticated.demands'
 import { Route as AuthenticatedClientsIndexRouteImport } from './routes/_authenticated.clients.index'
 import { Route as AuthenticatedClientsNewRouteImport } from './routes/_authenticated.clients.new'
 
@@ -35,6 +36,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedDemandsRoute = AuthenticatedDemandsRouteImport.update({
+  id: '/demands',
+  path: '/demands',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedClientsIndexRoute =
   AuthenticatedClientsIndexRouteImport.update({
     id: '/clients/',
@@ -51,12 +57,14 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/demands': typeof AuthenticatedDemandsRoute
   '/clients/new': typeof AuthenticatedClientsNewRoute
   '/clients/': typeof AuthenticatedClientsIndexRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/demands': typeof AuthenticatedDemandsRoute
   '/': typeof AuthenticatedIndexRoute
   '/clients/new': typeof AuthenticatedClientsNewRoute
   '/clients': typeof AuthenticatedClientsIndexRoute
@@ -66,20 +74,34 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/demands': typeof AuthenticatedDemandsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/clients/new': typeof AuthenticatedClientsNewRoute
   '/_authenticated/clients/': typeof AuthenticatedClientsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/reset-password' | '/clients/new' | '/clients/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/reset-password'
+    | '/demands'
+    | '/clients/new'
+    | '/clients/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/auth' | '/reset-password' | '/' | '/clients/new' | '/clients'
+  to:
+    | '/auth'
+    | '/reset-password'
+    | '/demands'
+    | '/'
+    | '/clients/new'
+    | '/clients'
   id:
     | '__root__'
     | '/_authenticated'
     | '/auth'
     | '/reset-password'
+    | '/_authenticated/demands'
     | '/_authenticated/'
     | '/_authenticated/clients/new'
     | '/_authenticated/clients/'
@@ -121,6 +143,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/demands': {
+      id: '/_authenticated/demands'
+      path: '/demands'
+      fullPath: '/demands'
+      preLoaderRoute: typeof AuthenticatedDemandsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/clients/': {
       id: '/_authenticated/clients/'
       path: '/clients'
@@ -139,12 +168,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedDemandsRoute: typeof AuthenticatedDemandsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedClientsNewRoute: typeof AuthenticatedClientsNewRoute
   AuthenticatedClientsIndexRoute: typeof AuthenticatedClientsIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedDemandsRoute: AuthenticatedDemandsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedClientsNewRoute: AuthenticatedClientsNewRoute,
   AuthenticatedClientsIndexRoute: AuthenticatedClientsIndexRoute,
