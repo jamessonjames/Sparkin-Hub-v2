@@ -8,7 +8,16 @@ import {
   updateClient,
   deleteClient,
 } from "@/lib/clients.functions";
-import { listDemands } from "@/lib/demands.functions";
+import {
+  listDemands,
+  moveDemandStatus,
+  createDemand,
+  type DemandStatus,
+} from "@/lib/demands.functions";
+import { KanbanBoard } from "@/components/kanban-board";
+import { DemandForm, type DemandFormValues } from "@/components/demand-form";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DemandDetailDialog } from "@/components/demand-detail-dialog";
 import { listNotes, upsertNote, deleteNote, NOTE_TYPES } from "@/lib/notes.functions";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -19,7 +28,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { STATUS_LABELS, PRIORITY_LABELS, PRIORITY_COLORS } from "@/lib/demand-labels";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, Trash2, Plus } from "lucide-react";
 
@@ -36,6 +44,8 @@ function ClientPage() {
   const updateFn = useServerFn(updateClient);
   const deleteFn = useServerFn(deleteClient);
   const demandsFn = useServerFn(listDemands);
+  const moveFn = useServerFn(moveDemandStatus);
+  const createFn = useServerFn(createDemand);
 
   const { data: client } = useQuery({
     queryKey: ["client", id],
@@ -48,6 +58,35 @@ function ClientPage() {
   const clientDemands = allDemands.filter((d) => d.client_id === id);
 
   const [saving, setSaving] = useState(false);
+  const [openNew, setOpenNew] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  async function handleMove(demandId: string, status: DemandStatus) {
+    qc.setQueryData<typeof allDemands>(["demands"], (prev) =>
+      (prev ?? []).map((d) => (d.id === demandId ? { ...d, status } : d)),
+    );
+    try {
+      await moveFn({ data: { id: demandId, status } });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao mover");
+      qc.invalidateQueries({ queryKey: ["demands"] });
+    }
+  }
+
+  async function handleCreate(values: DemandFormValues) {
+    setCreating(true);
+    try {
+      await createFn({ data: { ...values, client_id: id } });
+      toast.success("Demanda criada!");
+      qc.invalidateQueries({ queryKey: ["demands"] });
+      setOpenNew(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao criar demanda");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   async function handleSave(values: ClientFormValues) {
     setSaving(true);
@@ -118,14 +157,35 @@ function ClientPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue="demands">
         <TabsList>
-          <TabsTrigger value="overview">Visão geral</TabsTrigger>
           <TabsTrigger value="demands">
             Demandas ({clientDemands.length})
           </TabsTrigger>
+          <TabsTrigger value="overview">Visão geral</TabsTrigger>
           <TabsTrigger value="notes">Notas</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="demands" className="mt-4 space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={() => setOpenNew(true)} size="sm">
+              <Plus className="h-4 w-4 mr-1" /> Nova demanda
+            </Button>
+          </div>
+
+          <KanbanBoard
+            demands={clientDemands.map((d) => ({
+              id: d.id,
+              title: d.title,
+              status: d.status,
+              priority: d.priority,
+              due_date: d.due_date,
+              clients: d.clients ?? null,
+            }))}
+            onMove={handleMove}
+            onOpen={(demandId) => setEditId(demandId)}
+          />
+        </TabsContent>
 
         <TabsContent value="overview" className="mt-4">
           <Card className="p-6">
@@ -149,36 +209,34 @@ function ClientPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="demands" className="mt-4">
-          <div className="space-y-2">
-            {clientDemands.map((d) => (
-              <Card key={d.id} className="p-3 flex items-center justify-between">
-                <div className="min-w-0">
-                  <div className="font-medium text-sm text-foreground truncate">{d.title}</div>
-                  <div className="text-xs text-muted-foreground">{STATUS_LABELS[d.status]}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge className={cn("text-[10px]", PRIORITY_COLORS[d.priority])} variant="secondary">
-                    {PRIORITY_LABELS[d.priority]}
-                  </Badge>
-                  {d.due_date && (
-                    <span className="text-xs text-muted-foreground">{d.due_date}</span>
-                  )}
-                </div>
-              </Card>
-            ))}
-            {clientDemands.length === 0 && (
-              <Card className="p-8 text-center text-sm text-muted-foreground">
-                Nenhuma demanda ainda para este cliente.
-              </Card>
-            )}
-          </div>
-        </TabsContent>
-
         <TabsContent value="notes" className="mt-4">
           <ClientNotesPanel clientId={id} />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={openNew} onOpenChange={setOpenNew}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Nova demanda para {client.name}</DialogTitle>
+          </DialogHeader>
+          <DemandForm
+            clients={[{ id: client.id, name: client.name }]}
+            initial={{ client_id: client.id }}
+            onSubmit={handleCreate}
+            submitting={creating}
+            submitLabel="Criar"
+            lockedClient={true}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {editId && (
+        <DemandDetailDialog
+          id={editId}
+          onClose={() => setEditId(null)}
+          clients={[{ id: client.id, name: client.name }]}
+        />
+      )}
     </div>
   );
 }
