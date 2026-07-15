@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Users, ListChecks, Plus, UserCircle, CalendarDays } from "lucide-react";
+import { LayoutDashboard, Users, ListChecks, Plus, UserCircle, CalendarDays, Settings } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -25,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { title: "Clientes", to: "/clients", icon: Users },
   { title: "Demandas", to: "/demands", icon: ListChecks },
   { title: "Agenda", to: "/agenda", icon: CalendarDays },
+  { title: "Painel Admin", to: "/admin", icon: Settings },
 ];
 
 export function AppSidebar() {

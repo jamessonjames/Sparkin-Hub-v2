@@ -152,7 +152,10 @@ function ClientPage() {
 
         <TabsContent value="demands" className="mt-4 space-y-4">
           <div className="flex justify-end">
-            <Button onClick={() => setOpenNew(true)} size="sm">
+            <Button
+              onClick={() => overlay.openNew([{ id: client.id, name: client.name }], client.id)}
+              size="sm"
+            >
               <Plus className="h-4 w-4 mr-1" /> Nova demanda
             </Button>
           </div>
