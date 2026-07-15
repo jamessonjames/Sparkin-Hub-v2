@@ -1,19 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   getDemand,
   updateDemand,
+  createDemand,
   deleteDemand,
-  moveDemandStatus,
   type DemandStatus,
   DEMAND_STATUSES,
 } from "@/lib/demands.functions";
 import { listComments, addComment } from "@/lib/comments.functions";
+import { listProfiles } from "@/lib/users.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectTrigger,
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
 import { RichEditor } from "@/components/rich-editor";
-import { Trash2, Send, Calendar, X, Save } from "lucide-react";
+import { Trash2, Send, Calendar, X, Save, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STATUS_CHIP: Record<string, string> = {
@@ -47,71 +47,132 @@ export function DemandDetailDialog({
   onClose,
   onMinimize,
   clients,
+  defaultClientId,
+  defaultStatus,
 }: {
-  id: string;
+  id: string; // "new" for creation mode, uuid for edit mode
   onClose: () => void;
   onMinimize?: () => void;
   clients: { id: string; name: string }[];
+  defaultClientId?: string;
+  defaultStatus?: string;
 }) {
+  const isNew = id === "new";
+
   const getFn = useServerFn(getDemand);
+  const createFn = useServerFn(createDemand);
   const updateFn = useServerFn(updateDemand);
   const deleteFn = useServerFn(deleteDemand);
-  const moveFn = useServerFn(moveDemandStatus);
   const listCommentsFn = useServerFn(listComments);
   const addCommentFn = useServerFn(addComment);
+  const listProfilesFn = useServerFn(listProfiles);
   const qc = useQueryClient();
 
-  const { data: demand, isLoading } = useQuery({
+  // Queries
+  const { data: demand, isLoading: isDemandLoading } = useQuery({
     queryKey: ["demand", id],
     queryFn: () => getFn({ data: { id } }),
+    enabled: !isNew,
   });
+
   const { data: comments = [] } = useQuery({
     queryKey: ["comments", id],
     queryFn: () => listCommentsFn({ data: { demand_id: id } }),
+    enabled: !isNew,
   });
 
-  const [title, setTitle] = useState<string | null>(null);       // null = not edited
-  const [description, setDescription] = useState<string | null>(null); // null = not edited
+  const { data: profiles = [] } = useQuery({
+    queryKey: ["profiles"],
+    queryFn: () => listProfilesFn(),
+  });
+
+  // Local state for properties (initialized from demand or defaults)
+  const [clientId, setClientId] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [status, setStatus] = useState<DemandStatus>("nao_iniciado");
+  const [priority, setPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
+  const [dueDate, setDueDate] = useState("");
+  const [assigneeId, setAssigneeId] = useState("");
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
   const [showComments, setShowComments] = useState(true);
 
-  const currentTitle = title ?? demand?.title ?? "";
-  const currentDesc = description ?? demand?.description ?? "";
-
-  async function handleStatusChange(status: string) {
-    if (!demand) return;
-    try {
-      await moveFn({ data: { id, status: status as DemandStatus } });
-      qc.invalidateQueries({ queryKey: ["demand", id] });
-      qc.invalidateQueries({ queryKey: ["demands"] });
-      toast.success("Status atualizado!");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro");
+  // Sync state when demand is loaded or when in creation mode
+  useEffect(() => {
+    if (isNew) {
+      setClientId(defaultClientId || clients[0]?.id || "");
+      setTitle("");
+      setDescription("");
+      setStatus((defaultStatus as DemandStatus) || "nao_iniciado");
+      setPriority("medium");
+      setDueDate("");
+      setAssigneeId("");
+    } else if (demand) {
+      setClientId(demand.client_id);
+      setTitle(demand.title);
+      setDescription(demand.description || "");
+      setStatus(demand.status as DemandStatus);
+      setPriority(demand.priority as "low" | "medium" | "high" | "urgent");
+      setDueDate(demand.due_date ? demand.due_date.slice(0, 10) : "");
+      setAssigneeId(demand.assignee_user_id || "");
     }
-  }
+  }, [demand, isNew, defaultClientId, defaultStatus, clients]);
+
+  // Track if any properties were modified
+  const isDirty = isNew
+    ? title.trim() !== "" || description !== "" || dueDate !== "" || assigneeId !== ""
+    : demand && (
+        clientId !== demand.client_id ||
+        title !== demand.title ||
+        description !== (demand.description || "") ||
+        status !== demand.status ||
+        priority !== demand.priority ||
+        dueDate !== (demand.due_date ? demand.due_date.slice(0, 10) : "") ||
+        assigneeId !== (demand.assignee_user_id || "")
+      );
 
   async function handleSave() {
-    if (!demand) return;
-    if (!currentTitle.trim()) { toast.error("O título não pode ficar vazio."); return; }
+    if (!clientId) { toast.error("Selecione um cliente."); return; }
+    if (!title.trim()) { toast.error("O título não pode ficar vazio."); return; }
+    
     setSaving(true);
     try {
-      await updateFn({
-        data: {
-          id,
-          client_id: demand.client_id,
-          title: currentTitle,
-          description: currentDesc,
-          status: demand.status,
-          priority: demand.priority,
-          due_date: demand.due_date,
-          estimated_credits: demand.estimated_credits,
-          internal_notes: demand.internal_notes,
-        },
-      });
-      toast.success("Alterações salvas!");
-      qc.invalidateQueries({ queryKey: ["demand", id] });
-      qc.invalidateQueries({ queryKey: ["demands"] });
+      if (isNew) {
+        const created = await createFn({
+          data: {
+            client_id: clientId,
+            title,
+            description,
+            status,
+            priority,
+            due_date: dueDate || null,
+            assignee_user_id: assigneeId || null,
+          },
+        });
+        toast.success("Demanda criada com sucesso!");
+        qc.invalidateQueries({ queryKey: ["demands"] });
+        // Close overlay or transition to the newly created demand detail page
+        onClose();
+      } else {
+        await updateFn({
+          data: {
+            id,
+            client_id: clientId,
+            title,
+            description,
+            status,
+            priority,
+            due_date: dueDate || null,
+            estimated_credits: demand?.estimated_credits,
+            internal_notes: demand?.internal_notes,
+            assignee_user_id: assigneeId || null,
+          },
+        });
+        toast.success("Alterações salvas!");
+        qc.invalidateQueries({ queryKey: ["demand", id] });
+        qc.invalidateQueries({ queryKey: ["demands"] });
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao salvar");
     } finally {
@@ -142,143 +203,196 @@ export function DemandDetailDialog({
     }
   }
 
-  const isDirty = title !== null || description !== null;
-
-  // Full-screen overlay
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 md:p-8">
-      <div className="relative w-full h-full bg-zinc-900 border border-zinc-700/60 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
-
-        {isLoading ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="relative w-full max-w-4xl h-[90vh] bg-zinc-900 border border-zinc-700/60 rounded-2xl flex flex-col overflow-hidden shadow-2xl my-auto mx-auto animate-in fade-in zoom-in duration-200">
+        
+        {(!isNew && isDemandLoading) ? (
           <div className="flex-1 flex items-center justify-center text-zinc-500">Carregando...</div>
-        ) : demand ? (
+        ) : (
           <>
             {/* ── TOP BAR ── */}
-            <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-700/40 shrink-0 flex-wrap">
-              <Select value={demand.status} onValueChange={handleStatusChange}>
-                <SelectTrigger className={cn(
-                  "h-7 w-auto min-w-[110px] text-xs font-bold border-none px-3 rounded-full",
-                  STATUS_CHIP[demand.status],
-                )}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DEMAND_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-full", PRIORITY_CHIP[demand.priority])}>
-                {PRIORITY_LABELS[demand.priority]}
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-zinc-800 shrink-0 flex-wrap bg-zinc-900/80">
+              <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mr-2">
+                {isNew ? "Nova Demanda" : "Detalhes da Demanda"}
               </span>
 
-              {demand.due_date && (
-                <span className="flex items-center gap-1 text-xs text-zinc-400">
-                  <Calendar className="h-3 w-3" />
-                  {demand.due_date}
-                </span>
-              )}
-
-                <div className="ml-auto flex items-center gap-1">
-                  <button
-                    onClick={() => setShowComments((v) => !v)}
-                    className="text-xs text-zinc-500 hover:text-zinc-300 px-2 py-1 rounded hover:bg-zinc-700/40 transition-colors"
-                  >
-                    {showComments ? "Ocultar comentários" : "Comentários"}
-                  </button>
-                  {onMinimize && (
+              <div className="ml-auto flex items-center gap-1.5">
+                {!isNew && (
+                  <>
                     <button
-                      onClick={onMinimize}
-                      title="Minimizar"
-                      className="p-1.5 text-zinc-600 hover:text-zinc-300 hover:bg-zinc-700/40 rounded transition-colors"
-                      aria-label="Minimizar"
+                      onClick={() => setShowComments((v) => !v)}
+                      className="text-xs text-zinc-500 hover:text-zinc-300 px-2 py-1 rounded hover:bg-zinc-800 transition-colors"
                     >
-                      {/* Minimise icon — a horizontal bar */}
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <rect x="2" y="9" width="10" height="1.5" rx="0.75" fill="currentColor"/>
-                      </svg>
+                      {showComments ? "Ocultar comentários" : "Comentários"}
                     </button>
-                  )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDelete}
+                      className="h-7 px-2 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 gap-1 text-xs"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Excluir
+                    </Button>
+                  </>
+                )}
+                {onMinimize && (
                   <button
-                    onClick={onClose}
-                    title="Fechar"
-                    className="p-1.5 text-zinc-600 hover:text-zinc-300 hover:bg-zinc-700/40 rounded transition-colors"
-                    aria-label="Fechar"
+                    onClick={onMinimize}
+                    title="Minimizar"
+                    className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded transition-colors"
+                    aria-label="Minimizar"
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <rect x="2" y="9" width="10" height="1.5" rx="0.75" fill="currentColor"/>
+                    </svg>
                   </button>
-                </div>
+                )}
+                <button
+                  onClick={onClose}
+                  title="Fechar"
+                  className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded transition-colors"
+                  aria-label="Fechar"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
 
             {/* ── MAIN BODY ── */}
             <div className="flex flex-1 min-h-0">
+              
+              {/* Left Panel - Fields & description */}
+              <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-6">
+                
+                {/* Meta details row (Client, Status, Priority, Date, Assignee) */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-zinc-950/20 p-4 rounded-xl border border-zinc-800/80">
+                  
+                  {/* Client Select */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Cliente</label>
+                    <Select value={clientId} onValueChange={setClientId}>
+                      <SelectTrigger className="h-8 text-xs bg-zinc-850 border-zinc-700 text-zinc-200">
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clients.map((c) => (
+                          <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              {/* Left — content editor */}
-              <div className="flex-1 overflow-y-auto px-6 md:px-10 py-6 flex flex-col gap-5">
+                  {/* Status Select */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Status</label>
+                    <Select value={status} onValueChange={(val) => setStatus(val as DemandStatus)}>
+                      <SelectTrigger className={cn("h-8 text-xs font-bold border-none text-white", STATUS_CHIP[status])}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEMAND_STATUSES.map((s) => (
+                          <SelectItem key={s} value={s} className="text-xs">{STATUS_LABELS[s]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                {/* Client */}
-                {demand.clients && (
-                  <p className="text-xs text-zinc-500">
-                    Cliente: <span className="text-zinc-300 font-semibold">{(demand.clients as { name: string }).name}</span>
-                  </p>
-                )}
+                  {/* Priority Select */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Prioridade</label>
+                    <Select value={priority} onValueChange={(val) => setPriority(val as any)}>
+                      <SelectTrigger className={cn("h-8 text-xs font-bold border-none text-white", PRIORITY_CHIP[priority])}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {([ "low", "medium", "high", "urgent" ] as const).map((p) => (
+                          <SelectItem key={p} value={p} className="text-xs">{PRIORITY_LABELS[p]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Due Date */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Prazo / Entrega</label>
+                    <div className="relative">
+                      <Input
+                        type="date"
+                        value={dueDate}
+                        onChange={(e) => setDueDate(e.target.value)}
+                        className="h-8 text-xs bg-zinc-850 border-zinc-700 text-zinc-200"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Assignee Select */}
+                  <div className="flex flex-col gap-1 col-span-1 md:col-span-2">
+                    <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold flex items-center gap-1">
+                      <User className="h-3 w-3 text-zinc-500" /> Responsável
+                    </label>
+                    <Select value={assigneeId} onValueChange={setAssigneeId}>
+                      <SelectTrigger className="h-8 text-xs bg-zinc-850 border-zinc-700 text-zinc-200">
+                        <SelectValue placeholder="Selecione um responsável..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none" className="text-xs text-zinc-500 italic">Sem responsável</SelectItem>
+                        {profiles.map((p) => (
+                          <SelectItem key={p.id} value={p.id} className="text-xs">
+                            {p.name} ({p.email})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
                 {/* Title */}
                 <div>
-                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1 block">Título</label>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold mb-1 block">Título</label>
                   <Input
-                    value={currentTitle}
+                    value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="text-xl font-bold bg-transparent border-transparent hover:border-zinc-600 focus:border-primary/60 text-zinc-50 px-2 transition-colors text-xl"
+                    className="text-lg font-bold bg-transparent border-transparent hover:border-zinc-700 focus:border-primary/60 text-zinc-50 px-2 transition-colors"
                     placeholder="Título da demanda..."
                   />
                 </div>
 
-                {/* Description — Rich Editor */}
-                <div className="flex-1 flex flex-col">
-                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1 block">Descrição</label>
+                {/* Rich Editor */}
+                <div className="flex-1 flex flex-col min-h-[160px]">
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold mb-1 block">Descrição</label>
                   <div className="flex-1">
                     <RichEditor
-                      content={currentDesc}
+                      content={description}
                       onChange={(html) => setDescription(html)}
                     />
                   </div>
                 </div>
-
-                {/* Credits */}
-                {demand.estimated_credits != null && (
-                  <p className="text-xs text-zinc-500">
-                    Créditos estimados: <span className="text-zinc-200 font-semibold">{demand.estimated_credits}</span>
-                  </p>
-                )}
               </div>
 
-              {/* Right — Comments */}
-              {showComments && (
-                <div className="w-[360px] shrink-0 border-l border-zinc-700/40 flex flex-col bg-zinc-900/80">
-                  <div className="px-4 py-3 border-b border-zinc-700/40">
-                    <h4 className="text-sm font-semibold text-zinc-200">Comentários e atividade</h4>
+              {/* Right Panel - Comments */}
+              {!isNew && showComments && (
+                <div className="w-[340px] shrink-0 border-l border-zinc-850 flex flex-col bg-zinc-900/40">
+                  <div className="px-4 py-3 border-b border-zinc-800">
+                    <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Comentários</h4>
                   </div>
 
-                  {/* Comment input */}
-                  <div className="px-4 py-3 border-b border-zinc-700/40 space-y-2">
-                    <Textarea
-                      rows={3}
-                      placeholder="Escrever um comentário... (Ctrl+Enter para enviar)"
+                  {/* Comment Input */}
+                  <div className="px-4 py-3 border-b border-zinc-800 space-y-2">
+                    <Input
+                      placeholder="Escrever comentário..."
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter" && e.ctrlKey) handleAddComment(); }}
-                      className="bg-zinc-800/70 border-zinc-700 text-zinc-100 text-sm resize-none placeholder:text-zinc-600 focus:border-primary/50"
+                      onKeyDown={(e) => { if (e.key === "Enter") handleAddComment(); }}
+                      className="bg-zinc-850 border-zinc-700 text-xs h-9"
                     />
                     <Button
                       size="sm"
-                      className="w-full gap-1.5"
+                      className="w-full gap-1.5 h-8 text-xs font-semibold"
                       onClick={handleAddComment}
                       disabled={!comment.trim()}
                     >
-                      <Send className="h-3.5 w-3.5" />
-                      Comentar
+                      <Send className="h-3 w-3" /> Enviar
                     </Button>
                   </div>
 
@@ -290,15 +404,15 @@ export function DemandDetailDialog({
                         : "?";
                       return (
                         <div key={c.id} className="flex gap-2.5">
-                          <div className="h-8 w-8 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 border border-primary/20">
+                          <div className="h-7 w-7 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center shrink-0 border border-primary/35">
                             {initials}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-baseline gap-2 mb-1">
-                              <span className="text-xs font-semibold text-zinc-200">{c.author_label ?? "Equipe"}</span>
-                              <span className="text-[10px] text-zinc-600">{new Date(c.created_at).toLocaleString("pt-BR")}</span>
+                            <div className="flex items-baseline justify-between mb-0.5">
+                              <span className="text-xs font-bold text-zinc-200">{c.author_label ?? "Equipe"}</span>
+                              <span className="text-[9px] text-zinc-500">{new Date(c.created_at).toLocaleDateString("pt-BR")}</span>
                             </div>
-                            <div className="text-sm text-zinc-300 bg-zinc-800/50 rounded-xl px-3 py-2 border border-zinc-700/30 whitespace-pre-wrap leading-relaxed">
+                            <div className="text-xs text-zinc-300 bg-zinc-800/40 rounded-lg px-2.5 py-1.5 border border-zinc-800">
                               {c.body}
                             </div>
                           </div>
@@ -306,31 +420,34 @@ export function DemandDetailDialog({
                       );
                     })}
                     {comments.length === 0 && (
-                      <div className="text-center py-6">
-                        <p className="text-xs text-zinc-600">Nenhum comentário ainda.</p>
-                      </div>
+                      <div className="text-center py-8 text-[11px] text-zinc-600">Nenhum comentário.</div>
                     )}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* ── BOTTOM BAR — Save ── */}
-            <div className="shrink-0 border-t border-zinc-700/40 px-6 py-3 flex items-center justify-between bg-zinc-900/60">
-              <p className="text-xs text-zinc-600">
-                {isDirty ? "Você tem alterações não salvas" : "Sem alterações pendentes"}
+            {/* ── BOTTOM SAVE BAR ── */}
+            <div className="shrink-0 border-t border-zinc-800 px-6 py-3.5 flex items-center justify-between bg-zinc-900/60">
+              <p className="text-xs text-zinc-500">
+                {isDirty ? "Você tem alterações pendentes" : "Sem alterações"}
               </p>
-              <Button
-                onClick={handleSave}
-                disabled={saving}
-                className="gap-2 px-6"
-              >
-                <Save className="h-4 w-4" />
-                {saving ? "Salvando..." : "Salvar alterações"}
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={onClose} className="h-9 px-4 text-xs">
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || !isDirty}
+                  className="gap-2 px-6 h-9 text-xs font-bold"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  {saving ? "Salvando..." : isNew ? "Criar Demanda" : "Salvar alterações"}
+                </Button>
+              </div>
             </div>
           </>
-        ) : null}
+        )}
       </div>
     </div>
   );

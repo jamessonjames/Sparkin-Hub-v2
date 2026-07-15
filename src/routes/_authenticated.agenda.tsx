@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState, useRef, useEffect } from "react";
-import { listDemands, batchUpdateDueDates, type DemandStatus } from "@/lib/demands.functions";
+import { listDemands, batchUpdateDueDates } from "@/lib/demands.functions";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save } from "lucide-react";
 import { STATUS_LABELS } from "@/lib/demand-labels";
@@ -25,9 +25,8 @@ import {
   isValidSlot,
 } from "@/utils/scheduler";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/agenda")({
@@ -36,6 +35,7 @@ export const Route = createFileRoute("/_authenticated/agenda")({
 });
 
 const DAYS_SHORT = ["DOM.", "SEG.", "TER.", "QUA.", "QUI.", "SEX.", "SÁB."];
+const WEEKDAY_NAMES = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 const HOURS = Array.from({ length: 24 }, (_, i) => i); // 0..23
 
 const STATUS_BG: Record<string, string> = {
@@ -65,6 +65,8 @@ function weekStart(d: Date) {
   return copy;
 }
 
+type ViewMode = "day" | "week" | "month";
+
 function AgendaPage() {
   const listFn = useServerFn(listDemands);
   const batchUpdateFn = useServerFn(batchUpdateDueDates);
@@ -76,7 +78,7 @@ function AgendaPage() {
     queryFn: () => listFn(),
   });
 
-  // Load scheduler config from localStorage or fallback
+  // Config State
   const [config, setConfig] = useState<SchedulingConfig>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("CreativeFlow_ScheduleConfig");
@@ -87,23 +89,16 @@ function AgendaPage() {
     return DEFAULT_CONFIG;
   });
 
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [showSettings, setShowSettings] = useState(false);
   const today = useMemo(() => getTzTime(config.timezone), [config.timezone]);
   const todayISO = toISO(today);
 
-  // Week anchor (Sunday)
-  const [anchor, setAnchor] = useState(() => weekStart(today));
+  // Selected date anchor
+  const [currentDate, setCurrentDate] = useState(() => new Date(today));
 
-  const weekDays = useMemo(() =>
-    Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(anchor);
-      d.setDate(anchor.getDate() + i);
-      return d;
-    }), [anchor]);
-
-  // Run the scheduler to organize active demands
+  // Auto-schedule logic
   const scheduledMap = useMemo(() => {
-    // Demands format for scheduling utility
     const forScheduler = demands.map((d) => ({
       id: d.id,
       title: d.title,
@@ -115,10 +110,9 @@ function AgendaPage() {
     return scheduleDemands(forScheduler, config);
   }, [demands, config]);
 
-  // Automatically sync scheduled times back to Supabase if they changed
+  // Sync scheduled times to DB
   useEffect(() => {
     if (demands.length === 0) return;
-    
     const updates: { id: string; due_date: string | null }[] = [];
     for (const d of demands) {
       if (d.status === "concluido") continue;
@@ -127,14 +121,10 @@ function AgendaPage() {
         updates.push({ id: d.id, due_date: scheduled });
       }
     }
-
     if (updates.length > 0) {
-      // Apply updates to DB silently in batch
       batchUpdateFn({ data: { updates } })
-        .then(() => {
-          qc.invalidateQueries({ queryKey: ["demands"] });
-        })
-        .catch((e) => console.error("Erro no auto-agendamento:", e));
+        .then(() => qc.invalidateQueries({ queryKey: ["demands"] }))
+        .catch((e) => console.error("Auto-scheduling sync error:", e));
     }
   }, [scheduledMap, demands, batchUpdateFn, qc]);
 
@@ -144,7 +134,6 @@ function AgendaPage() {
     for (const d of demands) {
       const finalDate = d.status === "concluido" ? d.due_date : (scheduledMap[d.id] ?? d.due_date);
       if (finalDate) {
-        // e.g. "2026-07-15T09:00:00" -> key "2026-07-15_9"
         const dt = new Date(finalDate);
         const key = `${toISO(dt)}_${dt.getHours()}`;
         map.set(key, d);
@@ -153,12 +142,106 @@ function AgendaPage() {
     return map;
   }, [demands, scheduledMap]);
 
-  // Drag and drop sensor configuration
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    })
-  );
+  // Group demands by date only (for monthly view)
+  const demandsByDate = useMemo(() => {
+    const map = new Map<string, typeof demands>();
+    for (const d of demands) {
+      const finalDate = d.status === "concluido" ? d.due_date : (scheduledMap[d.id] ?? d.due_date);
+      if (finalDate) {
+        const key = finalDate.slice(0, 10);
+        const arr = map.get(key) ?? [];
+        arr.push(d);
+        map.set(key, arr);
+      }
+    }
+    return map;
+  }, [demands, scheduledMap]);
+
+  // Calculate day columns for daily and weekly views
+  const weekDays = useMemo(() => {
+    if (viewMode === "day") {
+      return [new Date(currentDate)];
+    }
+    // "week" mode uses the Sunday of the current week
+    const start = weekStart(currentDate);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d;
+    });
+  }, [currentDate, viewMode]);
+
+  // Calculate month cells for monthly view
+  const monthCells = useMemo(() => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const startDow = firstDay.getDay();
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    const cells: Array<{ date: Date | null; key: string }> = [];
+    // Padding at start
+    for (let i = 0; i < startDow; i++) {
+      cells.push({ date: null, key: `pad-${i}` });
+    }
+    // Days
+    for (let d = 1; d <= totalDays; d++) {
+      const date = new Date(year, month, d);
+      cells.push({ date, key: date.toISOString() });
+    }
+    // Padding at end
+    while (cells.length % 7 !== 0) {
+      cells.push({ date: null, key: `tail-${cells.length}` });
+    }
+    return cells;
+  }, [currentDate]);
+
+  // Navigation handlers
+  function handlePrev() {
+    const next = new Date(currentDate);
+    if (viewMode === "day") {
+      next.setDate(next.getDate() - 1);
+    } else if (viewMode === "week") {
+      next.setDate(next.getDate() - 7);
+    } else {
+      next.setMonth(next.getMonth() - 1);
+    }
+    setCurrentDate(next);
+  }
+
+  function handleNext() {
+    const next = new Date(currentDate);
+    if (viewMode === "day") {
+      next.setDate(next.getDate() + 1);
+    } else if (viewMode === "week") {
+      next.setDate(next.getDate() + 7);
+    } else {
+      next.setMonth(next.getMonth() + 1);
+    }
+    setCurrentDate(next);
+  }
+
+  function handleToday() {
+    setCurrentDate(new Date(today));
+  }
+
+  const headerLabel = useMemo(() => {
+    if (viewMode === "day") {
+      return currentDate.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    }
+    if (viewMode === "week") {
+      const start = weekDays[0];
+      const end = weekDays[6];
+      if (start.getMonth() === end.getMonth()) {
+        return start.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+      }
+      return `${start.toLocaleDateString("pt-BR", { month: "short" })} – ${end.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}`;
+    }
+    return currentDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  }, [currentDate, viewMode, weekDays]);
+
+  // Drag and Drop
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   async function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
@@ -169,214 +252,274 @@ function AgendaPage() {
     const parts = targetSlotId.split("_");
     if (parts.length < 3) return;
 
-    const dateStr = parts[1]; // YYYY-MM-DD
+    const dateStr = parts[1];
     const hourVal = parseInt(parts[2], 10);
-
-    // Create target datetime in correct format
     const targetDate = new Date(`${dateStr}T${String(hourVal).padStart(2, "0")}:00:00`);
     const formatted = formatTzString(targetDate);
 
-    // Optimistically update local view first
     qc.setQueryData<typeof demands>(["demands"], (prev) =>
       (prev ?? []).map((d) => (d.id === demandId ? { ...d, due_date: formatted } : d))
     );
 
     try {
-      // Save manual drop to database. This will trigger scheduler auto-push for conflicts!
-      const updates = [{ id: demandId, due_date: formatted }];
-      await batchUpdateFn({ data: { updates } });
+      await batchUpdateFn({ data: { updates: [{ id: demandId, due_date: formatted }] } });
       toast.success("Demanda reagendada!");
     } catch (err) {
-      toast.error("Erro ao salvar agendamento");
+      toast.error("Erro ao reagendar");
     } finally {
       qc.invalidateQueries({ queryKey: ["demands"] });
     }
   }
 
-  // Settings handlers
-  function saveConfig(newConfig: SchedulingConfig) {
-    setConfig(newConfig);
-    localStorage.setItem("CreativeFlow_ScheduleConfig", JSON.stringify(newConfig));
-    setShowSettings(false);
-    toast.success("Configuração de expediente salva!");
-    qc.invalidateQueries({ queryKey: ["demands"] });
-  }
-
-  const headerLabel = useMemo(() => {
-    const start = weekDays[0];
-    const end = weekDays[6];
-    if (start.getMonth() === end.getMonth()) {
-      return start.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-    }
-    return `${start.toLocaleDateString("pt-BR", { month: "short" })} – ${end.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}`;
-  }, [weekDays]);
-
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && viewMode !== "month") {
       const top = Math.max(0, (config.startHour - 1) * 56);
       scrollRef.current.scrollTop = top;
     }
-  }, [config.startHour]);
+  }, [config.startHour, viewMode]);
+
+  const clientsForOverlay = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const d of demands) {
+      if (d.clients) {
+        map.set((d.clients as any).id, (d.clients as any).name);
+      }
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [demands]);
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex flex-col h-[calc(100vh-60px)] bg-[#121212] text-zinc-100 overflow-hidden relative">
-
-        {/* ── TOP TOOLBAR ── */}
-        <div className="flex items-center gap-3 px-4 py-2.5 border-b border-zinc-800/80 shrink-0 bg-zinc-900/50">
+        
+        {/* ── TOOLBAR ── */}
+        <div className="flex items-center gap-3 px-4 py-2.5 border-b border-zinc-800/80 shrink-0 bg-zinc-900/50 flex-wrap">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setAnchor(weekStart(today))}
-            className="border-zinc-700 text-zinc-200 hover:bg-zinc-800/80"
+            onClick={handleToday}
+            className="border-zinc-700 text-zinc-200 hover:bg-zinc-800"
           >
             Hoje
           </Button>
 
           <div className="flex items-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 hover:bg-zinc-800"
-              onClick={() => {
-                const d = new Date(anchor);
-                d.setDate(d.getDate() - 7);
-                setAnchor(d);
-              }}
-            >
+            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-zinc-800" onClick={handlePrev}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 hover:bg-zinc-800"
-              onClick={() => {
-                const d = new Date(anchor);
-                d.setDate(d.getDate() + 7);
-                setAnchor(d);
-              }}
-            >
+            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-zinc-800" onClick={handleNext}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
 
-          <h2 className="text-base font-bold text-zinc-100 capitalize">{headerLabel}</h2>
+          <h2 className="text-sm md:text-base font-bold text-zinc-100 capitalize">{headerLabel}</h2>
 
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowSettings(!showSettings)}
-              className={cn(
-                "border-zinc-700 text-zinc-300 gap-1.5 hover:bg-zinc-800",
-                showSettings && "bg-zinc-800 text-white"
-              )}
-            >
-              <Settings className="h-3.5 w-3.5" />
-              Expediente
-            </Button>
+          {/* View Mode Selector */}
+          <div className="ml-auto flex items-center bg-zinc-950/60 p-0.5 rounded-lg border border-zinc-800">
+            {(["day", "week", "month"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={cn(
+                  "px-3 py-1 text-xs font-semibold rounded-md transition-all capitalize",
+                  viewMode === mode
+                    ? "bg-zinc-800 text-white shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200"
+                )}
+              >
+                {mode === "day" ? "Dia" : mode === "week" ? "Semana" : "Mês"}
+              </button>
+            ))}
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSettings(!showSettings)}
+            className={cn("border-zinc-700 text-zinc-300 gap-1.5 hover:bg-zinc-800", showSettings && "bg-zinc-800 text-white")}
+          >
+            <Settings className="h-3.5 w-3.5" />
+            Expediente
+          </Button>
         </div>
 
-        {/* ── EXPEDIENTE CONFIG (FLOATING CARD) ── */}
+        {/* ── SETTINGS PANEL ── */}
         {showSettings && (
-          <SettingsPanel config={config} onSave={saveConfig} onClose={() => setShowSettings(false)} />
+          <SettingsPanel
+            config={config}
+            onSave={(newCfg) => {
+              setConfig(newCfg);
+              localStorage.setItem("CreativeFlow_ScheduleConfig", JSON.stringify(newCfg));
+              setShowSettings(false);
+              toast.success("Expediente salvo!");
+              qc.invalidateQueries({ queryKey: ["demands"] });
+            }}
+            onClose={() => setShowSettings(false)}
+          />
         )}
 
-        {/* ── COLUMN HEADERS (DAYS) ── */}
-        <div className="flex border-b border-zinc-800/60 bg-zinc-900/30 shrink-0">
-          <div className="w-[60px] shrink-0 border-r border-zinc-800/20" />
-          {weekDays.map((day) => {
-            const iso = toISO(day);
-            const isToday = iso === todayISO;
-            return (
-              <div key={iso} className="flex-1 text-center py-2 border-l border-zinc-800/20 min-w-[120px]">
-                <div className="text-[10px] font-bold text-zinc-500 tracking-wider">
-                  {DAYS_SHORT[day.getDay()]}
-                </div>
-                <div className={cn(
-                  "mx-auto mt-1 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold",
-                  isToday ? "bg-primary text-primary-foreground font-black" : "text-zinc-300"
-                )}>
-                  {day.getDate()}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* ── SCROLLABLE GRID ── */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto">
-          <div className="flex relative">
-            
-            {/* Hour indicators on the left */}
-            <div className="w-[60px] shrink-0 select-none bg-zinc-900/20 border-r border-zinc-800/20 z-10">
-              {HOURS.map((h) => (
-                <div key={h} className="h-14 relative flex items-start justify-end pr-2.5">
-                  {h > 0 && (
-                    <span className="text-[10px] text-zinc-600 font-semibold mt-[-6px]">
-                      {String(h).padStart(2, "0")}:00
-                    </span>
-                  )}
-                </div>
+        {/* ── VIEW RENDERING ── */}
+        {viewMode === "month" ? (
+          /* ── MONTH VIEW ── */
+          <div className="flex-1 flex flex-col min-h-0 bg-zinc-950/20">
+            {/* Weekday labels */}
+            <div className="grid grid-cols-7 border-b border-zinc-800/80 bg-zinc-900/30 text-center py-2 text-xs font-bold text-zinc-500">
+              {DAYS_SHORT.map((day) => (
+                <div key={day}>{day}</div>
               ))}
             </div>
 
-            {/* Day columns containing slots */}
-            {weekDays.map((day) => {
-              const iso = toISO(day);
-              const isToday = iso === todayISO;
-              const currentHour = today.getHours();
-              const currentMinute = today.getMinutes();
+            {/* Days Grid */}
+            <div className="flex-1 grid grid-cols-7 grid-rows-5 md:grid-rows-6 border-b border-zinc-800/20">
+              {monthCells.map(({ date, key }) => {
+                if (!date) {
+                  return <div key={key} className="border-r border-b border-zinc-850 bg-zinc-950/10" />;
+                }
+                const iso = toISO(date);
+                const isToday = iso === todayISO;
+                const cellDemands = demandsByDate.get(iso) ?? [];
 
-              return (
-                <div
-                  key={iso}
-                  className={cn(
-                    "flex-1 border-l border-zinc-800/20 relative min-w-[120px]",
-                    isToday && "bg-primary/5"
-                  )}
-                >
-                  {/* Cells / Droppable targets */}
-                  {HOURS.map((h) => {
-                    const slotKey = `${iso}_${h}`;
-                    const demand = demandsBySlot.get(slotKey);
-                    const isBusiness = isValidSlot(new Date(`${iso}T${String(h).padStart(2, "0")}:00:00`), config);
-
-                    return (
-                      <DroppableHourCell
-                        key={h}
-                        id={`slot_${iso}_${h}`}
-                        isBusiness={isBusiness}
-                      >
-                        {demand && (
-                          <DraggableDemandCard
-                            demand={demand}
-                            onClick={() => overlay.open(demand.id)}
-                          />
-                        )}
-                      </DroppableHourCell>
-                    );
-                  })}
-
-                  {/* Red line for current time */}
-                  {isToday && (
-                    <div
-                      className="absolute left-0 right-0 z-20 pointer-events-none"
-                      style={{ top: `${(currentHour * 60 + currentMinute) / 60 * 56}px` }}
-                    >
-                      <div className="relative flex items-center">
-                        <div className="h-2 w-2 rounded-full bg-red-500 -ml-1 shrink-0" />
-                        <div className="h-px flex-1 bg-red-500" />
-                      </div>
+                return (
+                  <div
+                    key={key}
+                    onClick={() => overlay.openNew(clientsForOverlay, undefined, "nao_iniciado")}
+                    className={cn(
+                      "border-r border-b border-zinc-850 p-1 flex flex-col justify-start gap-1 overflow-hidden cursor-pointer hover:bg-zinc-900/30 transition-colors",
+                      isToday && "bg-primary/5"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={cn(
+                        "text-xs font-bold h-6 w-6 rounded-full flex items-center justify-center",
+                        isToday ? "bg-primary text-primary-foreground font-black" : "text-zinc-500"
+                      )}>
+                        {date.getDate()}
+                      </span>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+
+                    {/* Compact demand chips */}
+                    <div className="space-y-1 overflow-y-auto max-h-[80px] scrollbar-thin">
+                      {cellDemands.map((d) => (
+                        <div
+                          key={d.id}
+                          title={`${d.title} (${STATUS_LABELS[d.status]})`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            overlay.open(d.id, clientsForOverlay);
+                          }}
+                          className={cn(
+                            "text-[9px] px-1.5 py-0.5 rounded border truncate border-l-2 font-medium",
+                            STATUS_BG[d.status] ?? "bg-zinc-800 border-zinc-700",
+                            PRIORITY_COLOR[d.priority] ?? "border-zinc-500"
+                          )}
+                        >
+                          {d.title}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        ) : (
+          /* ── GRID FOR DAY / WEEK VIEW ── */
+          <>
+            {/* Headers */}
+            <div className="flex border-b border-zinc-800/60 bg-zinc-900/30 shrink-0">
+              <div className="w-[60px] shrink-0 border-r border-zinc-800/20" />
+              {weekDays.map((day) => {
+                const iso = toISO(day);
+                const isToday = iso === todayISO;
+                return (
+                  <div key={iso} className="flex-1 text-center py-2 border-l border-zinc-800/20 min-w-[120px]">
+                    <div className="text-[10px] font-bold text-zinc-500 tracking-wider">
+                      {viewMode === "day" ? WEEKDAY_NAMES[day.getDay()] : DAYS_SHORT[day.getDay()]}
+                    </div>
+                    <div className={cn(
+                      "mx-auto mt-1 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold",
+                      isToday ? "bg-primary text-primary-foreground font-black" : "text-zinc-300"
+                    )}>
+                      {day.getDate()}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Scrollable grid */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto">
+              <div className="flex relative">
+                
+                {/* Hour labels */}
+                <div className="w-[60px] shrink-0 select-none bg-zinc-900/20 border-r border-zinc-800/20 z-10">
+                  {HOURS.map((h) => (
+                    <div key={h} className="h-14 relative flex items-start justify-end pr-2.5">
+                      {h > 0 && (
+                        <span className="text-[10px] text-zinc-600 font-semibold mt-[-6px]">
+                          {String(h).padStart(2, "0")}:00
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Day columns */}
+                {weekDays.map((day) => {
+                  const iso = toISO(day);
+                  const isToday = iso === todayISO;
+                  const currentHour = today.getHours();
+                  const currentMinute = today.getMinutes();
+
+                  return (
+                    <div
+                      key={iso}
+                      className={cn(
+                        "flex-1 border-l border-zinc-800/20 relative min-w-[120px]",
+                        isToday && "bg-primary/5"
+                      )}
+                    >
+                      {HOURS.map((h) => {
+                        const slotKey = `${iso}_${h}`;
+                        const demand = demandsBySlot.get(slotKey);
+                        const isBusiness = isValidSlot(new Date(`${iso}T${String(h).padStart(2, "0")}:00:00`), config);
+
+                        return (
+                          <DroppableHourCell
+                            key={h}
+                            id={`slot_${iso}_${h}`}
+                            isBusiness={isBusiness}
+                          >
+                            {demand && (
+                              <DraggableDemandCard
+                                demand={demand}
+                                onClick={() => overlay.open(demand.id, clientsForOverlay)}
+                              />
+                            )}
+                          </DroppableHourCell>
+                        );
+                      })}
+
+                      {/* Time pointer */}
+                      {isToday && (
+                        <div
+                          className="absolute left-0 right-0 z-20 pointer-events-none"
+                          style={{ top: `${(currentHour * 60 + currentMinute) / 60 * 56}px` }}
+                        >
+                          <div className="relative flex items-center">
+                            <div className="h-2 w-2 rounded-full bg-red-500 -ml-1 shrink-0" />
+                            <div className="h-px flex-1 bg-red-500" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
 
         {/* ── FOOTER ── */}
         <div className="shrink-0 px-4 py-1.5 border-t border-zinc-800/80 bg-zinc-900/60 flex items-center justify-between text-[10px] text-zinc-500">
@@ -389,7 +532,6 @@ function AgendaPage() {
   );
 }
 
-/** Droppable Cell representant for each hour of each day */
 function DroppableHourCell({
   id,
   isBusiness,
@@ -400,7 +542,6 @@ function DroppableHourCell({
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
-
   return (
     <div
       ref={setNodeRef}
@@ -415,7 +556,6 @@ function DroppableHourCell({
   );
 }
 
-/** Draggable Demand Card */
 function DraggableDemandCard({
   demand,
   onClick,
@@ -427,9 +567,7 @@ function DraggableDemandCard({
     id: demand.id,
   });
 
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
+  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
 
   return (
     <div
@@ -461,7 +599,6 @@ function DraggableDemandCard({
   );
 }
 
-/** Settings Panel Component */
 function SettingsPanel({
   config,
   onSave,
@@ -493,14 +630,7 @@ function SettingsPanel({
       toast.error("O horário de almoço deve estar dentro do expediente.");
       return;
     }
-    onSave({
-      workingDays,
-      startHour,
-      endHour,
-      lunchStart,
-      lunchEnd,
-      timezone,
-    });
+    onSave({ workingDays, startHour, endHour, lunchStart, lunchEnd, timezone });
   };
 
   return (
@@ -515,7 +645,6 @@ function SettingsPanel({
         </button>
       </div>
 
-      {/* Days checkboxes */}
       <div className="space-y-1.5">
         <Label className="text-[10px] text-zinc-500 uppercase font-bold">Dias Úteis</Label>
         <div className="flex flex-wrap gap-2 pt-1">
@@ -540,7 +669,6 @@ function SettingsPanel({
         </div>
       </div>
 
-      {/* Expediente Start / End */}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <Label className="text-[10px] text-zinc-500 uppercase font-bold">Início</Label>
@@ -566,7 +694,6 @@ function SettingsPanel({
         </div>
       </div>
 
-      {/* Lunch Break Start / End */}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <Label className="text-[10px] text-zinc-500 uppercase font-bold">Almoço Início</Label>
@@ -592,7 +719,6 @@ function SettingsPanel({
         </div>
       </div>
 
-      {/* Timezone */}
       <div className="space-y-1">
         <Label className="text-[10px] text-zinc-500 uppercase font-bold">Fuso Horário</Label>
         <select
@@ -606,7 +732,6 @@ function SettingsPanel({
         </select>
       </div>
 
-      {/* Save Button */}
       <Button onClick={handleSave} className="w-full gap-2 h-8 text-xs">
         <Save className="h-3.5 w-3.5" />
         Salvar Configuração

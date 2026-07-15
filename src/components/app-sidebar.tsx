@@ -123,7 +123,9 @@ export function AppSidebar() {
 
       <SidebarFooter>
         <div className="flex items-center gap-2 p-2">
-          <UserCircle className="h-5 w-5 text-muted-foreground shrink-0" />
+          <Link to="/profile" title="Minha Conta" className="hover:opacity-80 transition-opacity">
+            <UserCircle className="h-5 w-5 text-muted-foreground hover:text-primary transition-colors cursor-pointer shrink-0" />
+          </Link>
           {!collapsed && (
             <Button variant="ghost" size="sm" onClick={signOut} className="text-xs h-7">
               Sair

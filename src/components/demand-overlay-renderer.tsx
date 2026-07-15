@@ -6,7 +6,17 @@ import { listClients } from "@/lib/clients.functions";
 import { Layers } from "lucide-react";
 
 export function DemandOverlayRenderer() {
-  const { demandId, minimized, clients, close, minimize, restore } = useDemandOverlay();
+  const {
+    demandId,
+    minimized,
+    clients,
+    defaultClientId,
+    defaultStatus,
+    close,
+    minimize,
+    restore,
+  } = useDemandOverlay();
+
   const listClientsFn = useServerFn(listClients);
   const { data: allClients = [] } = useQuery({
     queryKey: ["clients"],
@@ -38,6 +48,8 @@ export function DemandOverlayRenderer() {
       onClose={close}
       onMinimize={minimize}
       clients={resolvedClients}
+      defaultClientId={defaultClientId}
+      defaultStatus={defaultStatus}
     />
   );
 }

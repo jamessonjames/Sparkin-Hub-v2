@@ -58,8 +58,6 @@ function ClientPage() {
   const clientDemands = allDemands.filter((d) => d.client_id === id);
 
   const [saving, setSaving] = useState(false);
-  const [openNew, setOpenNew] = useState(false);
-  const [creating, setCreating] = useState(false);
   const overlay = useDemandOverlay();
 
   async function handleMove(demandId: string, status: DemandStatus) {
@@ -71,20 +69,6 @@ function ClientPage() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao mover");
       qc.invalidateQueries({ queryKey: ["demands"] });
-    }
-  }
-
-  async function handleCreate(values: DemandFormValues) {
-    setCreating(true);
-    try {
-      await createFn({ data: { ...values, client_id: id } });
-      toast.success("Demanda criada!");
-      qc.invalidateQueries({ queryKey: ["demands"] });
-      setOpenNew(false);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao criar demanda");
-    } finally {
-      setCreating(false);
     }
   }
 
@@ -184,7 +168,7 @@ function ClientPage() {
             }))}
             onMove={handleMove}
             onOpen={(demandId) => overlay.open(demandId, [{ id: client.id, name: client.name }])}
-            onAdd={() => setOpenNew(true)}
+            onAdd={(status) => overlay.openNew([{ id: client.id, name: client.name }], client.id, status)}
           />
         </TabsContent>
 
@@ -214,22 +198,6 @@ function ClientPage() {
           <ClientNotesPanel clientId={id} />
         </TabsContent>
       </Tabs>
-
-      <Dialog open={openNew} onOpenChange={setOpenNew}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Nova demanda para {client.name}</DialogTitle>
-          </DialogHeader>
-          <DemandForm
-            clients={[{ id: client.id, name: client.name }]}
-            initial={{ client_id: client.id }}
-            onSubmit={handleCreate}
-            submitting={creating}
-            submitLabel="Criar"
-            lockedClient={true}
-          />
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
