@@ -14,6 +14,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.index'
 import { Route as AuthenticatedDemandsRouteImport } from './routes/_authenticated.demands'
+import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated.agenda'
 import { Route as AuthenticatedClientsIndexRouteImport } from './routes/_authenticated.clients.index'
 import { Route as AuthenticatedClientsNewRouteImport } from './routes/_authenticated.clients.new'
 import { Route as AuthenticatedClientsIdRouteImport } from './routes/_authenticated.clients.$id'
@@ -42,6 +43,11 @@ const AuthenticatedDemandsRoute = AuthenticatedDemandsRouteImport.update({
   path: '/demands',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAgendaRoute = AuthenticatedAgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedClientsIndexRoute =
   AuthenticatedClientsIndexRouteImport.update({
     id: '/clients/',
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/agenda': typeof AuthenticatedAgendaRoute
   '/demands': typeof AuthenticatedDemandsRoute
   '/clients/$id': typeof AuthenticatedClientsIdRoute
   '/clients/new': typeof AuthenticatedClientsNewRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/agenda': typeof AuthenticatedAgendaRoute
   '/demands': typeof AuthenticatedDemandsRoute
   '/': typeof AuthenticatedIndexRoute
   '/clients/$id': typeof AuthenticatedClientsIdRoute
@@ -82,6 +90,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
   '/_authenticated/demands': typeof AuthenticatedDemandsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/clients/$id': typeof AuthenticatedClientsIdRoute
@@ -94,6 +103,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/reset-password'
+    | '/agenda'
     | '/demands'
     | '/clients/$id'
     | '/clients/new'
@@ -102,6 +112,7 @@ export interface FileRouteTypes {
   to:
     | '/auth'
     | '/reset-password'
+    | '/agenda'
     | '/demands'
     | '/'
     | '/clients/$id'
@@ -112,6 +123,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/reset-password'
+    | '/_authenticated/agenda'
     | '/_authenticated/demands'
     | '/_authenticated/'
     | '/_authenticated/clients/$id'
@@ -162,6 +174,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDemandsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/agenda': {
+      id: '/_authenticated/agenda'
+      path: '/agenda'
+      fullPath: '/agenda'
+      preLoaderRoute: typeof AuthenticatedAgendaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/clients/': {
       id: '/_authenticated/clients/'
       path: '/clients'
@@ -187,6 +206,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedAgendaRoute: typeof AuthenticatedAgendaRoute
   AuthenticatedDemandsRoute: typeof AuthenticatedDemandsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedClientsIdRoute: typeof AuthenticatedClientsIdRoute
@@ -195,6 +215,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAgendaRoute: AuthenticatedAgendaRoute,
   AuthenticatedDemandsRoute: AuthenticatedDemandsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedClientsIdRoute: AuthenticatedClientsIdRoute,

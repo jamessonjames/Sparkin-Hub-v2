@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
+import { BottomNav } from "./bottom-nav";
 
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
   return (
@@ -12,8 +13,9 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
             <SidebarTrigger />
             {title && <h1 className="font-display font-semibold text-foreground">{title}</h1>}
           </header>
-          <main className="flex-1 min-w-0">{children}</main>
+          <main className="flex-1 min-w-0 pb-16 md:pb-0">{children}</main>
         </div>
+        <BottomNav />
       </div>
     </SidebarProvider>
   );
