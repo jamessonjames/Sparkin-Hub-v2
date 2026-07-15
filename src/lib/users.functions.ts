@@ -16,21 +16,27 @@ export const listProfiles = createServerFn({ method: "GET" })
 export const listUsersWithRoles = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+    // Query profiles
+    const { data: profiles, error: pe } = await context.supabase
       .from("profiles")
-      .select(`
-        id,
-        name,
-        email,
-        avatar_url,
-        user_roles (
-          id,
-          role
-        )
-      `)
+      .select("id, name, email, avatar_url")
       .order("name", { ascending: true });
-    if (error) throw new Error(error.message);
-    return data ?? [];
+    if (pe) throw new Error(pe.message);
+
+    // Query user roles separately to avoid Postgrest relationship error
+    const { data: roles, error: re } = await context.supabase
+      .from("user_roles")
+      .select("user_id, role");
+    if (re) throw new Error(re.message);
+
+    // Merge locally
+    return (profiles ?? []).map((p) => {
+      const roleRow = (roles ?? []).find((r) => r.user_id === p.id);
+      return {
+        ...p,
+        user_roles: roleRow ? [{ id: roleRow.user_id, role: roleRow.role }] : [],
+      };
+    });
   });
 
 export const updateUserRole = createServerFn({ method: "POST" })
@@ -42,7 +48,6 @@ export const updateUserRole = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    // 1. Check if role entry exists
     const { data: existing } = await context.supabase
       .from("user_roles")
       .select("id")

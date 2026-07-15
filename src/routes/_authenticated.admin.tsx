@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Settings,
@@ -24,6 +26,7 @@ import {
   User,
   Info,
   Save,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +61,14 @@ function AdminPage() {
   const [systemName, setSystemName] = useState("Creative Flow");
   const [faviconUrl, setFaviconUrl] = useState("");
   const [theme, setTheme] = useState<"light" | "dark">("dark");
+
+  // User creation states
+  const [openCreate, setOpenCreate] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState<"owner" | "admin" | "collaborator">("collaborator");
+  const [creatingUser, setCreatingUser] = useState(false);
 
   // Integrations states (persisted in localstorage)
   const [notionEnabled, setNotionEnabled] = useState(false);
@@ -139,6 +150,49 @@ function AdminPage() {
       toast.error("Erro ao atualizar nível de acesso");
     }
   }
+
+  async function handleCreateUser(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newName.trim() || !newEmail.trim() || !newPassword.trim()) {
+      toast.error("Preencha todos os campos obrigatórios.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("A senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+
+    setCreatingUser(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-users", {
+        body: {
+          action: "createUser",
+          email: newEmail,
+          password: newPassword,
+          name: newName,
+          role: newRole,
+        },
+      });
+
+      if (error) {
+        // If invoking edge function failed (e.g. function not deployed yet)
+        throw new Error(error.message || "A função edge 'admin-users' pode não estar implantada.");
+      }
+
+      toast.success("Usuário criado com sucesso!");
+      setOpenCreate(false);
+      setNewName("");
+      setNewEmail("");
+      setNewPassword("");
+      setNewRole("collaborator");
+      qc.invalidateQueries({ queryKey: ["users-with-roles"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao criar usuário");
+    } finally {
+      setCreatingUser(false);
+    }
+  }
+
 
   return (
     <div className="w-full p-4 md:p-6 space-y-6 pb-24 md:pb-6">
@@ -229,9 +283,14 @@ function AdminPage() {
             
             {/* Users list (Left) */}
             <Card className="bg-zinc-900 border-zinc-800 md:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-sm font-bold uppercase tracking-wider text-zinc-400">Usuários Cadastrados</CardTitle>
-                <CardDescription className="text-xs">Defina o nível de acesso para cada membro da equipe.</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-zinc-400">Usuários Cadastrados</CardTitle>
+                  <CardDescription className="text-xs">Defina o nível de acesso para cada membro da equipe.</CardDescription>
+                </div>
+                <Button onClick={() => setOpenCreate(true)} size="sm" className="gap-1.5 text-xs h-8">
+                  <Plus className="h-3.5 w-3.5" /> Novo Usuário
+                </Button>
               </CardHeader>
               <CardContent className="space-y-4">
                 {isLoading ? (
@@ -403,6 +462,77 @@ function AdminPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={openCreate} onOpenChange={setOpenCreate}>
+        <DialogContent className="max-w-md w-full bg-zinc-900 border border-zinc-800 text-zinc-100">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-200">Cadastrar Novo Usuário</DialogTitle>
+            <DialogDescription className="text-zinc-500 text-xs">
+              Registre um novo membro da equipe. Ele poderá fazer login imediatamente com os dados informados.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateUser} className="space-y-4 pt-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-zinc-500 uppercase font-bold">Nome completo</Label>
+              <Input
+                placeholder="Ex: Ana Silva"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className="bg-zinc-850 border-zinc-700 text-sm h-9 text-zinc-200"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-zinc-500 uppercase font-bold">E-mail</Label>
+              <Input
+                type="email"
+                placeholder="Ex: ana@empresa.com"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                className="bg-zinc-850 border-zinc-700 text-sm h-9 text-zinc-200"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-zinc-500 uppercase font-bold">Senha de Acesso</Label>
+              <Input
+                type="password"
+                placeholder="Mínimo 6 caracteres"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="bg-zinc-850 border-zinc-700 text-sm h-9 text-zinc-200"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-zinc-500 uppercase font-bold">Nível de Acesso</Label>
+              <select
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value as any)}
+                className="w-full bg-zinc-850 border border-zinc-700 rounded-md p-2 text-xs text-zinc-200 focus:outline-none h-9"
+              >
+                <option value="owner">Proprietário</option>
+                <option value="admin">Administrador</option>
+                <option value="collaborator">Colaborador</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-3">
+              <Button type="button" variant="ghost" onClick={() => setOpenCreate(false)} className="h-9 px-4 text-xs">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={creatingUser} className="h-9 px-6 text-xs font-bold gap-1.5">
+                <Check className="h-3.5 w-3.5" />
+                {creatingUser ? "Cadastrando..." : "Confirmar Cadastro"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
