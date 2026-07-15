@@ -126,23 +126,19 @@ function KanbanColumn({
           <KanbanCard key={d.id} demand={d} onOpen={onOpen} />
         ))}
 
-        {demands.length === 0 && !isOver && (
-          <div className="flex items-center justify-center h-16 text-xs text-zinc-700 select-none">
-            Sem itens
-          </div>
+        {onAdd && (
+          <button
+            onClick={() => onAdd(status)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-dashed text-left w-full transition-all cursor-pointer bg-transparent",
+              "border-zinc-800/40 hover:border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-850/30"
+            )}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>demanda</span>
+          </button>
         )}
       </div>
-
-      {/* Add at bottom */}
-      {onAdd && (
-        <button
-          onClick={() => onAdd(status)}
-          className="mt-1.5 flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs text-zinc-600 hover:text-zinc-200 hover:bg-zinc-800/50 transition-all w-full"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span>Adicionar demanda</span>
-        </button>
-      )}
     </div>
   );
 }
