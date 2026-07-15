@@ -1,12 +1,13 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { LayoutDashboard, Users, ListChecks, CalendarDays } from "lucide-react";
 
-const ITEMS = [
+type Item = { title: string; to: string; icon: typeof LayoutDashboard; exact?: boolean };
+const ITEMS: Item[] = [
   { title: "Início", to: "/", icon: LayoutDashboard, exact: true },
   { title: "Clientes", to: "/clients", icon: Users },
   { title: "Demandas", to: "/demands", icon: ListChecks },
   { title: "Agenda", to: "/agenda", icon: CalendarDays },
-] as const;
+];
 
 export function BottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
