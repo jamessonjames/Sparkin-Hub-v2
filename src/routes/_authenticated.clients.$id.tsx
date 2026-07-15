@@ -98,9 +98,24 @@ function ClientPage() {
             </span>
           </div>
         </div>
-        <Button variant="destructive" size="sm" onClick={handleDelete}>
-          <Trash2 className="h-4 w-4 mr-1" /> Excluir
-        </Button>
+        <div className="flex items-center gap-2">
+          {client.slug && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const url = `${window.location.origin}/portal/${client.slug}`;
+                navigator.clipboard.writeText(url);
+                toast.success("Link do portal copiado!");
+              }}
+            >
+              Copiar link do portal
+            </Button>
+          )}
+          <Button variant="destructive" size="sm" onClick={handleDelete}>
+            <Trash2 className="h-4 w-4 mr-1" /> Excluir
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="overview">
