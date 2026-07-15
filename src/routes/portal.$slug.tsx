@@ -34,8 +34,9 @@ export const Route = createFileRoute("/portal/$slug")({
 function PortalPage() {
   const { client, demands } = Route.useLoaderData();
 
-  const active = demands.filter((d) => d.status !== "concluido");
-  const done = demands.filter((d) => d.status === "concluido");
+  type D = (typeof demands)[number];
+  const active = demands.filter((d: D) => d.status !== "concluido");
+  const done = demands.filter((d: D) => d.status === "concluido");
 
   return (
     <div className="min-h-screen bg-background">
@@ -61,7 +62,7 @@ function PortalPage() {
             <p className="text-muted-foreground text-sm">Nenhuma demanda em andamento.</p>
           ) : (
             <div className="grid gap-3">
-              {active.map((d) => (
+              {active.map((d: D) => (
                 <DemandCard key={d.id} d={d} />
               ))}
             </div>
@@ -75,7 +76,7 @@ function PortalPage() {
               <span className="text-muted-foreground font-normal">({done.length})</span>
             </h2>
             <div className="grid gap-3">
-              {done.map((d) => (
+              {done.map((d: D) => (
                 <DemandCard key={d.id} d={d} />
               ))}
             </div>
