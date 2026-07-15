@@ -7,7 +7,7 @@ export const Route = createFileRoute("/auth")({
   ssr: false,
   beforeLoad: async () => {
     const { data } = await supabase.auth.getUser();
-    if (data.user) throw redirect({ to: "/dashboard" });
+    if (data.user) throw redirect({ to: "/" });
   },
   head: () => ({ meta: [{ title: "Entrar — Creative Flow Hub" }] }),
   component: AuthPage,
@@ -46,7 +46,7 @@ function AuthPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate({ to: "/dashboard" });
+        navigate({ to: "/" });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erro inesperado";

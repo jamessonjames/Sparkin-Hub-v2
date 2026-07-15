@@ -17,7 +17,7 @@ import {
 import { KanbanBoard } from "@/components/kanban-board";
 import { DemandForm, type DemandFormValues } from "@/components/demand-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DemandDetailDialog } from "@/components/demand-detail-dialog";
+import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { listNotes, upsertNote, deleteNote, NOTE_TYPES } from "@/lib/notes.functions";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -59,8 +59,8 @@ function ClientPage() {
 
   const [saving, setSaving] = useState(false);
   const [openNew, setOpenNew] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const overlay = useDemandOverlay();
 
   async function handleMove(demandId: string, status: DemandStatus) {
     qc.setQueryData<typeof allDemands>(["demands"], (prev) =>
@@ -117,7 +117,7 @@ function ClientPage() {
   if (!client) return <div className="p-6 text-muted-foreground">Carregando...</div>;
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-4">
+    <div className="w-full p-4 md:p-6 space-y-4">
       <button
         onClick={() => navigate({ to: "/clients" })}
         className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
@@ -183,7 +183,8 @@ function ClientPage() {
               clients: d.clients ?? null,
             }))}
             onMove={handleMove}
-            onOpen={(demandId) => setEditId(demandId)}
+            onOpen={(demandId) => overlay.open(demandId, [{ id: client.id, name: client.name }])}
+            onAdd={() => setOpenNew(true)}
           />
         </TabsContent>
 
@@ -229,14 +230,6 @@ function ClientPage() {
           />
         </DialogContent>
       </Dialog>
-
-      {editId && (
-        <DemandDetailDialog
-          id={editId}
-          onClose={() => setEditId(null)}
-          clients={[{ id: client.id, name: client.name }]}
-        />
-      )}
     </div>
   );
 }

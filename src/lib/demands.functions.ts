@@ -132,3 +132,23 @@ export const deleteDemand = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const batchUpdateDueDates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      updates: z.array(z.object({ id: z.string().uuid(), due_date: z.string().nullable() }))
+    }).parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    // Perform updates in parallel
+    const promises = data.updates.map(async (u) => {
+      const { error } = await context.supabase
+        .from("demands")
+        .update({ due_date: u.due_date })
+        .eq("id", u.id);
+      if (error) throw new Error(`Erro ao atualizar demanda ${u.id}: ${error.message}`);
+    });
+    await Promise.all(promises);
+    return { ok: true };
+  });

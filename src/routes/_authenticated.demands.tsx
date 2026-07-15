@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
 import { Plus } from "lucide-react";
-import { DemandDetailDialog } from "@/components/demand-detail-dialog";
+import { useDemandOverlay } from "@/contexts/demand-overlay";
 
 export const Route = createFileRoute("/_authenticated/demands")({
   head: () => ({ meta: [{ title: "Demandas — Creative Flow Hub" }] }),
@@ -29,12 +29,12 @@ function DemandsPage() {
   const moveFn = useServerFn(moveDemandStatus);
   const createFn = useServerFn(createDemand);
   const qc = useQueryClient();
+  const overlay = useDemandOverlay();
 
   const { data: demands = [] } = useQuery({ queryKey: ["demands"], queryFn: () => listFn() });
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn() });
 
   const [openNew, setOpenNew] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   async function handleMove(id: string, status: DemandStatus) {
@@ -64,7 +64,7 @@ function DemandsPage() {
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="w-full p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-display text-2xl font-bold text-foreground">Demandas</h2>
@@ -90,12 +90,13 @@ function DemandsPage() {
             clients: d.clients ?? null,
           }))}
           onMove={handleMove}
-          onOpen={(id) => setEditId(id)}
+          onOpen={(id) => overlay.open(id, clients.map((c) => ({ id: c.id, name: c.name })))}
+          onAdd={() => setOpenNew(true)}
         />
       )}
 
       <Dialog open={openNew} onOpenChange={setOpenNew}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl w-[calc(100vw-48px)]">
           <DialogHeader>
             <DialogTitle>Nova demanda</DialogTitle>
           </DialogHeader>
@@ -107,14 +108,6 @@ function DemandsPage() {
           />
         </DialogContent>
       </Dialog>
-
-      {editId && (
-        <DemandDetailDialog
-          id={editId}
-          onClose={() => setEditId(null)}
-          clients={clients.map((c) => ({ id: c.id, name: c.name }))}
-        />
-      )}
     </div>
   );
 }
