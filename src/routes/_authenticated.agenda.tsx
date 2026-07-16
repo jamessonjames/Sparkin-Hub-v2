@@ -401,19 +401,64 @@ function AgendaPage() {
   // Drag and Drop sensors
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  function getEffectiveDueDate(demand: AgendaDemand) {
+    return demand.status === "concluido" ? demand.due_date : (scheduledMap[demand.id] ?? demand.due_date);
+  }
+
+  function findSchedulingConflict(demandId: string, targetDate: Date) {
+    const movingDemand = demands.find((d) => d.id === demandId) as AgendaDemand | undefined;
+    if (!movingDemand) return { ok: false as const, message: "Demanda não encontrada." };
+
+    const duration = getDemandDurationHours(movingDemand);
+    const slotCursor = new Date(targetDate);
+    for (let step = 0; step < Math.ceil(duration / 0.5); step += 1) {
+      if (!isValidSlot(slotCursor, config)) {
+        return { ok: false as const, message: "Este intervalo fica fora do expediente configurado." };
+      }
+      slotCursor.setMinutes(slotCursor.getMinutes() + 30);
+    }
+
+    const targetEnd = addHours(targetDate, duration);
+    for (const demand of demands as AgendaDemand[]) {
+      if (demand.id === demandId) continue;
+
+      const dueDate = getEffectiveDueDate(demand);
+      if (!dueDate) continue;
+
+      const otherStart = safeParseDate(dueDate);
+      const otherEnd = addHours(otherStart, getDemandDurationHours(demand));
+      if (rangesOverlap(targetDate, targetEnd, otherStart, otherEnd)) {
+        return {
+          ok: false as const,
+          message: `Horário ocupado por “${demand.title}”. Escolha um intervalo livre.`,
+        };
+      }
+    }
+
+    return { ok: true as const };
+  }
+
+  function handleDragStart(e: DragStartEvent) {
+    setActiveDragId(String(e.active.id));
+  }
+
   async function handleDragEnd(e: DragEndEvent) {
-    const { active, over } = e;
-    if (!over) return;
+    setActiveDragId(null);
+
+    const { active } = e;
+    const targetSlotId = getSlotIdFromDragEnd(e);
+    if (!targetSlotId) return;
 
     const demandId = String(active.id);
-    const targetSlotId = String(over.id); // e.g. "slot_2026-07-15_09_30"
-    const parts = targetSlotId.split("_");
-    if (parts.length < 4) return;
+    const targetDate = parseSlotId(targetSlotId);
+    if (!targetDate) return;
 
-    const dateStr = parts[1];
-    const hourVal = parseInt(parts[2], 10);
-    const minVal = parseInt(parts[3], 10);
-    const targetDate = new Date(`${dateStr}T${String(hourVal).padStart(2, "0")}:${String(minVal).padStart(2, "0")}:00`);
+    const conflict = findSchedulingConflict(demandId, targetDate);
+    if (!conflict.ok) {
+      toast.error(conflict.message);
+      return;
+    }
+
     const formatted = formatTzString(targetDate);
 
     qc.setQueryData<typeof demands>(["demands"], (prev) =>
@@ -429,6 +474,13 @@ function AgendaPage() {
       qc.invalidateQueries({ queryKey: ["demands"] });
     }
   }
+
+  const activeDragDemand = useMemo(() => {
+    if (!activeDragId) return null;
+    const demand = demands.find((d) => d.id === activeDragId) as AgendaDemand | undefined;
+    if (!demand) return null;
+    return { ...demand, due_date: getEffectiveDueDate(demand) };
+  }, [activeDragId, demands, scheduledMap]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
