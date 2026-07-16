@@ -488,7 +488,7 @@ function NoteEditorDialog({
   const [saving, setSaving] = useState(false);
 
   // Sync when note changes
-  useMemo(() => {
+  useEffect(() => {
     if (note) {
       setTitle(note.title);
       setContent(note.content ?? "");
