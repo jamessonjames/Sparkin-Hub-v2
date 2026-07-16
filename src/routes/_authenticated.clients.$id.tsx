@@ -19,7 +19,7 @@ import { KanbanBoard } from "@/components/kanban-board";
 import { DemandForm, type DemandFormValues } from "@/components/demand-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
-import { listNotes, upsertNote, deleteNote, NOTE_TYPES } from "@/lib/notes.functions";
+import { ClientNotesPanel } from "@/components/client-notes-panel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
