@@ -329,11 +329,11 @@ function AgendaPage() {
     const formatted = formatTzString(targetDate);
 
     qc.setQueryData<typeof demands>(["demands"], (prev) =>
-      (prev ?? []).map((d) => (d.id === demandId ? { ...d, due_date: formatted } : d))
+      (prev ?? []).map((d) => (d.id === demandId ? { ...d, due_date: formatted, is_manually_scheduled: true } as any : d))
     );
 
     try {
-      await batchUpdateFn({ data: { updates: [{ id: demandId, due_date: formatted }] } });
+      await batchUpdateFn({ data: { updates: [{ id: demandId, due_date: formatted, is_manually_scheduled: true }] } });
       toast.success("Demanda reagendada!");
     } catch (err) {
       toast.error("Erro ao reagendar");
