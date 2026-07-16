@@ -55,6 +55,8 @@ export function useAutoScheduler() {
     const scheduled = scheduleByPriority(items as any, config);
     const updates: { id: string; due_date: string | null }[] = [];
     for (const d of active) {
+      if (d.is_manually_scheduled && d.due_date) continue;
+
       const next = scheduled[d.id];
       if (next && next !== d.due_date) {
         updates.push({ id: d.id, due_date: next });

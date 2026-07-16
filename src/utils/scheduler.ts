@@ -127,6 +127,7 @@ export interface UnscheduledDemand {
   due_date: string | null;
   estimated_hours?: number | null;
   created_at: string;
+  is_manually_scheduled?: boolean | null;
 }
 
 /** Helper to block slots occupied by a demand */
@@ -299,9 +300,9 @@ export function scheduleDemands(
 
 /**
  * Priority-first rescheduler.
- * Ignores existing due_date on active demands and packs everything sequentially
- * starting from the next available working slot, sorted by priority (urgent > high > medium > low),
- * ties broken by created_at ASC. Concluded demands keep their due_date.
+ * Manually scheduled demands are pinned: their saved due_date blocks that slot
+ * and is never moved by the automatic scheduler. Remaining active demands are
+ * packed into free slots by priority (urgent > high > medium > low), ties by created_at ASC.
  */
 export function scheduleByPriority(
   demands: UnscheduledDemand[],
