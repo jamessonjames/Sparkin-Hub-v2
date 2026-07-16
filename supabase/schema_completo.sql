@@ -331,4 +331,28 @@ ALTER TABLE public.demands
     ELSE (due_date::date + TIME '09:00') AT TIME ZONE 'America/Sao_Paulo'
   END;
 
+-- ==========================================
+-- MIGRATION: normalize_midnight_demand_due_dates.sql
+-- ==========================================
+
+UPDATE public.demands
+SET due_date = (due_date::date + TIME '09:00') AT TIME ZONE 'America/Sao_Paulo'
+WHERE due_date IS NOT NULL
+  AND due_date::time = TIME '00:00';
+
+-- ==========================================
+-- MIGRATION: restrict_security_definer_functions.sql
+-- ==========================================
+
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.is_team(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM PUBLIC, anon;
+
+GRANT EXECUTE ON FUNCTION public.is_team(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated, service_role;
+
+ALTER FUNCTION public.is_team(uuid) SECURITY INVOKER;
+ALTER FUNCTION public.has_role(uuid, public.app_role) SECURITY INVOKER;
+
 
