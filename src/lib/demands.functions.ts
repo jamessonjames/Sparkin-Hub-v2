@@ -259,7 +259,7 @@ export const batchUpdateDueDates = createServerFn({ method: "POST" })
       }
       const { error } = await context.supabase
         .from("demands")
-        .update(patch)
+        .update(patch as any)
         .eq("id", u.id);
       if (error) throw new Error(`Erro ao atualizar demanda ${u.id}: ${error.message}`);
     });
