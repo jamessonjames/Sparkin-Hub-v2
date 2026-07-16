@@ -76,6 +76,7 @@ export function DemandDetailDialog({
   portalBillingModel,
   initialDemandData,
   onPortalDemandCreated,
+  onPortalDemandUpdated,
 }: {
   id: string; // "new" for creation mode, uuid for edit mode
   onClose: () => void;
