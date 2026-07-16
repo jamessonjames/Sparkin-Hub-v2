@@ -120,17 +120,29 @@ export function scheduleDemands(
 ): Record<string, string> {
   const active = demands.filter(d => d.status !== "concluido");
   
-  // Sort by priority (descending weight), then by requested due_date (if any), then by created_at
-  const sorted = [...active].sort((a, b) => {
+  // Separate fixed (already have due_date) and floating (due_date is null) demands
+  const fixed = active.filter(d => d.due_date !== null);
+  const floating = active.filter(d => d.due_date === null);
+  
+  const scheduledTimes: Record<string, string> = {}; // demandId -> ISO string
+  const takenSlots = new Set<string>();
+
+  // 1. Lock all fixed demands in their requested slots
+  for (const demand of fixed) {
+    if (demand.due_date) {
+      const parsedDate = new Date(demand.due_date);
+      const slotKey = formatTzString(parsedDate);
+      scheduledTimes[demand.id] = slotKey;
+      takenSlots.add(slotKey);
+    }
+  }
+
+  // 2. Sort floating demands by priority (descending weight), then by created_at
+  const sortedFloating = [...floating].sort((a, b) => {
     const pwA = PRIORITY_WEIGHT[a.priority] ?? 2;
     const pwB = PRIORITY_WEIGHT[b.priority] ?? 2;
     
     if (pwA !== pwB) return pwB - pwA; // Higher priority first
-    
-    if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
-    if (a.due_date) return -1;
-    if (b.due_date) return 1;
-    
     return a.created_at.localeCompare(b.created_at);
   });
 
@@ -143,32 +155,8 @@ export function scheduleDemands(
     nextAvailable = getNextSlot(nextAvailable, config);
   }
 
-  const scheduledTimes: Record<string, string> = {}; // demandId -> ISO string
-  const takenSlots = new Set<string>();
-
-  for (const demand of sorted) {
-    let targetSlot: Date | null = null;
-
-    if (demand.due_date) {
-      // Parse the user's requested date & time
-      const requested = new Date(demand.due_date);
-      
-      // Make sure the requested slot is in the future relative to "now"
-      if (requested.getTime() > now.getTime() && isValidSlot(requested, config)) {
-        targetSlot = requested;
-      }
-    }
-
-    if (targetSlot) {
-      const slotKey = formatTzString(targetSlot);
-      if (!takenSlots.has(slotKey)) {
-        scheduledTimes[demand.id] = slotKey;
-        takenSlots.add(slotKey);
-        continue;
-      }
-    }
-
-    // Find the next available slot
+  // 3. Assign the next available free slots to the floating demands
+  for (const demand of sortedFloating) {
     let currentSearch = new Date(nextAvailable);
     let safety = 0;
     while (safety < 1000) {
