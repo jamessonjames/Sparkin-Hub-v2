@@ -8,6 +8,10 @@ import Image from "@tiptap/extension-image";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Placeholder from "@tiptap/extension-placeholder";
+import Table from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
 import { useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -23,6 +27,10 @@ import {
   Send,
   List,
   ListOrdered,
+  Table as TableIcon,
+  Rows3,
+  Columns3,
+  Trash,
 } from "lucide-react";
 
 interface RichEditorProps {
