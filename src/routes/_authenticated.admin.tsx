@@ -55,6 +55,9 @@ function AdminPage() {
   const listUsersFn = useServerFn(listUsersWithRoles);
   const updateRoleFn = useServerFn(updateUserRole);
 
+  // Logged-in user state
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["users-with-roles"],
     queryFn: () => listUsersFn(),
@@ -68,9 +71,6 @@ function AdminPage() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [highlightColor, setHighlightColor] = useState<HighlightColor>("roxo");
   const [customHex, setCustomHex] = useState("#4f46e5");
-
-  // Logged-in user state
-  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // User creation states
   const [openCreate, setOpenCreate] = useState(false);
