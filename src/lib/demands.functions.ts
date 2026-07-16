@@ -244,14 +244,22 @@ export const batchUpdateDueDates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({
-      updates: z.array(z.object({ id: z.string().uuid(), due_date: z.string().nullable() }))
+      updates: z.array(z.object({
+        id: z.string().uuid(),
+        due_date: z.string().nullable(),
+        is_manually_scheduled: z.boolean().optional(),
+      }))
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
     const promises = data.updates.map(async (u) => {
+      const patch: Record<string, unknown> = { due_date: u.due_date };
+      if (typeof u.is_manually_scheduled === "boolean") {
+        patch.is_manually_scheduled = u.is_manually_scheduled;
+      }
       const { error } = await context.supabase
         .from("demands")
-        .update({ due_date: u.due_date })
+        .update(patch)
         .eq("id", u.id);
       if (error) throw new Error(`Erro ao atualizar demanda ${u.id}: ${error.message}`);
     });
