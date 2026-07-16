@@ -304,6 +304,7 @@ export type Database = {
           created_by_user_id: string | null
           deleted_at: string | null
           id: string
+          is_pinned: boolean
           note_type: Database["public"]["Enums"]["note_type"]
           title: string
           updated_at: string
@@ -316,6 +317,7 @@ export type Database = {
           created_by_user_id?: string | null
           deleted_at?: string | null
           id?: string
+          is_pinned?: boolean
           note_type?: Database["public"]["Enums"]["note_type"]
           title: string
           updated_at?: string
@@ -328,6 +330,7 @@ export type Database = {
           created_by_user_id?: string | null
           deleted_at?: string | null
           id?: string
+          is_pinned?: boolean
           note_type?: Database["public"]["Enums"]["note_type"]
           title?: string
           updated_at?: string
