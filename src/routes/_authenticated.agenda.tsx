@@ -446,7 +446,7 @@ function AgendaPage() {
                       {cellDemands.map((d) => (
                         <div
                           key={d.id}
-                          title={`${d.title} (${STATUS_LABELS[d.status]})`}
+                          title={`${d.title} (${(STATUS_LABELS as Record<string, string>)[d.status]})`}
                           onClick={(e) => {
                             e.stopPropagation();
                             overlay.open(d.id, clientsForOverlay);
