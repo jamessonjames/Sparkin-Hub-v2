@@ -31,6 +31,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { ArrowLeft, Trash2, Plus } from "lucide-react";
 import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, type CreditTier } from "@/lib/credit-tiers";
+import { listProfiles } from "@/lib/users.functions";
 
 export const Route = createFileRoute("/_authenticated/clients/$id")({
   head: () => ({ meta: [{ title: "Cliente" }] }),
