@@ -768,6 +768,7 @@ function DroppableHourCell({
   return (
     <div
       ref={setNodeRef}
+      data-agenda-slot-id={id}
       className={cn(
         "h-10 border-t border-border/15 p-0.5 relative transition-colors duration-150",
         !isBusiness && "bg-muted/30 opacity-70",
@@ -775,6 +776,33 @@ function DroppableHourCell({
       )}
     >
       {children}
+    </div>
+  );
+}
+
+function AgendaDemandCardPreview({ demand }: { demand: AgendaDemand }) {
+  const displayHours = getDemandDurationHours(demand);
+  const cardHeight = (displayHours / 0.5) * 40 - 4;
+
+  return (
+    <div
+      style={{ height: `${cardHeight}px`, width: 180 }}
+      className={cn(
+        "rounded border-l-4 p-1.5 text-[10px] font-medium shadow-2xl select-none flex flex-col justify-between overflow-hidden opacity-95",
+        STATUS_BG[demand.status] ?? "bg-card text-foreground border-border",
+        PRIORITY_COLOR[demand.priority] ?? "border-l-border"
+      )}
+    >
+      <div className="min-w-0">
+        <div className="font-semibold truncate leading-tight">{demand.title}</div>
+        <div className="text-[9px] opacity-75 mt-0.5 truncate max-w-full">
+          {demand.clients?.name ?? "Geral"}
+        </div>
+      </div>
+      <div className="flex items-center justify-between text-[8px] opacity-70 shrink-0 mt-1">
+        <span>{displayHours}h estimadas</span>
+        <span className="font-semibold">{(STATUS_LABELS as Record<string, string>)[demand.status]}</span>
+      </div>
     </div>
   );
 }
