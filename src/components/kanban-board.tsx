@@ -325,6 +325,16 @@ export function KanbanBoard({
     }
   }
 
+  function handleRenameStatus(statusId: string, newName: string) {
+    if (!newName || !newName.trim()) return;
+    const cleanName = newName.trim();
+    const updatedNames = { ...customStatusNames, [statusId]: cleanName };
+    setCustomStatusNames(updatedNames);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("CF_CustomStatusNames", JSON.stringify(updatedNames));
+    }
+  }
+
   // ── Drag board horizontally with right mouse button ──
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isDraggingBoard = useRef(false);
@@ -435,6 +445,7 @@ export function KanbanBoard({
                   onAdd={isClientPortal && (s === "fazendo" || s === "para_analise") ? undefined : onAdd}
                   onAutoSort={() => handleAutoSort(s)}
                   onDelete={s.startsWith("custom_") ? () => handleDeleteStatus(s) : undefined}
+                  onRename={s.startsWith("custom_") ? (newName) => handleRenameStatus(s, newName) : undefined}
                   isClientPortal={isClientPortal}
                 />
               );
@@ -481,6 +492,7 @@ function KanbanColumn({
   onAdd,
   onAutoSort,
   onDelete,
+  onRename,
   isClientPortal,
 }: {
   status: string;
@@ -490,8 +502,17 @@ function KanbanColumn({
   onAdd?: (status: any) => void;
   onAutoSort: () => void;
   onDelete?: () => void;
+  onRename?: (newName: string) => void;
   isClientPortal: boolean;
 }) {
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(label);
+
+  // Sync label prop to local editedName state when it updates externally
+  useEffect(() => {
+    setEditedName(label);
+  }, [label]);
+
   const {
     attributes,
     listeners,
@@ -542,9 +563,50 @@ function KanbanColumn({
           </div>
         )}
         <span className={cn("h-2 w-2 rounded-full shrink-0", st.dot)} />
-        <span className={cn("text-sm font-semibold flex-1 truncate", st.text)}>
-          {label}
-        </span>
+        {isEditingName ? (
+          <input
+            type="text"
+            value={editedName}
+            onChange={(e) => setEditedName(e.target.value)}
+            onBlur={() => {
+              setIsEditingName(false);
+              if (editedName.trim() && editedName.trim() !== label) {
+                onRename?.(editedName);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                setIsEditingName(false);
+                if (editedName.trim() && editedName.trim() !== label) {
+                  onRename?.(editedName);
+                }
+              } else if (e.key === "Escape") {
+                setIsEditingName(false);
+                setEditedName(label);
+              }
+            }}
+            className="text-xs font-semibold bg-background border border-input rounded px-1.5 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring text-foreground shrink min-w-[100px]"
+            autoFocus
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <span
+            onClick={() => {
+              if (onRename) {
+                setEditedName(label);
+                setIsEditingName(true);
+              }
+            }}
+            className={cn(
+              "text-sm font-semibold flex-1 truncate select-text",
+              st.text,
+              onRename && "cursor-pointer hover:underline hover:text-foreground decoration-dashed underline-offset-4"
+            )}
+            title={onRename ? "Clique para renomear" : undefined}
+          >
+            {label}
+          </span>
+        )}
         <span className={cn("text-[11px] font-semibold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shrink-0", st.badge)}>
           {demands.length}
         </span>
@@ -555,15 +617,6 @@ function KanbanColumn({
         >
           <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
-        {onAdd && (
-          <button
-            onClick={() => onAdd(status)}
-            className="text-muted-foreground hover:text-foreground transition-colors rounded p-0.5 hover:bg-surface-2 shrink-0"
-            aria-label={`Adicionar em ${label}`}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        )}
         {onDelete && (
           <button
             onClick={onDelete}
