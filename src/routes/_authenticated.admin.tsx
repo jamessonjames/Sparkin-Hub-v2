@@ -63,6 +63,7 @@ function AdminPage() {
   const [faviconUrl, setFaviconUrl] = useState("");
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [highlightColor, setHighlightColor] = useState<HighlightColor>("roxo");
+  const [customHex, setCustomHex] = useState("#4f46e5");
 
   // User creation states
   const [openCreate, setOpenCreate] = useState(false);
@@ -89,10 +90,12 @@ function AdminPage() {
       const savedTheme = (localStorage.getItem("CF_Theme") as "light" | "dark") || "dark";
       const savedFavicon = localStorage.getItem("CF_Favicon") || "";
       const savedColor = (localStorage.getItem("CF_HighlightColor") || "roxo") as HighlightColor;
+      const savedHex = localStorage.getItem("CF_CustomHex") || "#4f46e5";
       setSystemName(savedName);
       setTheme(savedTheme);
       setFaviconUrl(savedFavicon);
       setHighlightColor(savedColor);
+      setCustomHex(savedHex);
 
       setNotionEnabled(localStorage.getItem("CF_Int_NotionEnabled") === "true");
       setNotionToken(localStorage.getItem("CF_Int_NotionToken") || "");
@@ -105,16 +108,31 @@ function AdminPage() {
     }
   }, []);
 
+  const updateThemeInstantly = (newTheme: "light" | "dark") => {
+    setTheme(newTheme);
+    localStorage.setItem("CF_Theme", newTheme);
+    applyThemeAndHighlight();
+  };
+
+  const updateColorInstantly = (newColor: HighlightColor) => {
+    setHighlightColor(newColor);
+    localStorage.setItem("CF_HighlightColor", newColor);
+    applyThemeAndHighlight();
+  };
+
+  const updateCustomHexInstantly = (newHex: string) => {
+    setCustomHex(newHex);
+    localStorage.setItem("CF_CustomHex", newHex);
+    localStorage.setItem("CF_HighlightColor", "custom");
+    setHighlightColor("custom");
+    applyThemeAndHighlight();
+  };
+
   async function handleSaveBranding(e: React.FormEvent) {
     e.preventDefault();
     localStorage.setItem("CF_SystemName", systemName);
-    localStorage.setItem("CF_Theme", theme);
     localStorage.setItem("CF_Favicon", faviconUrl);
-    localStorage.setItem("CF_HighlightColor", highlightColor);
-    
-    // Apply changes instantly
     applyThemeAndHighlight();
-
     toast.success("Configurações de marca atualizadas!");
   }
 
@@ -245,55 +263,141 @@ function AdminPage() {
                       "flex items-center gap-2 border border-border bg-surface-2/40 rounded-lg px-4 py-2 cursor-pointer hover:bg-surface-2 transition-all flex-1 text-center justify-center font-semibold text-xs text-muted-foreground",
                       theme === "dark" && "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
                     )}>
-                      <input type="radio" name="theme" value="dark" checked={theme === "dark"} onChange={() => setTheme("dark")} className="hidden" />
+                      <input type="radio" name="theme" value="dark" checked={theme === "dark"} onChange={() => updateThemeInstantly("dark")} className="hidden" />
                       Tema Escuro (Recomendado)
                     </label>
                     <label className={cn(
                       "flex items-center gap-2 border border-border bg-surface-2/40 rounded-lg px-4 py-2 cursor-pointer hover:bg-surface-2 transition-all flex-1 text-center justify-center font-semibold text-xs text-muted-foreground",
                       theme === "light" && "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
                     )}>
-                      <input type="radio" name="theme" value="light" checked={theme === "light"} onChange={() => setTheme("light")} className="hidden" />
+                      <input type="radio" name="theme" value="light" checked={theme === "light"} onChange={() => updateThemeInstantly("light")} className="hidden" />
                       Tema Claro
                     </label>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground font-semibold">Cor de Destaque</Label>
-                  <div className="flex gap-3 flex-wrap">
-                    {(Object.keys(HIGHLIGHT_COLORS) as HighlightColor[]).map((color) => {
-                      const details = HIGHLIGHT_COLORS[color];
-                      const nameCapitalized = color === "roxo" ? "Roxo (Padrão)" : color.charAt(0).toUpperCase() + color.slice(1);
-                      return (
-                        <button
-                          key={color}
-                          type="button"
-                          onClick={() => setHighlightColor(color)}
-                          className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer",
-                            highlightColor === color
-                              ? "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
-                              : "border-border bg-surface-2/40 text-muted-foreground hover:border-foreground/30"
-                          )}
-                          style={{
-                            "--primary": details.primary,
-                          } as React.CSSProperties}
-                        >
-                          <span
-                            className="h-3 w-3 rounded-full shrink-0 border border-black/20"
-                            style={{ backgroundColor: details.primary }}
+                {/* Cores de Destaque */}
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground font-semibold">Cores Sólidas</Label>
+                    <div className="flex gap-2.5 flex-wrap">
+                      {["roxo", "azul", "verde", "rosa", "laranja"].map((color) => {
+                        const details = HIGHLIGHT_COLORS[color];
+                        const nameCapitalized = color === "roxo" ? "Roxo (Padrão)" : color.charAt(0).toUpperCase() + color.slice(1);
+                        return (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => updateColorInstantly(color as any)}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer",
+                              highlightColor === color
+                                ? "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
+                                : "border-border bg-surface-2/40 text-muted-foreground hover:border-foreground/30"
+                            )}
+                            style={{
+                              "--primary": details.primary,
+                            } as React.CSSProperties}
+                          >
+                            <span
+                              className="h-3 w-3 rounded-full shrink-0 border border-black/20"
+                              style={{ backgroundColor: details.primary }}
+                            />
+                            {nameCapitalized}
+                            {highlightColor === color && <Check className="h-3.5 w-3.5 ml-1 text-primary shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground font-semibold">Degradês Premium (Efeito Visual)</Label>
+                    <div className="flex gap-2.5 flex-wrap">
+                      {["sunset", "ocean", "aurora", "cyberpunk"].map((color) => {
+                        const details = HIGHLIGHT_COLORS[color];
+                        const nameCapitalized = color.charAt(0).toUpperCase() + color.slice(1);
+                        return (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => updateColorInstantly(color as any)}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer",
+                              highlightColor === color
+                                ? "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
+                                : "border-border bg-surface-2/40 text-muted-foreground hover:border-foreground/30"
+                            )}
+                            style={{
+                              "--primary": details.primary,
+                            } as React.CSSProperties}
+                          >
+                            <span
+                              className="h-3 w-6 rounded-md shrink-0 border border-black/20"
+                              style={{ backgroundImage: details.gradient }}
+                            />
+                            {nameCapitalized}
+                            {highlightColor === color && <Check className="h-3.5 w-3.5 ml-1 text-primary shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground font-semibold">Cor Personalizada (Hexadecimal)</Label>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => updateCustomHexInstantly(customHex)}
+                        className={cn(
+                          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer h-9 shrink-0",
+                          highlightColor === "custom"
+                            ? "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
+                            : "border-border bg-surface-2/40 text-muted-foreground hover:border-foreground/30"
+                        )}
+                      >
+                        <span
+                          className="h-3 w-3 rounded-full shrink-0 border border-black/20"
+                          style={{ backgroundColor: customHex }}
+                        />
+                        Personalizar Hex
+                        {highlightColor === "custom" && <Check className="h-3.5 w-3.5 ml-1 text-primary shrink-0" />}
+                      </button>
+
+                      {highlightColor === "custom" && (
+                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                          <input
+                            type="color"
+                            value={customHex}
+                            onChange={(e) => updateCustomHexInstantly(e.target.value)}
+                            className="h-9 w-9 bg-surface-2 border border-border rounded cursor-pointer p-0.5"
                           />
-                          {nameCapitalized}
-                          {highlightColor === color && <Check className="h-3.5 w-3.5 ml-1 text-primary shrink-0" />}
-                        </button>
-                      );
-                    })}
+                          <Input
+                            type="text"
+                            placeholder="#4f46e5"
+                            value={customHex}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val.startsWith("#") && (val.length === 4 || val.length === 7)) {
+                                updateCustomHexInstantly(val);
+                              } else {
+                                setCustomHex(val);
+                              }
+                            }}
+                            className="bg-surface-2 border-border text-foreground text-xs h-9 w-28 uppercase font-mono"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <Button type="submit" className="gap-2 px-6 text-xs h-9">
-                  <Save className="h-4 w-4" /> Salvar Configurações
-                </Button>
+                <div className="pt-2 border-t border-border">
+                  <Button type="submit" className="gap-2 px-6 text-xs h-9 btn-primary">
+                    <Save className="h-4 w-4" /> Salvar Nome & Favicon
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>

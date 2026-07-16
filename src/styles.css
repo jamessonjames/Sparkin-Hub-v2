@@ -106,6 +106,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  background-image: var(--primary-gradient, none);
   background-color: var(--accent);
   color: var(--accent-foreground);
   padding: 0.5rem 1rem;
