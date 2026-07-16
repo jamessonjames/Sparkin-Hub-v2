@@ -1,5 +1,5 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPublicPortal, updatePortalDemandsOrder } from "@/lib/portal.functions";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
 import { LayoutList, Columns2, Plus, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CreditProgressBar } from "@/components/credit-progress-bar";
 
 export const Route = createFileRoute("/portal/$slug")({
   loader: async ({ params }) => {
@@ -72,6 +73,7 @@ function PortalPage() {
 
   const client = data.client;
   const initialDemands = data.demands;
+  const creditConfig = (data as any).creditConfig;
 
   const [view, setView] = useState<"list" | "kanban">("kanban");
   const [demands, setDemands] = useState<PortalDemand[]>(initialDemands as PortalDemand[]);
@@ -82,6 +84,22 @@ function PortalPage() {
       setDemands(initialDemands as PortalDemand[]);
     }
   }, [initialDemands]);
+
+  // Compute total credits consumed in the current calendar month
+  const currentMonthCredits = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+    return demands
+      .filter((d) => {
+        if (d.status !== "concluido") return false;
+        if (!d.due_date) return false;
+        const dateStr = d.due_date.slice(0, 10);
+        return dateStr >= startOfMonth && dateStr <= endOfMonth;
+      })
+      .reduce((sum, d) => sum + (d.estimated_credits || 0), 0);
+  }, [demands]);
 
   // Dialog state: null = closed, "new" = create, uuid = detail
   const [openDialogId, setOpenDialogId] = useState<string | null>(null);
@@ -188,6 +206,16 @@ function PortalPage() {
 
       {/* Main */}
       <main className="flex-1 flex flex-col px-4 pt-4 md:px-6 md:pt-6 min-h-0 overflow-hidden">
+        {client.billing_model === "credits" && creditConfig?.show_progress_bar === true && (
+          <div className="mb-4 shrink-0">
+            <CreditProgressBar
+              totalCredits={currentMonthCredits}
+              tiers={creditConfig.tiers}
+              title="Seu consumo de créditos neste mês"
+            />
+          </div>
+        )}
+
         {view === "list" ? (
           <div className="flex-1 overflow-y-auto space-y-6 pb-6">
             <section>

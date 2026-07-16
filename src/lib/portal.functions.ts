@@ -44,7 +44,32 @@ export const getPublicPortal = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false });
     if (dErr) throw new Error(dErr.message);
 
-    return { client, demands: demands ?? [] };
+    let creditConfig = null;
+    if (client.billing_model === "credits") {
+      const { data: noteRows } = await sb
+        .from("notes")
+        .select("content")
+        .eq("client_id", client.id)
+        .eq("title", "__credit_tiers_config__")
+        .is("deleted_at", null)
+        .limit(1);
+
+      if (noteRows && noteRows.length > 0) {
+        try {
+          const parsed = JSON.parse(noteRows[0].content ?? "{}");
+          if (parsed && Array.isArray(parsed)) {
+            creditConfig = { show_progress_bar: true, tiers: parsed };
+          } else if (parsed) {
+            creditConfig = {
+              show_progress_bar: parsed.show_progress_bar ?? true,
+              tiers: parsed.tiers ?? []
+            };
+          }
+        } catch {}
+      }
+    }
+
+    return { client, demands: demands ?? [], creditConfig };
   });
 
 export const getPortalDemandComments = createServerFn({ method: "GET" })

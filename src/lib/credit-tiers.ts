@@ -18,6 +18,11 @@ export const DEFAULT_CREDIT_TIERS: CreditTier[] = [
   { min_credits: 49, max_credits: null, price: 2400, extra_per_credit: 70 },
 ];
 
+export interface CreditConfig {
+  show_progress_bar: boolean;
+  tiers: CreditTier[];
+}
+
 export const getClientCreditTiers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { client_id: string }) =>
@@ -33,24 +38,33 @@ export const getClientCreditTiers = createServerFn({ method: "GET" })
       .limit(1);
 
     if (error) throw new Error(error.message);
+    const defaultConfig: CreditConfig = { show_progress_bar: true, tiers: DEFAULT_CREDIT_TIERS };
+
     if (!rows || rows.length === 0) {
-      return DEFAULT_CREDIT_TIERS;
+      return defaultConfig;
     }
 
     try {
-      const parsed = JSON.parse(rows[0].content ?? "[]") as CreditTier[];
-      return parsed && Array.isArray(parsed) ? parsed : DEFAULT_CREDIT_TIERS;
+      const parsed = JSON.parse(rows[0].content ?? "{}");
+      if (parsed && Array.isArray(parsed)) {
+        return { show_progress_bar: true, tiers: parsed } as CreditConfig;
+      }
+      return {
+        show_progress_bar: parsed.show_progress_bar ?? true,
+        tiers: parsed.tiers && Array.isArray(parsed.tiers) ? parsed.tiers : DEFAULT_CREDIT_TIERS
+      } as CreditConfig;
     } catch {
-      return DEFAULT_CREDIT_TIERS;
+      return defaultConfig;
     }
   });
 
 export const saveClientCreditTiers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { client_id: string; tiers: CreditTier[] }) =>
+  .inputValidator((input: { client_id: string; tiers: CreditTier[]; show_progress_bar: boolean }) =>
     z
       .object({
         client_id: z.string().uuid(),
+        show_progress_bar: z.boolean(),
         tiers: z.array(
           z.object({
             min_credits: z.number().int().nonnegative(),
@@ -74,7 +88,10 @@ export const saveClientCreditTiers = createServerFn({ method: "POST" })
 
     if (selectError) throw new Error(selectError.message);
 
-    const serializedContent = JSON.stringify(data.tiers);
+    const serializedContent = JSON.stringify({
+      show_progress_bar: data.show_progress_bar,
+      tiers: data.tiers
+    });
 
     if (rows && rows.length > 0) {
       // Update existing note

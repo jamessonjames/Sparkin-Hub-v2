@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { useMemo } from "react";
 import {
   listDemands,
   moveDemandStatus,
@@ -14,6 +15,50 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
+import { getClientCreditTiers } from "@/lib/credit-tiers";
+import { CreditProgressBar } from "@/components/credit-progress-bar";
+
+function ClientCreditProgressWrapper({
+  client,
+  demands,
+}: {
+  client: { id: string; name: string };
+  demands: any[];
+}) {
+  const getTiersFn = useServerFn(getClientCreditTiers);
+
+  const { data: creditConfig } = useQuery({
+    queryKey: ["client-credit-tiers", client.id],
+    queryFn: () => getTiersFn({ data: { client_id: client.id } }),
+  });
+
+  const monthlyCredits = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+    return demands
+      .filter((d) => {
+        const dClientId = d.client_id || d.clients?.id || (d.clients as any)?.id;
+        if (dClientId !== client.id) return false;
+        if (d.status !== "concluido") return false;
+        if (!d.due_date) return false;
+        const dateStr = d.due_date.slice(0, 10);
+        return dateStr >= startOfMonth && dateStr <= endOfMonth;
+      })
+      .reduce((sum, d) => sum + (d.estimated_credits || 0), 0);
+  }, [demands, client.id]);
+
+  if (!creditConfig) return null;
+
+  return (
+    <CreditProgressBar
+      totalCredits={monthlyCredits}
+      tiers={creditConfig.tiers}
+      title={`Consumo de créditos: ${client.name}`}
+    />
+  );
+}
 
 export const Route = createFileRoute("/_authenticated/demands")({
   head: () => ({ meta: [{ title: "Demandas — Creative Flow Hub" }] }),
@@ -30,6 +75,10 @@ function DemandsPage() {
 
   const { data: demands = [] } = useQuery({ queryKey: ["demands"], queryFn: () => listFn() });
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn() });
+
+  const creditClients = useMemo(() => {
+    return clients.filter((c) => c.billing_model === "credits");
+  }, [clients]);
 
   async function handleMove(id: string, status: DemandStatus) {
     qc.setQueryData<typeof demands>(["demands"], (prev) =>
@@ -83,8 +132,21 @@ function DemandsPage() {
           Crie um cliente antes de abrir demandas.
         </Card>
       ) : (
-        <KanbanBoard
-          demands={demands.map((d) => ({
+        <>
+          {creditClients.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 shrink-0 mb-2">
+              {creditClients.map((c) => (
+                <ClientCreditProgressWrapper
+                  key={c.id}
+                  client={c}
+                  demands={demands}
+                />
+              ))}
+            </div>
+          )}
+
+          <KanbanBoard
+            demands={demands.map((d) => ({
             id: d.id,
             title: d.title,
             status: d.status,
@@ -99,6 +161,7 @@ function DemandsPage() {
           onReorder={handleReorder}
           showSearch={true}
         />
+        </>
       )}
     </div>
   );
