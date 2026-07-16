@@ -390,6 +390,54 @@ export function RichEditor({
             >
               <ListOrdered className="h-3.5 w-3.5" />
             </ToolbarBtn>
+            {enableTables && (
+              <>
+                <span className="w-px h-5 bg-border mx-1 shrink-0" />
+                {!editor.isActive("table") ? (
+                  <ToolbarBtn
+                    title="Inserir tabela"
+                    onClick={() =>
+                      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+                    }
+                  >
+                    <TableIcon className="h-3.5 w-3.5" />
+                  </ToolbarBtn>
+                ) : (
+                  <>
+                    <ToolbarBtn
+                      title="Adicionar linha abaixo"
+                      onClick={() => editor.chain().focus().addRowAfter().run()}
+                    >
+                      <Rows3 className="h-3.5 w-3.5" />
+                    </ToolbarBtn>
+                    <ToolbarBtn
+                      title="Adicionar coluna à direita"
+                      onClick={() => editor.chain().focus().addColumnAfter().run()}
+                    >
+                      <Columns3 className="h-3.5 w-3.5" />
+                    </ToolbarBtn>
+                    <ToolbarBtn
+                      title="Excluir linha"
+                      onClick={() => editor.chain().focus().deleteRow().run()}
+                    >
+                      <span className="text-[10px] font-bold">−R</span>
+                    </ToolbarBtn>
+                    <ToolbarBtn
+                      title="Excluir coluna"
+                      onClick={() => editor.chain().focus().deleteColumn().run()}
+                    >
+                      <span className="text-[10px] font-bold">−C</span>
+                    </ToolbarBtn>
+                    <ToolbarBtn
+                      title="Excluir tabela"
+                      onClick={() => editor.chain().focus().deleteTable().run()}
+                    >
+                      <Trash className="h-3.5 w-3.5" />
+                    </ToolbarBtn>
+                  </>
+                )}
+              </>
+            )}
           </>
         </div>
       </TiptapBubbleMenu>
