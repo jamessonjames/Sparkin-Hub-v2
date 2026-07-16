@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState, useRef, useEffect } from "react";
 import { listDemands, batchUpdateDueDates, updateDemand } from "@/lib/demands.functions";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
-import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff } from "lucide-react";
 import { STATUS_LABELS } from "@/lib/demand-labels";
 import { cn } from "@/lib/utils";
 import {
@@ -275,6 +275,33 @@ function AgendaPage() {
     } catch (e) {
       console.error(e);
       toast.error("Erro ao atualizar o tempo estimado.");
+    }
+  }
+
+  async function handleTogglePin(demandId: string, nextValue: boolean) {
+    qc.setQueryData<typeof demands>(["demands"], (prev) =>
+      (prev ?? []).map((d) =>
+        d.id === demandId ? ({ ...d, is_manually_scheduled: nextValue } as any) : d
+      )
+    );
+    try {
+      const dObj = demands.find((d) => d.id === demandId);
+      await batchUpdateFn({
+        data: {
+          updates: [
+            {
+              id: demandId,
+              due_date: nextValue ? (dObj?.due_date ?? null) : null,
+              is_manually_scheduled: nextValue,
+            },
+          ],
+        },
+      });
+      toast.success(nextValue ? "Demanda fixada nesta posição." : "Demanda liberada — o sistema pode reagendar.");
+    } catch (err) {
+      toast.error("Erro ao alterar o pin.");
+    } finally {
+      qc.invalidateQueries({ queryKey: ["demands"] });
     }
   }
 
@@ -565,6 +592,7 @@ function AgendaPage() {
                               <DraggableDemandCard
                                 demand={demand}
                                 onResize={handleResizeDemand}
+                                onTogglePin={handleTogglePin}
                                 onClick={() => overlay.open(demand.id, clientsForOverlay)}
                               />
                             )}
@@ -631,10 +659,12 @@ function DraggableDemandCard({
   demand,
   onClick,
   onResize,
+  onTogglePin,
 }: {
   demand: any;
   onClick: () => void;
   onResize: (demandId: string, hours: number) => Promise<void>;
+  onTogglePin: (demandId: string, nextValue: boolean) => Promise<void>;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: demand.id,
@@ -704,7 +734,7 @@ function DraggableDemandCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "absolute inset-x-0.5 top-0.5 rounded border-l-4 p-1.5 text-[10px] font-medium cursor-pointer shadow-sm select-none",
+        "group absolute inset-x-0.5 top-0.5 rounded border-l-4 p-1.5 text-[10px] font-medium cursor-pointer shadow-sm select-none",
         "transition-all flex flex-col justify-between overflow-hidden",
         STATUS_BG[demand.status] ?? "bg-[#38a1db] text-white",
         PRIORITY_COLOR[demand.priority] ?? "border-l-zinc-500",
@@ -736,6 +766,34 @@ function DraggableDemandCard({
           <span className="font-semibold">{(STATUS_LABELS as Record<string, string>)[demand.status]}</span>
         </div>
       </div>
+
+      {/* Pin toggle — top right. Não afeta arrasto. */}
+      <button
+        type="button"
+        title={
+          demand.is_manually_scheduled
+            ? "Fixado — o sistema não vai reagendar. Clique para liberar."
+            : "Fixar aqui — impede o auto-scheduler de mover."
+        }
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onTogglePin(demand.id, !demand.is_manually_scheduled);
+        }}
+        className={cn(
+          "absolute top-0.5 right-0.5 z-40 h-4 w-4 flex items-center justify-center rounded-sm transition-opacity",
+          demand.is_manually_scheduled
+            ? "opacity-90 hover:opacity-100"
+            : "opacity-0 hover:opacity-80 group-hover:opacity-60"
+        )}
+      >
+        {demand.is_manually_scheduled ? (
+          <Pin className="h-2.5 w-2.5 fill-current" />
+        ) : (
+          <PinOff className="h-2.5 w-2.5" />
+        )}
+      </button>
 
       {/* Dynamic Resize Handle at the bottom border */}
       <div
