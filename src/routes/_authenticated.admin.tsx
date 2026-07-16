@@ -150,11 +150,22 @@ function AdminPage() {
 
   async function handleRoleChange(userId: string, newRole: "owner" | "admin" | "collaborator") {
     try {
-      await updateRoleFn({ data: { userId, role: newRole } });
-      toast.success("Nível de acesso atualizado!");
+      const { data, error } = await supabase.functions.invoke("admin-users", {
+        body: {
+          action: "updateUserRole",
+          user_id: userId,
+          role: newRole,
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message || "Erro ao atualizar cargo. Certifique-se de que você é o proprietário.");
+      }
+
+      toast.success("Nível de acesso atualizado com sucesso!");
       qc.invalidateQueries({ queryKey: ["users-with-roles"] });
     } catch (e) {
-      toast.error("Erro ao atualizar nível de acesso");
+      toast.error(e instanceof Error ? e.message : "Erro ao atualizar nível de acesso");
     }
   }
 
