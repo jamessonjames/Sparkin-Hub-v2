@@ -41,6 +41,7 @@ interface RichEditorProps {
   onSubmitChat?: () => void;
   borderless?: boolean;
   readOnly?: boolean;
+  enableTables?: boolean;
 }
 
 function ToolbarBtn({
