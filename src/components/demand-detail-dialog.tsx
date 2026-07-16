@@ -10,7 +10,7 @@ import {
   type DemandStatus,
   DEMAND_STATUSES,
 } from "@/lib/demands.functions";
-import { listComments, addComment } from "@/lib/comments.functions";
+import { listComments, addComment, deleteComment, updateComment } from "@/lib/comments.functions";
 import { listProfiles } from "@/lib/users.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +65,8 @@ export function DemandDetailDialog({
   const deleteFn = useServerFn(deleteDemand);
   const listCommentsFn = useServerFn(listComments);
   const addCommentFn = useServerFn(addComment);
+  const deleteCommentFn = useServerFn(deleteComment);
+  const updateCommentFn = useServerFn(updateComment);
   const listProfilesFn = useServerFn(listProfiles);
   const qc = useQueryClient();
 
@@ -97,6 +99,10 @@ export function DemandDetailDialog({
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
   const [showComments, setShowComments] = useState(true);
+
+  // Comments editing states
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentBody, setEditingCommentBody] = useState("");
 
   // Sync state when demand is loaded or when in creation mode
   useEffect(() => {
@@ -204,9 +210,41 @@ export function DemandDetailDialog({
     }
   }
 
+  async function handleDeleteComment(commentId: string) {
+    if (!confirm("Excluir este comentário permanentemente?")) return;
+    try {
+      await deleteCommentFn({ data: { id: commentId } });
+      qc.invalidateQueries({ queryKey: ["comments", id] });
+      toast.success("Comentário excluído.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao excluir");
+    }
+  }
+
+  function startEditComment(commentId: string, bodyHtml: string) {
+    setEditingCommentId(commentId);
+    // Strip HTML tags for clean text editing inside simple textarea
+    const cleaned = bodyHtml.replace(/<[^>]*>/g, "").trim();
+    setEditingCommentBody(cleaned);
+  }
+
+  async function handleSaveEditComment(commentId: string) {
+    if (!editingCommentBody.trim()) return;
+    try {
+      // Re-wrap in paragraphs if needed, or save as-is
+      await updateCommentFn({ data: { id: commentId, body: `<p>${editingCommentBody}</p>` } });
+      setEditingCommentId(null);
+      setEditingCommentBody("");
+      qc.invalidateQueries({ queryKey: ["comments", id] });
+      toast.success("Comentário atualizado!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-4xl h-[90vh] bg-zinc-900 border border-zinc-700/60 rounded-2xl flex flex-col overflow-hidden shadow-2xl my-auto mx-auto animate-in fade-in zoom-in duration-200">
+      <div className="relative w-full max-w-[95vw] lg:max-w-5xl xl:max-w-6xl h-[90vh] bg-zinc-900 border border-zinc-700/60 rounded-2xl flex flex-col overflow-hidden shadow-2xl my-auto mx-auto animate-in fade-in zoom-in duration-200">
         
         {(!isNew && isDemandLoading) ? (
           <div className="flex-1 flex items-center justify-center text-zinc-500">Carregando...</div>
@@ -368,42 +406,76 @@ export function DemandDetailDialog({
 
               {/* Right Panel - Comments */}
               {!isNew && showComments && (
-                <div className="w-[340px] shrink-0 border-l border-zinc-850 flex flex-col bg-zinc-900/40">
-                  <div className="px-4 py-3 border-b border-zinc-800">
+                <div className="w-[360px] md:w-[400px] shrink-0 border-l border-zinc-850 flex flex-col bg-zinc-900/40">
+                  <div className="px-4 py-3 border-b border-zinc-800 shrink-0">
                     <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Comentários</h4>
                   </div>
 
-                  {/* Comment Input */}
-                  <div className="px-4 py-3 border-b border-zinc-800">
-                    <RichEditor
-                      content={comment}
-                      onChange={(html) => setComment(html)}
-                      isChatInput={true}
-                      onSubmitChat={handleAddComment}
-                      placeholder="Escrever comentário..."
-                    />
-                  </div>
-
-                  {/* Comments list */}
-                  <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+                  {/* Comments list (placed in middle, scrollable) */}
+                  <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
                     {comments.map((c) => {
                       const initials = c.author_label
                         ? c.author_label.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
                         : "?";
                       return (
-                        <div key={c.id} className="flex gap-2.5">
+                        <div key={c.id} className="flex gap-2.5 group">
                           <div className="h-7 w-7 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center shrink-0 border border-primary/35">
                             {initials}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-baseline justify-between mb-0.5">
                               <span className="text-xs font-bold text-zinc-200">{c.author_label ?? "Equipe"}</span>
-                              <span className="text-[9px] text-zinc-500">{new Date(c.created_at).toLocaleDateString("pt-BR")}</span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="text-[9px] text-zinc-500">{new Date(c.created_at).toLocaleDateString("pt-BR")}</span>
+                                {/* Comment Action Buttons (Pencil / Trash on hover) */}
+                                <div className="hidden group-hover:flex items-center gap-1.5 pl-1.5 border-l border-zinc-800/80">
+                                  <button
+                                    onClick={() => startEditComment(c.id, c.body)}
+                                    title="Editar comentário"
+                                    className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                                  >
+                                    <Pencil className="h-2.5 w-2.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteComment(c.id)}
+                                    title="Excluir comentário"
+                                    className="text-zinc-500 hover:text-red-400 transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="h-2.5 w-2.5" />
+                                  </button>
+                                </div>
+                              </div>
                             </div>
-                            <div 
-                              className="text-xs text-zinc-300 bg-zinc-800/40 rounded-lg px-2.5 py-1.5 border border-zinc-800 prose prose-invert prose-xs max-w-none break-words [&_p]:m-0"
-                              dangerouslySetInnerHTML={{ __html: c.body }}
-                            />
+                            
+                            {editingCommentId === c.id ? (
+                              <div className="space-y-1.5 mt-1 bg-zinc-850 p-2 rounded-lg border border-zinc-700/60">
+                                <textarea
+                                  value={editingCommentBody}
+                                  onChange={(e) => setEditingCommentBody(e.target.value)}
+                                  className="w-full bg-zinc-900 border border-zinc-700 rounded p-1.5 text-xs text-zinc-200 focus:outline-none focus:border-primary/60 min-h-[50px] resize-none"
+                                  placeholder="Editar comentário..."
+                                />
+                                <div className="flex justify-end gap-1.5">
+                                  <button
+                                    onClick={() => setEditingCommentId(null)}
+                                    className="text-[10px] text-zinc-400 hover:text-zinc-200 px-2 py-0.5 rounded hover:bg-zinc-800 transition-colors cursor-pointer"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    onClick={() => handleSaveEditComment(c.id)}
+                                    className="text-[10px] bg-emerald-600 text-white px-2..5 py-0.5 rounded hover:bg-emerald-500 transition-colors cursor-pointer font-bold"
+                                  >
+                                    Salvar
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div 
+                                className="text-xs text-zinc-300 bg-zinc-800/40 rounded-lg px-2.5 py-1.5 border border-zinc-800 prose prose-invert prose-xs max-w-none break-words [&_p]:m-0"
+                                dangerouslySetInnerHTML={{ __html: c.body }}
+                              />
+                            )}
                           </div>
                         </div>
                       );
@@ -411,6 +483,17 @@ export function DemandDetailDialog({
                     {comments.length === 0 && (
                       <div className="text-center py-8 text-[11px] text-zinc-600">Nenhum comentário.</div>
                     )}
+                  </div>
+
+                  {/* Comment Input (placed at bottom) */}
+                  <div className="px-4 py-3.5 border-t border-zinc-800 bg-zinc-900/60 shrink-0">
+                    <RichEditor
+                      content={comment}
+                      onChange={(html) => setComment(html)}
+                      isChatInput={true}
+                      onSubmitChat={handleAddComment}
+                      placeholder="Escrever comentário..."
+                    />
                   </div>
                 </div>
               )}

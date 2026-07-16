@@ -41,3 +41,17 @@ export const deleteComment = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const updateComment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ id: z.string().uuid(), body: z.string().min(1) }).parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("demand_comments")
+      .update({ body: data.body })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
