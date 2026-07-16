@@ -15,6 +15,7 @@ import {
   useDraggable,
   useDroppable,
   type DragEndEvent,
+  pointerWithin,
 } from "@dnd-kit/core";
 import {
   scheduleDemands,
@@ -335,7 +336,7 @@ function AgendaPage() {
   }, [demands]);
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={pointerWithin}>
       <div className="flex flex-col h-[calc(100vh-60px)] bg-[#121212] text-zinc-100 overflow-hidden relative">
         
         {/* ── TOOLBAR ── */}
