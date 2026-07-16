@@ -21,6 +21,8 @@ import {
   CheckSquare,
   ImageIcon,
   Send,
+  List,
+  ListOrdered,
 } from "lucide-react";
 
 interface RichEditorProps {
@@ -135,6 +137,31 @@ export function RichEditor({
         <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-950 py-1 px-3 relative min-w-0">
           <TiptapBubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>
             <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-zinc-700/80 bg-zinc-950 shadow-2xl text-xs select-none">
+              <>
+                <select
+                  value={
+                    editor.isActive("heading", { level: 1 })
+                      ? "h1"
+                      : editor.isActive("heading", { level: 2 })
+                      ? "h2"
+                      : "p"
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "h1") editor.chain().focus().toggleHeading({ level: 1 }).run();
+                    else if (val === "h2") editor.chain().focus().toggleHeading({ level: 2 }).run();
+                    else editor.chain().focus().setParagraph().run();
+                  }}
+                  className="bg-zinc-900 border border-zinc-700 rounded px-1.5 py-0.5 text-[11px] text-zinc-300 focus:outline-none cursor-pointer h-7"
+                >
+                  <option value="p">Parágrafo</option>
+                  <option value="h1">Título 1</option>
+                  <option value="h2">Título 2</option>
+                </select>
+
+                <span className="w-px h-5 bg-zinc-700 mx-1 shrink-0" />
+              </>
+
               <ToolbarBtn
                 title="Negrito"
                 active={editor.isActive("bold")}
@@ -163,6 +190,53 @@ export function RichEditor({
               >
                 <Strikethrough className="h-3.5 w-3.5" />
               </ToolbarBtn>
+
+              <>
+                <span className="w-px h-5 bg-zinc-700 mx-1 shrink-0" />
+                <ToolbarBtn
+                  title="Alinhar à esquerda"
+                  active={editor.isActive({ textAlign: "left" })}
+                  onClick={() => editor.chain().focus().setTextAlign("left").run()}
+                >
+                  <AlignLeft className="h-3.5 w-3.5" />
+                </ToolbarBtn>
+                <ToolbarBtn
+                  title="Centralizar"
+                  active={editor.isActive({ textAlign: "center" })}
+                  onClick={() => editor.chain().focus().setTextAlign("center").run()}
+                >
+                  <AlignCenter className="h-3.5 w-3.5" />
+                </ToolbarBtn>
+                <ToolbarBtn
+                  title="Alinhar à direita"
+                  active={editor.isActive({ textAlign: "right" })}
+                  onClick={() => editor.chain().focus().setTextAlign("right").run()}
+                >
+                  <AlignRight className="h-3.5 w-3.5" />
+                </ToolbarBtn>
+                <span className="w-px h-5 bg-zinc-700 mx-1 shrink-0" />
+                <ToolbarBtn
+                  title="Lista de tarefas"
+                  active={editor.isActive("taskList")}
+                  onClick={() => editor.chain().focus().toggleTaskList().run()}
+                >
+                  <CheckSquare className="h-3.5 w-3.5" />
+                </ToolbarBtn>
+                <ToolbarBtn
+                  title="Lista com marcadores"
+                  active={editor.isActive("bulletList")}
+                  onClick={() => editor.chain().focus().toggleBulletList().run()}
+                >
+                  <List className="h-3.5 w-3.5" />
+                </ToolbarBtn>
+                <ToolbarBtn
+                  title="Lista numerada"
+                  active={editor.isActive("orderedList")}
+                  onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                >
+                  <ListOrdered className="h-3.5 w-3.5" />
+                </ToolbarBtn>
+              </>
             </div>
           </TiptapBubbleMenu>
 
@@ -280,6 +354,20 @@ export function RichEditor({
               onClick={() => editor.chain().focus().toggleTaskList().run()}
             >
               <CheckSquare className="h-3.5 w-3.5" />
+            </ToolbarBtn>
+            <ToolbarBtn
+              title="Lista com marcadores"
+              active={editor.isActive("bulletList")}
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+            >
+              <List className="h-3.5 w-3.5" />
+            </ToolbarBtn>
+            <ToolbarBtn
+              title="Lista numerada"
+              active={editor.isActive("orderedList")}
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
+            >
+              <ListOrdered className="h-3.5 w-3.5" />
             </ToolbarBtn>
           </>
         </div>
