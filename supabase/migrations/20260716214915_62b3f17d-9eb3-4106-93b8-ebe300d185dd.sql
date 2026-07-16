@@ -1,0 +1,2 @@
+ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS notes_client_pinned_idx ON public.notes (client_id, is_pinned DESC, updated_at DESC);

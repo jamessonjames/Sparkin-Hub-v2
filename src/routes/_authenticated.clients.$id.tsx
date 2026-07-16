@@ -19,7 +19,7 @@ import { KanbanBoard } from "@/components/kanban-board";
 import { DemandForm, type DemandFormValues } from "@/components/demand-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
-import { listNotes, upsertNote, deleteNote, NOTE_TYPES } from "@/lib/notes.functions";
+import { ClientNotesPanel } from "@/components/client-notes-panel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -125,7 +125,7 @@ function ClientPage() {
     setSaving(true);
     try {
       // Preserve credits_enabled — it's managed separately by the portal toggle
-      await updateFn({ data: { ...values, id, credits_enabled: client.credits_enabled ?? false } });
+      await updateFn({ data: { ...values, id, credits_enabled: client?.credits_enabled ?? false } });
       toast.success("Salvo!");
       qc.invalidateQueries({ queryKey: ["clients"] });
       qc.invalidateQueries({ queryKey: ["client", id] });
@@ -298,115 +298,8 @@ function ClientPage() {
   );
 }
 
-function ClientNotesPanel({ clientId }: { clientId: string }) {
-  const listFn = useServerFn(listNotes);
-  const upsertFn = useServerFn(upsertNote);
-  const delFn = useServerFn(deleteNote);
-  const qc = useQueryClient();
-  const { data: notes = [] } = useQuery({
-    queryKey: ["notes", clientId],
-    queryFn: () => listFn({ data: { client_id: clientId } }),
-  });
 
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [noteType, setNoteType] =
-    useState<(typeof NOTE_TYPES)[number]>("observacoes");
-  const [saving, setSaving] = useState(false);
 
-  async function save() {
-    if (!title.trim()) return;
-    setSaving(true);
-    try {
-      await upsertFn({
-        data: {
-          client_id: clientId,
-          title,
-          content,
-          note_type: noteType,
-          visibility: "private",
-        },
-      });
-      setTitle("");
-      setContent("");
-      qc.invalidateQueries({ queryKey: ["notes", clientId] });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function remove(id: string) {
-    if (!confirm("Excluir nota?")) return;
-    await delFn({ data: { id } });
-    qc.invalidateQueries({ queryKey: ["notes", clientId] });
-  }
-
-  return (
-    <div className="space-y-4">
-      <Card className="p-4 space-y-3">
-        <div className="grid md:grid-cols-2 gap-3">
-          <div>
-            <Label>Título</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-          </div>
-          <div>
-            <Label>Tipo</Label>
-            <Select value={noteType} onValueChange={(v) => setNoteType(v as typeof noteType)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {NOTE_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div>
-          <Label>Conteúdo</Label>
-          <Textarea rows={3} value={content} onChange={(e) => setContent(e.target.value)} />
-        </div>
-        <div className="flex justify-end">
-          <Button onClick={save} disabled={saving || !title.trim()} size="sm">
-            <Plus className="h-4 w-4 mr-1" /> Adicionar nota
-          </Button>
-        </div>
-      </Card>
-
-      <div className="space-y-2">
-        {notes.map((n) => (
-          <Card key={n.id} className="p-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <div className="font-medium text-sm text-foreground">{n.title}</div>
-                  <Badge variant="secondary" className="text-[10px]">{n.note_type}</Badge>
-                </div>
-                {n.content && (
-                  <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{n.content}</p>
-                )}
-                <div className="text-xs text-muted-foreground mt-2">
-                  {new Date(n.updated_at).toLocaleString("pt-BR")}
-                </div>
-              </div>
-              <button
-                onClick={() => remove(n.id)}
-                className="text-muted-foreground hover:text-destructive"
-                aria-label="Excluir"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          </Card>
-        ))}
-        {notes.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">Nenhuma nota ainda.</p>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function CreditTiersEditor({
   clientId,
