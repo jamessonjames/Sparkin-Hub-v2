@@ -337,19 +337,23 @@ function AgendaPage() {
   }
 
   async function handleTogglePin(demandId: string, nextValue: boolean) {
+    const currentDemand = demands.find((d) => d.id === demandId) as AgendaDemand | undefined;
+    const effectiveDueDate = currentDemand ? (scheduledMap[demandId] ?? currentDemand.due_date ?? null) : null;
+
     qc.setQueryData<typeof demands>(["demands"], (prev) =>
       (prev ?? []).map((d) =>
-        d.id === demandId ? ({ ...d, is_manually_scheduled: nextValue } as any) : d
+        d.id === demandId
+          ? ({ ...d, due_date: nextValue ? effectiveDueDate : null, is_manually_scheduled: nextValue } as any)
+          : d
       )
     );
     try {
-      const dObj = demands.find((d) => d.id === demandId);
       await batchUpdateFn({
         data: {
           updates: [
             {
               id: demandId,
-              due_date: nextValue ? (dObj?.due_date ?? null) : null,
+              due_date: nextValue ? effectiveDueDate : null,
               is_manually_scheduled: nextValue,
             },
           ],
