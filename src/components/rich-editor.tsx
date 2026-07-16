@@ -262,7 +262,7 @@ export function RichEditor({
   return (
     <div
       className={cn(
-        "w-full relative overflow-hidden transition-all",
+        "w-full flex-1 flex flex-col min-h-0 relative overflow-hidden transition-all",
         borderless
           ? "rounded-xl border border-zinc-800 bg-zinc-950/60"
           : "rounded-xl border border-zinc-800 bg-zinc-950/60",
@@ -373,24 +373,9 @@ export function RichEditor({
         </div>
       </TiptapBubbleMenu>
 
-      <div className="relative">
-        <TiptapEditorContent editor={editor} onKeyDown={handleKeyDown} />
-      </div>
-
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) insertImage(file);
-          e.target.value = "";
-        }}
-      />
-      {/* Subtle bottom helper bar for images and lists since toolbar is bubble-only */}
+      {/* Subtle top helper bar for images and lists since toolbar is bubble-only */}
       <div className={cn(
-        "flex items-center gap-1.5 py-1.5 border-t border-zinc-700/60 bg-zinc-800/20 justify-end",
+        "flex items-center gap-1.5 py-1.5 border-b border-zinc-800/80 bg-zinc-950/40 justify-end shrink-0",
         borderless ? "px-6" : "px-3"
       )}>
         <button
@@ -410,6 +395,22 @@ export function RichEditor({
           <CheckSquare className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      <div className="flex-1 overflow-y-auto min-h-0 pr-0.5 scrollbar-thin">
+        <TiptapEditorContent editor={editor} onKeyDown={handleKeyDown} />
+      </div>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) insertImage(file);
+          e.target.value = "";
+        }}
+      />
     </div>
   );
 }

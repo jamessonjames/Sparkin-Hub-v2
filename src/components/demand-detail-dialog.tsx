@@ -429,8 +429,8 @@ export function DemandDetailDialog({
                   <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Descrição</label>
                 </div>
 
-                {/* Description Editor - Scrollable */}
-                <div className="flex-1 overflow-y-auto min-h-0 pr-0.5 scrollbar-thin">
+                {/* Description Editor */}
+                <div className="flex-1 flex flex-col min-h-0">
                   <RichEditor
                     content={description}
                     onChange={(html) => setDescription(html)}
