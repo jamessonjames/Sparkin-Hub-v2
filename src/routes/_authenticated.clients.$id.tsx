@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, DEFAULT_CREDIT_TIERS, type CreditTier } from "@/lib/credit-tiers";
 import { listProfiles } from "@/lib/users.functions";
+import { CreditProgressBar } from "@/components/credit-progress-bar";
 
 export const Route = createFileRoute("/_authenticated/clients/$id")({
   head: () => ({ meta: [{ title: "Cliente" }] }),
@@ -826,6 +827,15 @@ function ClientReportsPanel({
           </Card>
         )}
       </div>
+
+      {/* Credit Progress Bar – only for credit billing model */}
+      {billingModel === "credits" && (
+        <CreditProgressBar
+          totalCredits={totalCredits}
+          tiers={creditTiers}
+          title={`Progresso de Créditos — ${formattedPeriodLabel}`}
+        />
+      )}
 
       {/* Services Table */}
       <Card className="p-4">
