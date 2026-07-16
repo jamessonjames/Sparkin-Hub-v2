@@ -305,7 +305,8 @@ export function scheduleDemands(
  */
 export function scheduleByPriority(
   demands: UnscheduledDemand[],
-  config: SchedulingConfig = DEFAULT_CONFIG
+  config: SchedulingConfig = DEFAULT_CONFIG,
+  fixed: UnscheduledDemand[] = []
 ): Record<string, string> {
   const active = demands.filter((d) => d.status !== "concluido");
 
@@ -317,6 +318,14 @@ export function scheduleByPriority(
 
   const scheduledTimes: Record<string, string> = {};
   const takenSlots = new Set<string>();
+
+  // Reserve slots used by fixed (manually-scheduled) demands so we don't overlap them.
+  for (const f of fixed) {
+    if (!f.due_date) continue;
+    const parsed = safeParseDate(f.due_date);
+    const duration = f.estimated_hours ? Number(f.estimated_hours) : 1.0;
+    blockSlots(parsed, duration, takenSlots);
+  }
 
   const now = getTzTime(config.timezone);
   let cursor = new Date(now);

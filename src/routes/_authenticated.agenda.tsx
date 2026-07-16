@@ -154,7 +154,9 @@ function AgendaPage() {
 
   // Auto-schedule logic
   const scheduledMap = useMemo(() => {
-    const forScheduler = demands.map((d) => ({
+    const movable = demands.filter((d: any) => !d.is_manually_scheduled && d.status !== "concluido");
+    const fixed = demands.filter((d: any) => d.is_manually_scheduled && d.status !== "concluido" && d.due_date);
+    const toItem = (d: any) => ({
       id: d.id,
       title: d.title,
       priority: d.priority as "low" | "medium" | "high" | "urgent",
@@ -162,8 +164,8 @@ function AgendaPage() {
       due_date: d.due_date,
       estimated_hours: d.estimated_hours ? Number(d.estimated_hours) : 1.0,
       created_at: d.created_at,
-    }));
-    return scheduleByPriority(forScheduler, config);
+    });
+    return scheduleByPriority(movable.map(toItem), config, fixed.map(toItem));
   }, [demands, config]);
 
   // Persistence handled globally by useAutoScheduler hook (mounted in AppShell).
@@ -327,11 +329,11 @@ function AgendaPage() {
     const formatted = formatTzString(targetDate);
 
     qc.setQueryData<typeof demands>(["demands"], (prev) =>
-      (prev ?? []).map((d) => (d.id === demandId ? { ...d, due_date: formatted } : d))
+      (prev ?? []).map((d) => (d.id === demandId ? { ...d, due_date: formatted, is_manually_scheduled: true } as any : d))
     );
 
     try {
-      await batchUpdateFn({ data: { updates: [{ id: demandId, due_date: formatted }] } });
+      await batchUpdateFn({ data: { updates: [{ id: demandId, due_date: formatted, is_manually_scheduled: true }] } });
       toast.success("Demanda reagendada!");
     } catch (err) {
       toast.error("Erro ao reagendar");

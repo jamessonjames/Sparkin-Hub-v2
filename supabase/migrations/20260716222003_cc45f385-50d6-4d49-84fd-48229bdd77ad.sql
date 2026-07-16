@@ -1,0 +1,1 @@
+ALTER TABLE public.demands ADD COLUMN IF NOT EXISTS is_manually_scheduled BOOLEAN NOT NULL DEFAULT false;

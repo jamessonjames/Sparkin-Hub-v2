@@ -225,6 +225,7 @@ export type Database = {
           estimated_hours: number | null
           id: string
           internal_notes: string | null
+          is_manually_scheduled: boolean
           priority: Database["public"]["Enums"]["demand_priority"]
           reference_month: string
           sort_order: number | null
@@ -248,6 +249,7 @@ export type Database = {
           estimated_hours?: number | null
           id?: string
           internal_notes?: string | null
+          is_manually_scheduled?: boolean
           priority?: Database["public"]["Enums"]["demand_priority"]
           reference_month?: string
           sort_order?: number | null
@@ -271,6 +273,7 @@ export type Database = {
           estimated_hours?: number | null
           id?: string
           internal_notes?: string | null
+          is_manually_scheduled?: boolean
           priority?: Database["public"]["Enums"]["demand_priority"]
           reference_month?: string
           sort_order?: number | null
