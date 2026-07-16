@@ -26,7 +26,8 @@ const upsertSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional().nullable(),
   demand_type_id: z.string().uuid().optional().nullable(),
-  status: z.enum(DEMAND_STATUSES).default("nao_iniciado"),
+  status: z.string().default("nao_iniciado"),
+  status_id: z.string().optional().nullable(),
   priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
   due_date: z.string().optional().nullable(),
   estimated_credits: z.number().int().optional().nullable(),
@@ -46,7 +47,13 @@ export const listDemands = createServerFn({ method: "GET" })
       .order("sort_order", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return data ?? [];
+    
+    // Map status_id to status if custom
+    const mapped = (data ?? []).map((d) => ({
+      ...d,
+      status: d.status_id || d.status,
+    }));
+    return mapped;
   });
 
 export const getDemand = createServerFn({ method: "GET" })
@@ -60,19 +67,27 @@ export const getDemand = createServerFn({ method: "GET" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!d) throw new Error("Demanda não encontrada");
-    return d;
+    return {
+      ...d,
+      status: d.status_id || d.status,
+    };
   });
 
 export const createDemand = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => upsertSchema.parse(input))
   .handler(async ({ data, context }) => {
+    const isCustom = data.status.startsWith("custom_");
+    const dbStatus = isCustom ? "nao_iniciado" : data.status;
+    const dbStatusId = isCustom ? data.status : (data.status_id || null);
+
     const payload: any = {
       client_id: data.client_id,
       title: data.title,
       description: data.description || null,
       demand_type_id: data.demand_type_id || null,
-      status: data.status,
+      status: dbStatus,
+      status_id: dbStatusId,
       priority: data.priority,
       due_date: data.due_date || null,
       estimated_credits: data.estimated_credits ?? undefined,
@@ -119,12 +134,17 @@ export const updateDemand = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => upsertSchema.extend({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { id, ...rest } = data;
+    const isCustom = rest.status.startsWith("custom_");
+    const dbStatus = isCustom ? "nao_iniciado" : rest.status;
+    const dbStatusId = isCustom ? rest.status : (rest.status_id || null);
+
     const payload: any = {
       client_id: rest.client_id,
       title: rest.title,
       description: rest.description || null,
       demand_type_id: rest.demand_type_id || null,
-      status: rest.status,
+      status: dbStatus,
+      status_id: dbStatusId,
       priority: rest.priority,
       due_date: rest.due_date || null,
       estimated_credits: rest.estimated_credits ?? undefined,
@@ -164,12 +184,16 @@ export const updateDemand = createServerFn({ method: "POST" })
 export const moveDemandStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ id: z.string().uuid(), status: z.enum(DEMAND_STATUSES) }).parse(input),
+    z.object({ id: z.string().uuid(), status: z.string() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    const isCustom = data.status.startsWith("custom_");
+    const dbStatus = isCustom ? "nao_iniciado" : data.status;
+    const dbStatusId = isCustom ? data.status : null;
+
     const { error } = await context.supabase
       .from("demands")
-      .update({ status: data.status })
+      .update({ status: dbStatus as any, status_id: dbStatusId })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -184,6 +208,35 @@ export const deleteDemand = createServerFn({ method: "POST" })
       .update({ deleted_at: new Date().toISOString() })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const updateDemandsOrder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      updates: z.array(
+        z.object({
+          id: z.string().uuid(),
+          status: z.string(),
+          sort_order: z.number().int(),
+        }),
+      ),
+    }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const promises = data.updates.map(async (u) => {
+      const isCustom = u.status.startsWith("custom_");
+      const dbStatus = isCustom ? "nao_iniciado" : u.status;
+      const dbStatusId = isCustom ? u.status : null;
+
+      const { error } = await context.supabase
+        .from("demands")
+        .update({ status: dbStatus as any, status_id: dbStatusId, sort_order: u.sort_order })
+        .eq("id", u.id);
+      if (error) throw new Error(`Erro ao reordenar ${u.id}: ${error.message}`);
+    });
+    await Promise.all(promises);
     return { ok: true };
   });
 

@@ -14,7 +14,7 @@ export const HIGHLIGHT_COLORS: Record<
   string,
   { primary: string; primaryForeground: string; accent: string; accentForeground: string; gradient?: string }
 > = {
-  roxo: { primary: "oklch(0.46 0.18 264)", primaryForeground: "oklch(0.98 0 0)", accent: "oklch(0.92 0.21 117)", accentForeground: "oklch(0.18 0 0)" },
+  roxo: { primary: "oklch(0.46 0.18 264)", primaryForeground: "oklch(0.98 0 0)", accent: "oklch(0.85 0.18 264)", accentForeground: "oklch(0.18 0 0)" },
   azul: { primary: "oklch(0.55 0.18 250)", primaryForeground: "oklch(0.98 0 0)", accent: "oklch(0.85 0.18 250)", accentForeground: "oklch(0.18 0 0)" },
   verde: { primary: "oklch(0.50 0.18 145)", primaryForeground: "oklch(0.98 0 0)", accent: "oklch(0.85 0.18 145)", accentForeground: "oklch(0.18 0 0)" },
   rosa: { primary: "oklch(0.55 0.18 360)", primaryForeground: "oklch(0.98 0 0)", accent: "oklch(0.85 0.18 360)", accentForeground: "oklch(0.18 0 0)" },

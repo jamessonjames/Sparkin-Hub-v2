@@ -1,9 +1,15 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { getPublicPortal } from "@/lib/portal.functions";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { STATUS_LABELS, PRIORITY_LABELS, PRIORITY_COLORS } from "@/lib/demand-labels";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getPublicPortal, updatePortalDemandsOrder } from "@/lib/portal.functions";
+import { DemandDetailDialog, type PortalInitialDemand } from "@/components/demand-detail-dialog";
+import { KanbanBoard, type KanbanDemand } from "@/components/kanban-board";
+import type { DemandStatus } from "@/lib/demands.functions";
 import { cn } from "@/lib/utils";
+import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
+import { LayoutList, Columns2, Plus, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/portal/$slug")({
   loader: async ({ params }) => {
@@ -31,97 +37,261 @@ export const Route = createFileRoute("/portal/$slug")({
   component: PortalPage,
 });
 
-function PortalPage() {
-  const { client, demands } = Route.useLoaderData();
+const STATUS_CHIP: Record<string, string> = {
+  nao_iniciado: "bg-zinc-700 text-zinc-200",
+  fazendo:      "bg-blue-700 text-blue-100",
+  para_analise: "bg-purple-700 text-purple-100",
+  com_ajustes:  "bg-amber-700 text-amber-100",
+  concluido:    "bg-emerald-700 text-emerald-100",
+};
 
-  type D = (typeof demands)[number];
-  const active = demands.filter((d: D) => d.status !== "concluido");
-  const done = demands.filter((d: D) => d.status === "concluido");
+const PRIORITY_CHIP: Record<string, string> = {
+  low:    "bg-zinc-500 text-white",
+  medium: "bg-blue-50 text-white",
+  high:   "bg-amber-500 text-white",
+  urgent: "bg-red-500 text-white",
+};
+
+type PortalDemand = PortalInitialDemand & {
+  created_at: string;
+  sort_order?: number | null;
+};
+
+function PortalPage() {
+  const params = Route.useParams();
+  const slug = params.slug;
+  const getPortalFn = useServerFn(getPublicPortal);
+
+  // Poll database to get real-time status updates from the admin area
+  const { data } = useQuery({
+    queryKey: ["portal-data", slug],
+    queryFn: () => getPortalFn({ data: { slug } }),
+    initialData: Route.useLoaderData(),
+    refetchInterval: 5000, // Poll every 5 seconds
+  });
+
+  const client = data.client;
+  const initialDemands = data.demands;
+
+  const [view, setView] = useState<"list" | "kanban">("kanban");
+  const [demands, setDemands] = useState<PortalDemand[]>(initialDemands as PortalDemand[]);
+
+  // Sync server updates with local client state
+  useEffect(() => {
+    if (initialDemands) {
+      setDemands(initialDemands as PortalDemand[]);
+    }
+  }, [initialDemands]);
+
+  // Dialog state: null = closed, "new" = create, uuid = detail
+  const [openDialogId, setOpenDialogId] = useState<string | null>(null);
+  const [defaultStatus, setDefaultStatus] = useState<string>("nao_iniciado");
+
+  const reorderFn = useServerFn(updatePortalDemandsOrder);
+
+  const selectedDemand = openDialogId && openDialogId !== "new"
+    ? demands.find((d) => d.id === openDialogId) ?? null
+    : null;
+
+  function openNew(status = "nao_iniciado") {
+    setDefaultStatus(status);
+    setOpenDialogId("new");
+  }
+
+  async function handleReorder(updates: { id: string; status: DemandStatus; sort_order: number }[]) {
+    setDemands((prev) => {
+      const map = new Map(updates.map((u) => [u.id, u]));
+      return prev.map((d) => {
+        const u = map.get(d.id);
+        return u ? { ...d, status: u.status, sort_order: u.sort_order } : d;
+      });
+    });
+    try {
+      await reorderFn({ data: { slug, updates } });
+    } catch { /* silent */ }
+  }
+
+  function handleMove(id: string, status: DemandStatus) {
+    if (status === "fazendo" || status === "para_analise") return;
+    setDemands((prev) => prev.map((d) => (d.id === id ? { ...d, status } : d)));
+    const updates = demands.map((d, i) => ({
+      id: d.id,
+      status: (d.id === id ? status : d.status) as DemandStatus,
+      sort_order: i,
+    }));
+    reorderFn({ data: { slug, updates } }).catch(() => {});
+  }
+
+  const kanbanDemands: KanbanDemand[] = demands.map((d) => ({
+    id: d.id,
+    title: d.title,
+    status: d.status,
+    priority: d.priority ?? "medium",
+    due_date: d.due_date,
+    sort_order: d.sort_order,
+  }));
+
+  const active = demands.filter((d) => d.status !== "concluido");
+  const done = demands.filter((d) => d.status === "concluido");
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border">
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">
-            Portal do cliente
-          </p>
-          <h1 className="text-3xl font-bold text-foreground">{client.name}</h1>
-          {client.contact_name && (
-            <p className="text-muted-foreground mt-1">{client.contact_name}</p>
-          )}
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
+      {/* Header */}
+      <header className="border-b border-border shrink-0">
+        <div className="px-6 py-5 flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                Portal do cliente
+              </p>
+              <span className="text-xs text-muted-foreground/45 select-none">
+                · Link privado - não compartilhe publicamente
+              </span>
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">{client.name}</h1>
+            {client.contact_name && (
+              <p className="text-sm text-muted-foreground mt-0.5">{client.contact_name}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {/* View toggle */}
+            <div className="flex items-center rounded-lg border border-border overflow-hidden bg-surface-2/30">
+              <button
+                onClick={() => setView("list")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-all",
+                  view === "list" ? "bg-surface-2 text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <LayoutList className="h-3.5 w-3.5" />
+                Lista
+              </button>
+              <button
+                onClick={() => setView("kanban")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-all",
+                  view === "kanban" ? "bg-surface-2 text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Columns2 className="h-3.5 w-3.5" />
+                Kanban
+              </button>
+            </div>
+
+            <Button size="sm" onClick={() => openNew()} className="flex items-center gap-1.5">
+              <Plus className="h-3.5 w-3.5" />
+              Abrir demanda
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-8 space-y-8">
-        <section>
-          <h2 className="text-lg font-semibold mb-4">
-            Em andamento{" "}
-            <span className="text-muted-foreground font-normal">({active.length})</span>
-          </h2>
-          {active.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Nenhuma demanda em andamento.</p>
-          ) : (
-            <div className="grid gap-3">
-              {active.map((d: D) => (
-                <DemandCard key={d.id} d={d} />
-              ))}
-            </div>
-          )}
-        </section>
+      {/* Main */}
+      <main className="flex-1 flex flex-col px-4 pt-4 md:px-6 md:pt-6 min-h-0 overflow-hidden">
+        {view === "list" ? (
+          <div className="flex-1 overflow-y-auto space-y-6 pb-6">
+            <section>
+              <h2 className="text-sm font-semibold mb-3 text-foreground">
+                Em andamento <span className="text-muted-foreground font-normal">({active.length})</span>
+              </h2>
+              {active.length === 0 ? (
+                <p className="text-muted-foreground text-sm">Nenhuma demanda em andamento.</p>
+              ) : (
+                <div className="grid gap-2">
+                  {active.map((d) => (
+                    <ListDemandRow key={d.id} d={d} onClick={() => setOpenDialogId(d.id)} />
+                  ))}
+                </div>
+              )}
+            </section>
 
-        {done.length > 0 && (
-          <section>
-            <h2 className="text-lg font-semibold mb-4">
-              Concluídas{" "}
-              <span className="text-muted-foreground font-normal">({done.length})</span>
-            </h2>
-            <div className="grid gap-3">
-              {done.map((d: D) => (
-                <DemandCard key={d.id} d={d} />
-              ))}
-            </div>
-          </section>
+            {done.length > 0 && (
+              <section>
+                <h2 className="text-sm font-semibold mb-3 text-foreground">
+                  Concluídas <span className="text-muted-foreground font-normal">({done.length})</span>
+                </h2>
+                <div className="grid gap-2">
+                  {done.map((d) => (
+                    <ListDemandRow key={d.id} d={d} onClick={() => setOpenDialogId(d.id)} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        ) : (
+          <KanbanBoard
+            demands={kanbanDemands}
+            onMove={handleMove}
+            onOpen={(id) => setOpenDialogId(id)}
+            onAdd={(status) => {
+              if (status === "fazendo") return;
+              openNew(status);
+            }}
+            onReorder={handleReorder}
+            isClientPortal={true}
+            showSearch={true}
+          />
         )}
-
-        <footer className="pt-8 text-center text-xs text-muted-foreground">
-          Link privado · não compartilhe publicamente
-        </footer>
       </main>
+
+      {/* The one shared DemandDetailDialog — in portal mode */}
+      {openDialogId && (
+        <DemandDetailDialog
+          id={openDialogId}
+          onClose={() => setOpenDialogId(null)}
+          clients={[]}
+          defaultStatus={defaultStatus}
+          portalMode={true}
+          portalSlug={slug}
+          portalClientName={client.name}
+          portalBillingModel={client.billing_model}
+          initialDemandData={selectedDemand ?? undefined}
+          onPortalDemandCreated={(newDemand) => {
+            setDemands((prev) => [{ ...newDemand, created_at: new Date().toISOString() }, ...prev]);
+          }}
+          onPortalDemandUpdated={(updated) => {
+            setDemands((prev) =>
+              prev.map((d) => (d.id === updated.id ? { ...d, ...updated } : d)),
+            );
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function DemandCard({
+function ListDemandRow({
   d,
+  onClick,
 }: {
-  d: {
-    id: string;
-    title: string;
-    status: string;
-    priority: string | null;
-    due_date: string | null;
-  };
+  d: PortalDemand;
+  onClick: () => void;
 }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const isOverdue = d.due_date && d.due_date.slice(0, 10) < today;
+
   return (
-    <Card className="p-4 flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <h3 className="font-medium text-foreground truncate">{d.title}</h3>
-        <div className="flex flex-wrap items-center gap-2 mt-2">
-          <Badge variant="outline">
-            {STATUS_LABELS[d.status as keyof typeof STATUS_LABELS] ?? d.status}
-          </Badge>
-          {d.priority && (
-            <Badge className={cn("border-0", PRIORITY_COLORS[d.priority])}>
-              {PRIORITY_LABELS[d.priority] ?? d.priority}
-            </Badge>
-          )}
-          {d.due_date && (
-            <span className="text-xs text-muted-foreground">
-              Entrega: {new Date(d.due_date).toLocaleDateString("pt-BR")}
-            </span>
-          )}
-        </div>
+    <div
+      onClick={onClick}
+      className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border bg-card hover:bg-surface-2/50 cursor-pointer transition-all"
+    >
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-foreground truncate">{d.title}</p>
       </div>
-    </Card>
+      <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0", STATUS_CHIP[d.status])}>
+        {STATUS_LABELS[d.status] ?? d.status}
+      </span>
+      {d.priority && (
+        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0", PRIORITY_CHIP[d.priority])}>
+          {PRIORITY_LABELS[d.priority]}
+        </span>
+      )}
+      {d.due_date && (
+        <span className={cn("flex items-center gap-1 text-[10px] font-medium shrink-0", isOverdue ? "text-red-500" : "text-muted-foreground")}>
+          <Calendar className="h-3 w-3" />
+          {new Date(d.due_date).toLocaleDateString("pt-BR")}
+        </span>
+      )}
+    </div>
   );
 }

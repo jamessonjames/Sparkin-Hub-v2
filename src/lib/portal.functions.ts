@@ -37,10 +37,175 @@ export const getPublicPortal = createServerFn({ method: "GET" })
 
     const { data: demands, error: dErr } = await sb
       .from("demands")
-      .select("id, title, status, priority, due_date, created_at")
+      .select("id, title, status, priority, due_date, created_at, description, sort_order, estimated_credits")
       .eq("client_id", client.id)
-      .order("due_date", { ascending: true, nullsFirst: false });
+      .is("deleted_at", null)
+      .order("sort_order", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false });
     if (dErr) throw new Error(dErr.message);
 
     return { client, demands: demands ?? [] };
   });
+
+export const getPortalDemandComments = createServerFn({ method: "GET" })
+  .inputValidator((input: { slug: string; demand_id: string }) =>
+    z.object({ slug: z.string().min(1), demand_id: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const sb = publicClient();
+    // Verify demand belongs to this client slug
+    const { data: demand } = await sb
+      .from("demands")
+      .select("id, clients!inner(slug)")
+      .eq("id", data.demand_id)
+      .maybeSingle();
+    if (!demand) throw new Error("Demanda não encontrada");
+
+    const { data: comments, error } = await sb
+      .from("demand_comments")
+      .select("id, body, author_type, author_label, created_at")
+      .eq("demand_id", data.demand_id)
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return comments ?? [];
+  });
+
+export const addPortalComment = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      slug: z.string().min(1),
+      demand_id: z.string().uuid(),
+      body: z.string().min(1),
+      author_label: z.string().optional(),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const sb = publicClient();
+    const { error } = await sb.from("demand_comments").insert({
+      demand_id: data.demand_id,
+      body: data.body,
+      author_type: "client",
+      author_label: data.author_label ?? "Cliente",
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const createPortalDemand = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      slug: z.string().min(1),
+      title: z.string().min(1),
+      description: z.string().optional().nullable(),
+      priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const sb = publicClient();
+    // Resolve client by slug
+    const { data: client, error: cErr } = await sb
+      .from("clients")
+      .select("id")
+      .eq("slug", data.slug)
+      .maybeSingle();
+    if (cErr || !client) throw new Error("Cliente não encontrado");
+
+    const { data: row, error } = await sb
+      .from("demands")
+      .insert({
+        client_id: client.id,
+        title: data.title,
+        description: data.description ?? null,
+        status: "nao_iniciado",
+        priority: data.priority,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
+export const updatePortalDemandsOrder = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      slug: z.string().min(1),
+      updates: z.array(
+        z.object({
+          id: z.string().uuid(),
+          status: z.string(),
+          sort_order: z.number().int(),
+        }),
+      ),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const sb = publicClient();
+    // Verify client slug
+    const { data: client } = await sb
+      .from("clients")
+      .select("id")
+      .eq("slug", data.slug)
+      .maybeSingle();
+    if (!client) throw new Error("Cliente não encontrado");
+
+    // Block any move to "fazendo" or "para_analise"
+    for (const u of data.updates) {
+      if (u.status === "fazendo") throw new Error("O cliente não pode mover demandas para 'Fazendo'");
+      if (u.status === "para_analise") throw new Error("O cliente não pode mover demandas para 'Para análise'");
+    }
+
+    const promises = data.updates.map(async (u) => {
+      const { error } = await sb
+        .from("demands")
+        .update({ sort_order: u.sort_order, status: u.status })
+        .eq("id", u.id)
+        .eq("client_id", client.id);
+      if (error) throw new Error(error.message);
+    });
+    await Promise.all(promises);
+    return { ok: true };
+  });
+
+export const updatePortalDemand = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      slug: z.string().min(1),
+      id: z.string().uuid(),
+      title: z.string().min(1),
+      description: z.string().optional().nullable(),
+      status: z.string(),
+      priority: z.enum(["low", "medium", "high", "urgent"]),
+      due_date: z.string().optional().nullable(),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const sb = publicClient();
+
+    // Resolve client by slug and verify demand ownership
+    const { data: client } = await sb
+      .from("clients")
+      .select("id")
+      .eq("slug", data.slug)
+      .maybeSingle();
+    if (!client) throw new Error("Cliente não encontrado");
+
+    // Block "fazendo" and "para_analise" statuses
+    if (data.status === "fazendo") throw new Error("O cliente não pode definir o status como 'Fazendo'");
+    if (data.status === "para_analise") throw new Error("O cliente não pode definir o status como 'Para análise'");
+
+    const { error } = await sb
+      .from("demands")
+      .update({
+        title: data.title,
+        description: data.description ?? null,
+        status: data.status as any,
+        priority: data.priority,
+        due_date: data.due_date ?? null,
+      })
+      .eq("id", data.id)
+      .eq("client_id", client.id);
+
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+

@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, Trash2, Plus } from "lucide-react";
+import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, type CreditTier } from "@/lib/credit-tiers";
 
 export const Route = createFileRoute("/_authenticated/clients/$id")({
   head: () => ({ meta: [{ title: "Cliente" }] }),
@@ -101,7 +102,7 @@ function ClientPage() {
   if (!client) return <div className="p-6 text-muted-foreground">Carregando...</div>;
 
   return (
-    <div className="w-full p-4 md:p-6 space-y-4">
+    <div className="flex flex-col h-full p-4 md:p-6 gap-4 overflow-hidden">
       <button
         onClick={() => navigate({ to: "/clients" })}
         className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
@@ -141,16 +142,17 @@ function ClientPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="demands">
+      <Tabs defaultValue="demands" className="flex-1 flex flex-col min-h-0">
         <TabsList>
           <TabsTrigger value="demands">
             Demandas ({clientDemands.length})
           </TabsTrigger>
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
           <TabsTrigger value="notes">Notas</TabsTrigger>
+          <TabsTrigger value="reports">Relatórios</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="demands" className="mt-4 space-y-4">
+        <TabsContent value="demands" className="mt-4 flex-1 flex flex-col min-h-0 gap-4">
           <div className="flex justify-end">
             <Button
               onClick={() => overlay.openNew([{ id: client.id, name: client.name }], client.id)}
@@ -175,30 +177,49 @@ function ClientPage() {
           />
         </TabsContent>
 
-        <TabsContent value="overview" className="mt-4">
-          <Card className="p-6">
-            <ClientForm
-              initial={{
-                name: client.name,
-                contact_name: client.contact_name,
-                email: client.email,
-                phone: client.phone,
-                billing_model: client.billing_model,
-                fixed_type: client.fixed_type,
-                monthly_value: client.monthly_value,
-                commercial_notes: client.commercial_notes,
-                internal_notes: client.internal_notes,
-                credits_enabled: client.credits_enabled,
-                access_active: client.access_active,
-              }}
-              onSubmit={handleSave}
-              submitting={saving}
-            />
-          </Card>
+        <TabsContent value="overview" className="mt-4 overflow-y-auto pb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <div className="lg:col-span-2">
+              <Card className="p-6">
+                <ClientForm
+                  initial={{
+                    name: client.name,
+                    contact_name: client.contact_name,
+                    email: client.email,
+                    phone: client.phone,
+                    billing_model: client.billing_model,
+                    fixed_type: client.fixed_type,
+                    monthly_value: client.monthly_value,
+                    commercial_notes: client.commercial_notes,
+                    internal_notes: client.internal_notes,
+                    credits_enabled: client.credits_enabled,
+                    access_active: client.access_active,
+                  }}
+                  onSubmit={handleSave}
+                  submitting={saving}
+                />
+              </Card>
+            </div>
+            {client.billing_model === "credits" && (
+              <div className="lg:col-span-1">
+                <CreditTiersEditor clientId={client.id} />
+              </div>
+            )}
+          </div>
         </TabsContent>
 
-        <TabsContent value="notes" className="mt-4">
+        <TabsContent value="notes" className="mt-4 overflow-y-auto">
           <ClientNotesPanel clientId={id} />
+        </TabsContent>
+
+        <TabsContent value="reports" className="mt-4 overflow-y-auto pb-8">
+          <ClientReportsPanel
+            clientId={id}
+            billingModel={client.billing_model}
+            monthlyValue={client.monthly_value}
+            demands={clientDemands}
+            onOpenDemand={(demandId) => overlay.open(demandId, [{ id: client.id, name: client.name }])}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -311,6 +332,424 @@ function ClientNotesPanel({ clientId }: { clientId: string }) {
           <p className="text-sm text-muted-foreground text-center py-4">Nenhuma nota ainda.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+function CreditTiersEditor({ clientId }: { clientId: string }) {
+  const getTiersFn = useServerFn(getClientCreditTiers);
+  const saveTiersFn = useServerFn(saveClientCreditTiers);
+  const qc = useQueryClient();
+
+  const { data: serverTiers = [] } = useQuery({
+    queryKey: ["client-credit-tiers", clientId],
+    queryFn: () => getTiersFn({ data: { client_id: clientId } }),
+  });
+
+  const [editingTiers, setEditingTiers] = useState<CreditTier[]>([]);
+  const [savingTiers, setSavingTiers] = useState(false);
+
+  useEffect(() => {
+    if (serverTiers) {
+      setEditingTiers(serverTiers);
+    }
+  }, [serverTiers]);
+
+  const addTier = () => {
+    const lastTier = editingTiers[editingTiers.length - 1];
+    const nextMin = lastTier ? (lastTier.max_credits !== null ? lastTier.max_credits + 1 : lastTier.min_credits + 1) : 0;
+    setEditingTiers([
+      ...editingTiers,
+      { min_credits: nextMin, max_credits: null, price: 1000, extra_per_credit: null }
+    ]);
+  };
+
+  const removeTier = (index: number) => {
+    setEditingTiers(editingTiers.filter((_, i) => i !== index));
+  };
+
+  const updateTier = <K extends keyof CreditTier>(index: number, key: K, value: CreditTier[K]) => {
+    setEditingTiers(
+      editingTiers.map((t, i) => {
+        if (i !== index) return t;
+        const updated = { ...t, [key]: value };
+        if (key === "max_credits" && value !== null) {
+          updated.extra_per_credit = null;
+        }
+        return updated;
+      })
+    );
+  };
+
+  const handleSaveTiers = async () => {
+    setSavingTiers(true);
+    try {
+      await saveTiersFn({ data: { client_id: clientId, tiers: editingTiers } });
+      toast.success("Regras de crédito salvas com sucesso!");
+      qc.invalidateQueries({ queryKey: ["client-credit-tiers", clientId] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar regras");
+    } finally {
+      setSavingTiers(false);
+    }
+  };
+
+  return (
+    <Card className="p-5 flex flex-col gap-4">
+      <div>
+        <h3 className="font-bold text-sm text-foreground">Regras de Preço de Créditos</h3>
+        <p className="text-[11px] text-muted-foreground mt-1">
+          Personalize as faixas de cobrança deste cliente. Deixe o "Até" vazio para a faixa aberta final.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {editingTiers.map((tier, idx) => (
+          <div key={idx} className="flex items-center gap-2 bg-muted/40 p-2.5 rounded-lg border border-border/80 text-xs">
+            <div className="flex flex-col gap-1 w-12 shrink-0">
+              <span className="text-[9px] text-muted-foreground font-bold uppercase">De</span>
+              <Input
+                type="number"
+                min="0"
+                value={tier.min_credits}
+                onChange={(e) => updateTier(idx, "min_credits", parseInt(e.target.value) || 0)}
+                className="h-8 text-center px-1"
+              />
+            </div>
+            
+            <div className="flex flex-col gap-1 w-12 shrink-0">
+              <span className="text-[9px] text-muted-foreground font-bold uppercase">Até</span>
+              <Input
+                type="number"
+                placeholder="∞"
+                value={tier.max_credits ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateTier(idx, "max_credits", val === "" ? null : parseInt(val));
+                }}
+                className="h-8 text-center px-1"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1 flex-1 min-w-[70px]">
+              <span className="text-[9px] text-muted-foreground font-bold uppercase">Valor (R$)</span>
+              <Input
+                type="number"
+                min="0"
+                value={tier.price}
+                onChange={(e) => updateTier(idx, "price", parseFloat(e.target.value) || 0)}
+                className="h-8 px-2"
+              />
+            </div>
+
+            {tier.max_credits === null && (
+              <div className="flex flex-col gap-1 w-16 shrink-0">
+                <span className="text-[9px] text-muted-foreground font-bold uppercase">Extra (R$)</span>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  min="0"
+                  value={tier.extra_per_credit ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    updateTier(idx, "extra_per_credit", val === "" ? null : parseFloat(val));
+                  }}
+                  className="h-8 px-2"
+                />
+              </div>
+            )}
+
+            <button
+              onClick={() => removeTier(idx)}
+              className="text-muted-foreground hover:text-red-500 p-1 rounded hover:bg-muted self-end cursor-pointer mb-[2px] transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+        {editingTiers.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-2">Sem faixas configuradas. Usando padrões.</p>
+        )}
+      </div>
+
+      <div className="flex justify-between gap-2 mt-2 pt-2 border-t border-border">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={addTier}
+          className="text-xs"
+        >
+          + Adicionar faixa
+        </Button>
+        <Button
+          size="sm"
+          onClick={handleSaveTiers}
+          disabled={savingTiers}
+          className="text-xs font-bold"
+        >
+          {savingTiers ? "Salvando..." : "Salvar regras"}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function ClientReportsPanel({
+  clientId,
+  billingModel,
+  monthlyValue,
+  demands,
+  onOpenDemand,
+}: {
+  clientId: string;
+  billingModel: string;
+  monthlyValue: number | null;
+  demands: any[];
+  onOpenDemand: (id: string) => void;
+}) {
+  const getTiersFn = useServerFn(getClientCreditTiers);
+  const listProfilesFn = useServerFn(listProfiles);
+
+  const [period, setPeriod] = useState<"semanal" | "mensal" | "anual" | "personalizado">("mensal");
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  });
+  const [endDate, setEndDate] = useState(() => {
+    return new Date().toISOString().slice(0, 10);
+  });
+
+  // Load profiles to show assignee names
+  const { data: profiles = [] } = useQuery({
+    queryKey: ["profiles"],
+    queryFn: () => listProfilesFn(),
+  });
+
+  // Load client credit tiers
+  const { data: creditTiers = [] } = useQuery({
+    queryKey: ["client-credit-tiers", clientId],
+    queryFn: () => getTiersFn({ data: { client_id: clientId } }),
+    enabled: billingModel === "credits",
+  });
+
+  // Calculate actual filter boundaries based on selected period
+  const today = new Date();
+  let actualStart = startDate;
+  let actualEnd = endDate;
+
+  if (period === "semanal") {
+    const start = new Date(today);
+    start.setDate(today.getDate() - 7);
+    actualStart = start.toISOString().slice(0, 10);
+    actualEnd = today.toISOString().slice(0, 10);
+  } else if (period === "mensal") {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    actualStart = start.toISOString().slice(0, 10);
+    actualEnd = end.toISOString().slice(0, 10);
+  } else if (period === "anual") {
+    actualStart = `${today.getFullYear()}-01-01`;
+    actualEnd = `${today.getFullYear()}-12-31`;
+  }
+
+  // Filter demands by status === "concluido" and within date range (based on due_date)
+  const completedDemands = demands.filter((d) => {
+    if (d.status !== "concluido") return false;
+    if (!d.due_date) return false;
+    const dateStr = d.due_date.slice(0, 10);
+    return dateStr >= actualStart && dateStr <= actualEnd;
+  });
+
+  // Calculations
+  const totalCredits = completedDemands.reduce((sum, d) => sum + (d.estimated_credits || 0), 0);
+  const totalHours = completedDemands.reduce((sum, d) => sum + (Number(d.estimated_hours) || 0), 0);
+  
+  const totalPrice = billingModel === "credits"
+    ? calculateTiersPrice(totalCredits, creditTiers)
+    : monthlyValue ?? 0;
+
+  const getAssigneeName = (userId: string | null) => {
+    if (!userId) return "—";
+    const p = profiles.find((p) => p.id === userId);
+    return p ? p.name : "Carregando...";
+  };
+
+  const getPriorityBadge = (p: string) => {
+    const colors: Record<string, string> = {
+      low: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
+      medium: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+      high: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+      urgent: "bg-red-500/10 text-red-400 border-red-500/20",
+    };
+    const labels: Record<string, string> = {
+      low: "Baixa",
+      medium: "Média",
+      high: "Alta",
+      urgent: "Urgente",
+    };
+    return (
+      <Badge variant="outline" className={colors[p] || colors.medium}>
+        {labels[p] || "Média"}
+      </Badge>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Filters Card */}
+      <Card className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-1.5 bg-muted/40 p-1 rounded-lg border border-border/60 w-fit">
+          {(["semanal", "mensal", "anual", "personalizado"] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-xs font-medium capitalize cursor-pointer transition-all",
+                period === p
+                  ? "bg-background text-foreground shadow-sm font-bold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+              )}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+
+        {period === "personalizado" && (
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[9px] text-muted-foreground uppercase font-bold pl-1">Início</span>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-8 text-xs w-36"
+              />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[9px] text-muted-foreground uppercase font-bold pl-1">Fim</span>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="h-8 text-xs w-36"
+              />
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Summary Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="p-4 flex flex-col justify-between h-24">
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Serviços Concluídos</span>
+          <div className="flex items-baseline gap-1.5 mt-2">
+            <span className="text-3xl font-display font-extrabold text-foreground">{completedDemands.length}</span>
+            <span className="text-xs text-muted-foreground">demandas</span>
+          </div>
+        </Card>
+
+        <Card className="p-4 flex flex-col justify-between h-24">
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Total Horas Gastas</span>
+          <div className="flex items-baseline gap-1.5 mt-2">
+            <span className="text-3xl font-display font-extrabold text-foreground">{totalHours}</span>
+            <span className="text-xs text-muted-foreground">horas</span>
+          </div>
+        </Card>
+
+        {billingModel === "credits" ? (
+          <>
+            <Card className="p-4 flex flex-col justify-between h-24">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Créditos Consumidos</span>
+              <div className="flex items-baseline gap-1.5 mt-2">
+                <span className="text-3xl font-display font-extrabold text-foreground">{totalCredits}</span>
+                <span className="text-xs text-muted-foreground">{totalCredits === 1 ? "crédito" : "créditos"}</span>
+              </div>
+            </Card>
+
+            <Card className="p-4 flex flex-col justify-between h-24 border-emerald-500/25 bg-emerald-500/[0.02]">
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase tracking-wider font-bold">Valor Calculado (Faixas)</span>
+              <div className="flex items-baseline gap-1 mt-2">
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">R$</span>
+                <span className="text-3xl font-display font-extrabold text-emerald-600 dark:text-emerald-400">
+                  {totalPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </Card>
+          </>
+        ) : (
+          <Card className="p-4 flex flex-col justify-between h-24 border-blue-500/25 bg-blue-500/[0.02]">
+            <span className="text-[10px] text-blue-600 dark:text-blue-400 uppercase tracking-wider font-bold">Mensalidade Contratual</span>
+            <div className="flex items-baseline gap-1 mt-2">
+              <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">R$</span>
+              <span className="text-3xl font-display font-extrabold text-blue-600 dark:text-blue-400">
+                {totalPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <span className="text-[10px] text-muted-foreground pl-1">/fixo</span>
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {/* Services Table */}
+      <Card className="p-4">
+        <h3 className="font-bold text-sm text-foreground mb-4">Detalhamento dos Serviços</h3>
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-muted/40 border-b border-border text-[10px] text-muted-foreground uppercase font-bold">
+                <th className="p-3">Demanda</th>
+                <th className="p-3">Conclusão / Entrega</th>
+                <th className="p-3">Prioridade</th>
+                <th className="p-3">Responsável</th>
+                <th className="p-3 text-center">Horas</th>
+                {billingModel === "credits" && <th className="p-3 text-center">Créditos</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {completedDemands.map((d) => (
+                <tr key={d.id} className="hover:bg-muted/20 transition-colors">
+                  <td className="p-3">
+                    <button
+                      onClick={() => onOpenDemand(d.id)}
+                      className="text-left font-bold text-foreground hover:text-primary hover:underline cursor-pointer"
+                    >
+                      {d.title}
+                    </button>
+                  </td>
+                  <td className="p-3 text-muted-foreground">
+                    {d.due_date ? new Date(d.due_date + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
+                  </td>
+                  <td className="p-3">
+                    {getPriorityBadge(d.priority)}
+                  </td>
+                  <td className="p-3 text-muted-foreground">
+                    {getAssigneeName(d.assignee_user_id)}
+                  </td>
+                  <td className="p-3 text-center text-muted-foreground">
+                    {d.estimated_hours ? `${Number(d.estimated_hours)}h` : "—"}
+                  </td>
+                  {billingModel === "credits" && (
+                    <td className="p-3 text-center font-bold text-emerald-600 dark:text-emerald-400">
+                      {d.estimated_credits || 0}
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {completedDemands.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={billingModel === "credits" ? 6 : 5}
+                    className="p-8 text-center text-muted-foreground/60 italic"
+                  >
+                    Nenhum serviço concluído no período selecionado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }

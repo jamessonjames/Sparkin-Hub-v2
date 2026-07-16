@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   listDemands,
   moveDemandStatus,
+  updateDemandsOrder,
   type DemandStatus,
 } from "@/lib/demands.functions";
 import { listClients } from "@/lib/clients.functions";
@@ -23,6 +24,7 @@ function DemandsPage() {
   const listFn = useServerFn(listDemands);
   const clientsFn = useServerFn(listClients);
   const moveFn = useServerFn(moveDemandStatus);
+  const reorderFn = useServerFn(updateDemandsOrder);
   const qc = useQueryClient();
   const overlay = useDemandOverlay();
 
@@ -41,14 +43,32 @@ function DemandsPage() {
     }
   }
 
+  async function handleReorder(updates: { id: string; status: DemandStatus; sort_order: number }[]) {
+    // Optimistically update local cache
+    qc.setQueryData<typeof demands>(["demands"], (prev) => {
+      if (!prev) return prev;
+      const map = new Map(updates.map((u) => [u.id, u]));
+      return prev.map((d) => {
+        const u = map.get(d.id);
+        return u ? { ...d, status: u.status, sort_order: u.sort_order } : d;
+      });
+    });
+    try {
+      await reorderFn({ data: { updates } });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao reordenar");
+      qc.invalidateQueries({ queryKey: ["demands"] });
+    }
+  }
+
   const resolvedClients = clients.map((c) => ({ id: c.id, name: c.name }));
 
   return (
-    <div className="w-full p-4 md:p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-full p-4 md:p-6 gap-4">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h2 className="font-display text-2xl font-bold text-foreground">Demandas</h2>
-          <p className="text-sm text-muted-foreground">Arraste os cards entre as colunas.</p>
+          <p className="text-sm text-muted-foreground">Arraste os cards entre as colunas para mover ou reordenar.</p>
         </div>
         <Button
           onClick={() => overlay.openNew(resolvedClients)}
@@ -71,10 +91,13 @@ function DemandsPage() {
             priority: d.priority,
             due_date: d.due_date,
             clients: d.clients ?? null,
+            sort_order: (d as any).sort_order ?? null,
           }))}
           onMove={handleMove}
           onOpen={(id) => overlay.open(id, resolvedClients)}
           onAdd={(status) => overlay.openNew(resolvedClients, undefined, status)}
+          onReorder={handleReorder}
+          showSearch={true}
         />
       )}
     </div>

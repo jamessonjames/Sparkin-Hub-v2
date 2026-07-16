@@ -53,19 +53,19 @@ for (let h = 0; h < 24; h++) {
 }
 
 const STATUS_BG: Record<string, string> = {
-  nao_iniciado: "bg-zinc-800 border-zinc-700 text-zinc-100",
-  fazendo:      "bg-blue-900/90 border-blue-700 text-blue-100",
-  para_analise: "bg-purple-900/90 border-purple-700 text-purple-100",
-  com_ajustes:  "bg-amber-900/90 border-amber-700 text-amber-100",
-  concluido:    "bg-emerald-900/90 border-emerald-700 text-emerald-100",
-  rascunho:     "bg-zinc-800 border-zinc-700 text-zinc-300",
+  nao_iniciado: "bg-[#38a1db] text-white border-y-transparent border-r-transparent",
+  fazendo:      "bg-[#1a73e8] text-white border-y-transparent border-r-transparent",
+  para_analise: "bg-[#ab47bc] text-white border-y-transparent border-r-transparent",
+  com_ajustes:  "bg-[#f29900] text-white border-y-transparent border-r-transparent",
+  concluido:    "bg-[#0f9d58] text-white border-y-transparent border-r-transparent",
+  rascunho:     "bg-[#90a4ae] text-white border-y-transparent border-r-transparent",
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
-  low:    "border-zinc-500",
-  medium: "border-blue-500",
-  high:   "border-amber-500",
-  urgent: "border-red-500",
+  low:    "border-l-zinc-300/80 dark:border-l-zinc-400/80",
+  medium: "border-l-blue-200/90 dark:border-l-blue-300/90",
+  high:   "border-l-amber-300",
+  urgent: "border-l-red-500",
 };
 
 function toISO(d: Date) {
@@ -337,32 +337,32 @@ function AgendaPage() {
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={pointerWithin}>
-      <div className="flex flex-col h-[calc(100vh-60px)] bg-[#121212] text-zinc-100 overflow-hidden relative">
+      <div className="flex flex-col h-[calc(100vh-60px)] bg-background text-foreground overflow-hidden relative">
         
         {/* ── TOOLBAR ── */}
-        <div className="flex items-center gap-3 px-4 py-2.5 border-b border-zinc-800/80 shrink-0 bg-zinc-900/50 flex-wrap">
+        <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border shrink-0 bg-muted/10 flex-wrap">
           <Button
             variant="outline"
             size="sm"
             onClick={handleToday}
-            className="border-zinc-700 text-zinc-200 hover:bg-zinc-800"
+            className="border-input text-foreground hover:bg-muted"
           >
             Hoje
           </Button>
 
           <div className="flex items-center">
-            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-zinc-800" onClick={handlePrev}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" onClick={handlePrev}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-zinc-800" onClick={handleNext}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" onClick={handleNext}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
 
-          <h2 className="text-sm md:text-base font-bold text-zinc-100 capitalize">{headerLabel}</h2>
+          <h2 className="text-sm md:text-base font-bold text-foreground capitalize">{headerLabel}</h2>
 
           {/* View Mode Selector */}
-          <div className="ml-auto flex items-center bg-zinc-950/60 p-0.5 rounded-lg border border-zinc-800">
+          <div className="ml-auto flex items-center bg-muted/30 p-0.5 rounded-lg border border-border">
             {(["day", "week", "month"] as const).map((mode) => (
               <button
                 key={mode}
@@ -370,8 +370,8 @@ function AgendaPage() {
                 className={cn(
                   "px-3 py-1 text-xs font-semibold rounded-md transition-all capitalize",
                   viewMode === mode
-                    ? "bg-zinc-800 text-white shadow-sm"
-                    : "text-zinc-400 hover:text-zinc-200"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 {mode === "day" ? "Dia" : mode === "week" ? "Semana" : "Mês"}
@@ -383,7 +383,7 @@ function AgendaPage() {
             variant="outline"
             size="sm"
             onClick={() => setShowSettings(!showSettings)}
-            className={cn("border-zinc-700 text-zinc-300 gap-1.5 hover:bg-zinc-800", showSettings && "bg-zinc-800 text-white")}
+            className={cn("border-input text-foreground gap-1.5 hover:bg-muted", showSettings && "bg-muted text-foreground")}
           >
             <Settings className="h-3.5 w-3.5" />
             Expediente
@@ -408,17 +408,17 @@ function AgendaPage() {
         {/* ── VIEW RENDERING ── */}
         {viewMode === "month" ? (
           /* ── MONTH VIEW ── */
-          <div className="flex-1 flex flex-col min-h-0 bg-zinc-950/20">
-            <div className="grid grid-cols-7 border-b border-zinc-800/80 bg-zinc-900/30 text-center py-2 text-xs font-bold text-zinc-500">
+          <div className="flex-1 flex flex-col min-h-0 bg-muted/10">
+            <div className="grid grid-cols-7 border-b border-border bg-muted/20 text-center py-2 text-xs font-bold text-muted-foreground">
               {DAYS_SHORT.map((day) => (
                 <div key={day}>{day}</div>
               ))}
             </div>
 
-            <div className="flex-1 grid grid-cols-7 grid-rows-5 md:grid-rows-6 border-b border-zinc-800/20">
+            <div className="flex-1 grid grid-cols-7 grid-rows-5 md:grid-rows-6 border-b border-border/20">
               {monthCells.map(({ date, key }) => {
                 if (!date) {
-                  return <div key={key} className="border-r border-b border-zinc-850 bg-zinc-950/10" />;
+                  return <div key={key} className="border-r border-b border-border/40 bg-muted/5" />;
                 }
                 const iso = toISO(date);
                 const isToday = iso === todayISO;
@@ -429,14 +429,14 @@ function AgendaPage() {
                     key={key}
                     onClick={() => overlay.openNew(clientsForOverlay, iso, "nao_iniciado")}
                     className={cn(
-                      "border-r border-b border-zinc-850 p-1 flex flex-col justify-start gap-1 overflow-hidden cursor-pointer hover:bg-zinc-900/30 transition-colors",
+                      "border-r border-b border-border/40 p-1 flex flex-col justify-start gap-1 overflow-hidden cursor-pointer hover:bg-muted/40 transition-colors",
                       isToday && "bg-primary/5"
                     )}
                   >
                     <div className="flex items-center justify-between">
                       <span className={cn(
                         "text-xs font-bold h-6 w-6 rounded-full flex items-center justify-center",
-                        isToday ? "bg-primary text-primary-foreground font-black" : "text-zinc-500"
+                        isToday ? "bg-primary text-primary-foreground font-black" : "text-muted-foreground"
                       )}>
                         {date.getDate()}
                       </span>
@@ -453,8 +453,8 @@ function AgendaPage() {
                           }}
                           className={cn(
                             "text-[9px] px-1.5 py-0.5 rounded border truncate border-l-2 font-medium",
-                            STATUS_BG[d.status] ?? "bg-zinc-800 border-zinc-700",
-                            PRIORITY_COLOR[d.priority] ?? "border-zinc-500"
+                            STATUS_BG[d.status] ?? "bg-card border-border",
+                            PRIORITY_COLOR[d.priority] ?? "border-border"
                           )}
                         >
                           {d.title}
@@ -470,19 +470,19 @@ function AgendaPage() {
           /* ── GRID FOR DAY / WEEK VIEW (30-Minute Slots) ── */
           <>
             {/* Headers */}
-            <div className="flex border-b border-zinc-800/60 bg-zinc-900/30 shrink-0">
-              <div className="w-[60px] shrink-0 border-r border-zinc-800/20" />
+            <div className="flex border-b border-border bg-muted/20 shrink-0">
+              <div className="w-[60px] shrink-0 border-r border-border/40" />
               {weekDays.map((day) => {
                 const iso = toISO(day);
                 const isToday = iso === todayISO;
                 return (
-                  <div key={iso} className="flex-1 text-center py-2 border-l border-zinc-800/20 min-w-[120px]">
-                    <div className="text-[10px] font-bold text-zinc-500 tracking-wider">
+                  <div key={iso} className="flex-1 text-center py-2 border-l border-border/40 min-w-[120px]">
+                    <div className="text-[10px] font-bold text-muted-foreground tracking-wider">
                       {viewMode === "day" ? WEEKDAY_NAMES[day.getDay()] : DAYS_SHORT[day.getDay()]}
                     </div>
                     <div className={cn(
                       "mx-auto mt-1 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold",
-                      isToday ? "bg-primary text-primary-foreground font-black" : "text-zinc-300"
+                      isToday ? "bg-primary text-primary-foreground font-black" : "text-foreground"
                     )}>
                       {day.getDate()}
                     </div>
@@ -496,11 +496,11 @@ function AgendaPage() {
               <div className="flex relative">
                 
                 {/* Hour labels (Only printed on the hour, every 2 slots) */}
-                <div className="w-[60px] shrink-0 select-none bg-zinc-900/20 border-r border-zinc-800/20 z-10">
+                <div className="w-[60px] shrink-0 select-none bg-muted/5 border-r border-border/40 z-10">
                   {SLOTS.map((slot, index) => (
                     <div key={index} className="h-10 relative flex items-start justify-end pr-2.5">
                       {slot.m === 0 && slot.h > 0 && (
-                        <span className="text-[10px] text-zinc-600 font-semibold mt-[-6px]">
+                        <span className="text-[10px] text-muted-foreground/60 font-semibold mt-[-6px]">
                           {slot.label}
                         </span>
                       )}
@@ -519,7 +519,7 @@ function AgendaPage() {
                     <div
                       key={iso}
                       className={cn(
-                        "flex-1 border-l border-zinc-800/20 relative min-w-[120px]",
+                        "flex-1 border-l border-border/30 relative min-w-[120px]",
                         isToday && "bg-primary/5"
                       )}
                     >
@@ -568,7 +568,7 @@ function AgendaPage() {
         )}
 
         {/* ── FOOTER ── */}
-        <div className="shrink-0 px-4 py-1.5 border-t border-zinc-800/80 bg-zinc-900/60 flex items-center justify-between text-[10px] text-zinc-500">
+        <div className="shrink-0 px-4 py-1.5 border-t border-border bg-muted/20 flex items-center justify-between text-[10px] text-muted-foreground">
           <span>Prioridade: Vermelho = Urgente • Laranja = Alta • Azul = Média • Cinza = Baixa</span>
           <span>Fuso Horário: {config.timezone}</span>
         </div>
@@ -592,9 +592,9 @@ function DroppableHourCell({
     <div
       ref={setNodeRef}
       className={cn(
-        "h-10 border-t border-zinc-800/10 p-0.5 relative transition-colors duration-150",
-        !isBusiness && "bg-zinc-950/40 opacity-70",
-        isOver && (isBusiness ? "bg-primary/20 border-t-primary" : "bg-red-950/20 border-t-red-700")
+        "h-10 border-t border-border/15 p-0.5 relative transition-colors duration-150",
+        !isBusiness && "bg-muted/30 opacity-70",
+        isOver && (isBusiness ? "bg-primary/25 border-t-primary" : "bg-red-500/10 border-t-red-700")
       )}
     >
       {children}
@@ -654,6 +654,15 @@ function DraggableDemandCard({
 
   const transformStyle = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
 
+  // Compute if the event time has passed (Google Calendar style transparency)
+  const isPast = useMemo(() => {
+    if (!demand.due_date) return false;
+    const start = new Date(demand.due_date);
+    const hours = demand.estimated_hours ? Number(demand.estimated_hours) : 1.0;
+    const end = new Date(start.getTime() + hours * 3600 * 1000);
+    return end < new Date();
+  }, [demand.due_date, demand.estimated_hours]);
+
   // Calculate dynamic card height representing estimated time
   const displayHours = isResizing ? tempHours : (demand.estimated_hours ? Number(demand.estimated_hours) : 1.0);
   const slotsCount = displayHours / 0.5;
@@ -670,12 +679,13 @@ function DraggableDemandCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "absolute inset-x-0.5 top-0.5 rounded border-l-3 p-1.5 text-[10px] font-medium cursor-pointer shadow-md select-none",
+        "absolute inset-x-0.5 top-0.5 rounded border-l-4 p-1.5 text-[10px] font-medium cursor-pointer shadow-sm select-none",
         "transition-all flex flex-col justify-between overflow-hidden",
-        STATUS_BG[demand.status] ?? "bg-zinc-800 border-zinc-700 text-zinc-100",
-        PRIORITY_COLOR[demand.priority] ?? "border-zinc-500",
+        STATUS_BG[demand.status] ?? "bg-[#38a1db] text-white",
+        PRIORITY_COLOR[demand.priority] ?? "border-l-zinc-500",
         isDragging && "opacity-40 scale-95 z-50 shadow-2xl rotate-1",
-        demand.status === "concluido" && "line-through opacity-60"
+        demand.status === "concluido" && "line-through opacity-60",
+        isPast && "opacity-45 saturate-[0.65]"
       )}
     >
       <div
@@ -748,19 +758,19 @@ function SettingsPanel({
   };
 
   return (
-    <div className="absolute top-14 right-4 z-50 w-80 bg-zinc-900/95 border border-zinc-700/80 rounded-xl p-4 shadow-2xl backdrop-blur-md space-y-4">
-      <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-        <h4 className="font-semibold text-xs text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
+    <div className="absolute top-14 right-4 z-50 w-80 bg-card border border-border rounded-xl p-4 shadow-2xl backdrop-blur-md space-y-4">
+      <div className="flex items-center justify-between border-b border-border pb-2">
+        <h4 className="font-semibold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
           <Clock className="h-4 w-4 text-primary" />
           Configurar Expediente
         </h4>
-        <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-xs">
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xs">
           Fechar
         </button>
       </div>
 
       <div className="space-y-1.5">
-        <Label className="text-[10px] text-zinc-500 uppercase font-bold">Dias Úteis</Label>
+        <Label className="text-[10px] text-muted-foreground uppercase font-bold">Dias Úteis</Label>
         <div className="flex flex-wrap gap-2 pt-1">
           {["D", "S", "T", "Q", "Q", "S", "S"].map((name, idx) => {
             const isChecked = workingDays.includes(idx);
@@ -773,7 +783,7 @@ function SettingsPanel({
                   "h-7 w-7 rounded-full text-xs font-bold transition-all border",
                   isChecked
                     ? "bg-primary border-primary text-primary-foreground"
-                    : "border-zinc-700 hover:border-zinc-500 text-zinc-400 bg-transparent"
+                    : "border-input hover:border-accent text-muted-foreground bg-transparent"
                 )}
               >
                 {name}
@@ -785,60 +795,60 @@ function SettingsPanel({
 
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <Label className="text-[10px] text-zinc-500 uppercase font-bold">Início</Label>
+          <Label className="text-[10px] text-muted-foreground uppercase font-bold">Início</Label>
           <Input
             type="number"
             min={0}
             max={23}
             value={startHour}
             onChange={(e) => setStartHour(Math.min(23, Math.max(0, parseInt(e.target.value, 10) || 0)))}
-            className="bg-zinc-800 border-zinc-700 text-sm h-8"
+            className="bg-background border-input text-sm h-8"
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-[10px] text-zinc-500 uppercase font-bold">Término</Label>
+          <Label className="text-[10px] text-muted-foreground uppercase font-bold">Término</Label>
           <Input
             type="number"
             min={0}
             max={23}
             value={endHour}
             onChange={(e) => setEndHour(Math.min(23, Math.max(0, parseInt(e.target.value, 10) || 0)))}
-            className="bg-zinc-800 border-zinc-700 text-sm h-8"
+            className="bg-background border-input text-sm h-8"
           />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <Label className="text-[10px] text-zinc-500 uppercase font-bold">Almoço Início</Label>
+          <Label className="text-[10px] text-muted-foreground uppercase font-bold">Almoço Início</Label>
           <Input
             type="number"
             min={0}
             max={23}
             value={lunchStart}
             onChange={(e) => setLunchStart(Math.min(23, Math.max(0, parseInt(e.target.value, 10) || 0)))}
-            className="bg-zinc-800 border-zinc-700 text-sm h-8"
+            className="bg-background border-input text-sm h-8"
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-[10px] text-zinc-500 uppercase font-bold">Almoço Fim</Label>
+          <Label className="text-[10px] text-muted-foreground uppercase font-bold">Almoço Fim</Label>
           <Input
             type="number"
             min={0}
             max={23}
             value={lunchEnd}
             onChange={(e) => setLunchEnd(Math.min(23, Math.max(0, parseInt(e.target.value, 10) || 0)))}
-            className="bg-zinc-800 border-zinc-700 text-sm h-8"
+            className="bg-background border-input text-sm h-8"
           />
         </div>
       </div>
 
       <div className="space-y-1">
-        <Label className="text-[10px] text-zinc-500 uppercase font-bold">Fuso Horário</Label>
+        <Label className="text-[10px] text-muted-foreground uppercase font-bold">Fuso Horário</Label>
         <select
           value={timezone}
           onChange={(e) => setTimezone(e.target.value)}
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-md p-1.5 text-xs text-zinc-200 focus:outline-none"
+          className="w-full bg-background border border-input rounded-md p-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         >
           <option value="America/Sao_Paulo">America/Sao_Paulo (Brasília)</option>
           <option value="America/Noronha">America/Noronha (FND)</option>

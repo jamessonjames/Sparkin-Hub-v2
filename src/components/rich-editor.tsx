@@ -32,6 +32,7 @@ interface RichEditorProps {
   isChatInput?: boolean;
   onSubmitChat?: () => void;
   borderless?: boolean;
+  readOnly?: boolean;
 }
 
 function ToolbarBtn({
@@ -54,10 +55,10 @@ function ToolbarBtn({
         onClick();
       }}
       className={cn(
-        "h-7 w-7 flex items-center justify-center rounded text-sm transition-colors",
+        "h-7 w-7 flex items-center justify-center rounded text-sm transition-colors cursor-pointer",
         active
-          ? "bg-zinc-700 text-white"
-          : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60",
+          ? "bg-primary text-primary-foreground"
+          : "text-muted-foreground hover:text-foreground hover:bg-accent/60",
       )}
     >
       {children}
@@ -72,6 +73,7 @@ export function RichEditor({
   isChatInput = false,
   onSubmitChat,
   borderless = false,
+  readOnly = false,
 }: RichEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -86,17 +88,18 @@ export function RichEditor({
       Placeholder.configure({ placeholder }),
     ],
     content: content || "",
+    editable: !readOnly,
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      if (!readOnly) onChange(editor.getHTML());
     },
     editorProps: {
       attributes: {
         class: cn(
-          "prose prose-invert prose-sm max-w-none outline-none text-zinc-200 w-full",
+          "prose dark:prose-invert prose-sm max-w-none outline-none text-foreground w-full",
           isChatInput
             ? "min-h-[20px] max-h-[140px] overflow-y-auto text-xs py-0.5 [&_p]:m-0"
-            : borderless
-            ? "min-h-[180px] p-4 text-sm"
+            : readOnly
+            ? "min-h-[40px] p-4 text-sm cursor-default"
             : "min-h-[180px] p-4 text-sm",
         ),
       },
@@ -134,9 +137,9 @@ export function RichEditor({
   if (isChatInput) {
     return (
       <div className="flex items-end gap-2 w-full">
-        <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-950 py-1 px-3 relative min-w-0">
+        <div className="flex-1 rounded-xl border border-border bg-background py-1.5 px-3 relative min-w-0 shadow-sm focus-within:ring-1 focus-within:ring-ring focus-within:border-ring">
           <TiptapBubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>
-            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-zinc-700/80 bg-zinc-950 shadow-2xl text-xs select-none">
+            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-border bg-popover shadow-2xl text-xs select-none">
               <>
                 <select
                   value={
@@ -152,14 +155,14 @@ export function RichEditor({
                     else if (val === "h2") editor.chain().focus().toggleHeading({ level: 2 }).run();
                     else editor.chain().focus().setParagraph().run();
                   }}
-                  className="bg-zinc-900 border border-zinc-700 rounded px-1.5 py-0.5 text-[11px] text-zinc-300 focus:outline-none cursor-pointer h-7"
+                  className="bg-background border border-border rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none cursor-pointer h-7"
                 >
                   <option value="p">Parágrafo</option>
                   <option value="h1">Título 1</option>
                   <option value="h2">Título 2</option>
                 </select>
 
-                <span className="w-px h-5 bg-zinc-700 mx-1 shrink-0" />
+                <span className="w-px h-5 bg-border mx-1 shrink-0" />
               </>
 
               <ToolbarBtn
@@ -192,7 +195,7 @@ export function RichEditor({
               </ToolbarBtn>
 
               <>
-                <span className="w-px h-5 bg-zinc-700 mx-1 shrink-0" />
+                <span className="w-px h-5 bg-border mx-1 shrink-0" />
                 <ToolbarBtn
                   title="Alinhar à esquerda"
                   active={editor.isActive({ textAlign: "left" })}
@@ -214,7 +217,7 @@ export function RichEditor({
                 >
                   <AlignRight className="h-3.5 w-3.5" />
                 </ToolbarBtn>
-                <span className="w-px h-5 bg-zinc-700 mx-1 shrink-0" />
+                <span className="w-px h-5 bg-border mx-1 shrink-0" />
                 <ToolbarBtn
                   title="Lista de tarefas"
                   active={editor.isActive("taskList")}
@@ -248,11 +251,11 @@ export function RichEditor({
           onClick={onSubmitChat}
           disabled={editor.isEmpty}
           className={cn(
-            "h-8 w-8 rounded-full flex items-center justify-center transition-all bg-emerald-500 hover:bg-emerald-600 text-white shrink-0 shadow cursor-pointer mb-[1.5px]",
-            editor.isEmpty && "opacity-40 cursor-not-allowed bg-zinc-800 border border-zinc-700 text-zinc-500"
+            "h-8 w-8 rounded-full flex items-center justify-center transition-all bg-[#0f9d58] hover:bg-[#0b8043] text-white shrink-0 shadow cursor-pointer mb-[1.5px]",
+            editor.isEmpty && "opacity-45 cursor-not-allowed"
           )}
         >
-          <Send className="h-3.5 w-3.5" />
+          <Send className="h-3.5 w-3.5 text-white" />
         </button>
       </div>
     );
@@ -264,12 +267,12 @@ export function RichEditor({
       className={cn(
         "w-full flex-1 flex flex-col min-h-0 relative overflow-hidden transition-all",
         borderless
-          ? "rounded-xl border border-zinc-800 bg-zinc-950/60"
-          : "rounded-xl border border-zinc-800 bg-zinc-950/60",
+          ? "rounded-xl border border-border bg-background"
+          : "rounded-xl border border-border bg-background",
       )}
     >
       <TiptapBubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>
-        <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-zinc-700/80 bg-zinc-950 shadow-2xl text-xs select-none">
+        <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-border bg-popover shadow-2xl text-xs select-none">
           <>
             <select
               value={
@@ -285,14 +288,14 @@ export function RichEditor({
                 else if (val === "h2") editor.chain().focus().toggleHeading({ level: 2 }).run();
                 else editor.chain().focus().setParagraph().run();
               }}
-              className="bg-zinc-900 border border-zinc-700 rounded px-1.5 py-0.5 text-[11px] text-zinc-300 focus:outline-none cursor-pointer h-7"
+              className="bg-background border border-border rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none cursor-pointer h-7"
             >
               <option value="p">Parágrafo</option>
               <option value="h1">Título 1</option>
               <option value="h2">Título 2</option>
             </select>
 
-            <span className="w-px h-5 bg-zinc-700 mx-1 shrink-0" />
+            <span className="w-px h-5 bg-border mx-1 shrink-0" />
           </>
 
           <ToolbarBtn
@@ -325,7 +328,7 @@ export function RichEditor({
           </ToolbarBtn>
 
           <>
-            <span className="w-px h-5 bg-zinc-700 mx-1 shrink-0" />
+            <span className="w-px h-5 bg-border mx-1 shrink-0" />
             <ToolbarBtn
               title="Alinhar à esquerda"
               active={editor.isActive({ textAlign: "left" })}
@@ -347,7 +350,7 @@ export function RichEditor({
             >
               <AlignRight className="h-3.5 w-3.5" />
             </ToolbarBtn>
-            <span className="w-px h-5 bg-zinc-700 mx-1 shrink-0" />
+            <span className="w-px h-5 bg-border mx-1 shrink-0" />
             <ToolbarBtn
               title="Lista de tarefas"
               active={editor.isActive("taskList")}
@@ -373,28 +376,30 @@ export function RichEditor({
         </div>
       </TiptapBubbleMenu>
 
-      {/* Subtle top helper bar for images and lists since toolbar is bubble-only */}
-      <div className={cn(
-        "flex items-center gap-1.5 py-1.5 border-b border-zinc-800/80 bg-zinc-950/40 justify-end shrink-0",
-        borderless ? "px-6" : "px-3"
-      )}>
-        <button
-          type="button"
-          title="Inserir imagem"
-          onClick={() => fileRef.current?.click()}
-          className="text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 p-1 rounded transition-colors"
-        >
-          <ImageIcon className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          title="Lista de tarefas"
-          onClick={() => editor.chain().focus().toggleTaskList().run()}
-          className="text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 p-1 rounded transition-colors"
-        >
-          <CheckSquare className="h-3.5 w-3.5" />
-        </button>
-      </div>
+      {/* Subtle top helper bar for images and lists — hidden in readOnly mode */}
+      {!readOnly && (
+        <div className={cn(
+          "flex items-center gap-1.5 py-1.5 border-b border-border bg-muted/40 justify-end shrink-0",
+          borderless ? "px-6" : "px-3"
+        )}>
+          <button
+            type="button"
+            title="Inserir imagem"
+            onClick={() => fileRef.current?.click()}
+            className="text-muted-foreground hover:text-foreground hover:bg-accent/65 p-1 rounded transition-colors cursor-pointer"
+          >
+            <ImageIcon className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            title="Lista de tarefas"
+            onClick={() => editor.chain().focus().toggleTaskList().run()}
+            className="text-muted-foreground hover:text-foreground hover:bg-accent/65 p-1 rounded transition-colors cursor-pointer"
+          >
+            <CheckSquare className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto min-h-0 pr-0.5 scrollbar-thin">
         <TiptapEditorContent editor={editor} onKeyDown={handleKeyDown} />
