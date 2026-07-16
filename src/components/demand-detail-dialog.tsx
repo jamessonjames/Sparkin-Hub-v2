@@ -327,10 +327,10 @@ export function DemandDetailDialog({
             <div className="flex flex-1 min-h-0">
               
               {/* Left Panel - Fields & description */}
-              <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-6">
+              <div className="flex-1 px-6 py-5 flex flex-col gap-4 min-h-0">
                 
-                {/* Meta details row (Client, Status, Priority, Date, Assignee) */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-zinc-950/20 p-4 rounded-xl border border-zinc-800/80">
+                {/* Meta details row (Client, Status, Priority, Date, Assignee) - Static */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-zinc-950/20 p-4 rounded-xl border border-zinc-800/80 shrink-0">
                   
                   {/* Client Select */}
                   <div className="flex flex-col gap-1">
@@ -424,16 +424,18 @@ export function DemandDetailDialog({
                   </div>
                 </div>
 
-                {/* Rich Editor */}
-                <div className="flex flex-col min-h-[180px]">
-                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold mb-1.5 block">Descrição</label>
-                  <div className="flex-1">
-                    <RichEditor
-                      content={description}
-                      onChange={(html) => setDescription(html)}
-                      borderless={false}
-                    />
-                  </div>
+                {/* Description Label - Static */}
+                <div className="shrink-0">
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Descrição</label>
+                </div>
+
+                {/* Description Editor - Scrollable */}
+                <div className="flex-1 overflow-y-auto min-h-0 pr-0.5 scrollbar-thin">
+                  <RichEditor
+                    content={description}
+                    onChange={(html) => setDescription(html)}
+                    borderless={false}
+                  />
                 </div>
               </div>
 
