@@ -296,3 +296,53 @@ export function scheduleDemands(
 
   return scheduledTimes;
 }
+
+/**
+ * Priority-first rescheduler.
+ * Ignores existing due_date on active demands and packs everything sequentially
+ * starting from the next available working slot, sorted by priority (urgent > high > medium > low),
+ * ties broken by created_at ASC. Concluded demands keep their due_date.
+ */
+export function scheduleByPriority(
+  demands: UnscheduledDemand[],
+  config: SchedulingConfig = DEFAULT_CONFIG
+): Record<string, string> {
+  const active = demands.filter((d) => d.status !== "concluido");
+
+  const sorted = [...active].sort((a, b) => {
+    const pw = (PRIORITY_WEIGHT[b.priority] ?? 2) - (PRIORITY_WEIGHT[a.priority] ?? 2);
+    if (pw !== 0) return pw;
+    return (a.created_at ?? "").localeCompare(b.created_at ?? "");
+  });
+
+  const scheduledTimes: Record<string, string> = {};
+  const takenSlots = new Set<string>();
+
+  const now = getTzTime(config.timezone);
+  let cursor = new Date(now);
+  const mins = cursor.getMinutes();
+  if (mins > 0 && mins <= 30) cursor.setMinutes(30, 0, 0);
+  else {
+    if (mins > 30) cursor.setHours(cursor.getHours() + 1);
+    cursor.setMinutes(0, 0, 0);
+  }
+  if (!isValidSlot(cursor, config)) cursor = getNextSlot(cursor, config);
+
+  for (const demand of sorted) {
+    const duration = demand.estimated_hours ? Number(demand.estimated_hours) : 1.0;
+    let search = new Date(cursor);
+    let safety = 0;
+    while (safety < 5000) {
+      if (isValidSlot(search, config) && areSlotsFree(search, duration, takenSlots)) {
+        scheduledTimes[demand.id] = formatTzString(search);
+        blockSlots(search, duration, takenSlots);
+        cursor = new Date(search);
+        break;
+      }
+      search = getNextSlot(search, config);
+      safety++;
+    }
+  }
+
+  return scheduledTimes;
+}

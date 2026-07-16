@@ -18,7 +18,7 @@ import {
   pointerWithin,
 } from "@dnd-kit/core";
 import {
-  scheduleDemands,
+  scheduleByPriority,
   DEFAULT_CONFIG,
   type SchedulingConfig,
   formatTzString,
@@ -163,26 +163,10 @@ function AgendaPage() {
       estimated_hours: d.estimated_hours ? Number(d.estimated_hours) : 1.0,
       created_at: d.created_at,
     }));
-    return scheduleDemands(forScheduler, config);
+    return scheduleByPriority(forScheduler, config);
   }, [demands, config]);
 
-  // Sync scheduled times to DB
-  useEffect(() => {
-    if (demands.length === 0) return;
-    const updates: { id: string; due_date: string | null }[] = [];
-    for (const d of demands) {
-      if (d.status === "concluido") continue;
-      const scheduled = scheduledMap[d.id];
-      if (scheduled && scheduled !== d.due_date) {
-        updates.push({ id: d.id, due_date: scheduled });
-      }
-    }
-    if (updates.length > 0) {
-      batchUpdateFn({ data: { updates } })
-        .then(() => qc.invalidateQueries({ queryKey: ["demands"] }))
-        .catch((e) => console.error("Auto-scheduling sync error:", e));
-    }
-  }, [scheduledMap, demands, batchUpdateFn, qc]);
+  // Persistence handled globally by useAutoScheduler hook (mounted in AppShell).
 
   // Group demands by date/hour/minute slot for display
   const demandsBySlot = useMemo(() => {
