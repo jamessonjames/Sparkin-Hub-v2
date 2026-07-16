@@ -25,6 +25,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
   const navigate = useNavigate();
+  useAutoScheduler();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
