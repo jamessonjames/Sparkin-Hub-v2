@@ -125,7 +125,7 @@ function ClientPage() {
     setSaving(true);
     try {
       // Preserve credits_enabled — it's managed separately by the portal toggle
-      await updateFn({ data: { ...values, id, credits_enabled: client.credits_enabled ?? false } });
+      await updateFn({ data: { ...values, id, credits_enabled: client?.credits_enabled ?? false } });
       toast.success("Salvo!");
       qc.invalidateQueries({ queryKey: ["clients"] });
       qc.invalidateQueries({ queryKey: ["client", id] });
