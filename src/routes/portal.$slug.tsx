@@ -279,7 +279,7 @@ function ListDemandRow({
         <p className="text-sm font-medium text-foreground truncate">{d.title}</p>
       </div>
       <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0", STATUS_CHIP[d.status])}>
-        {STATUS_LABELS[d.status] ?? d.status}
+        {(STATUS_LABELS as Record<string, string>)[d.status] ?? d.status}
       </span>
       {d.priority && (
         <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0", PRIORITY_CHIP[d.priority])}>
