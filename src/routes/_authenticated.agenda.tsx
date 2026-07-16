@@ -734,7 +734,7 @@ function DraggableDemandCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "absolute inset-x-0.5 top-0.5 rounded border-l-4 p-1.5 text-[10px] font-medium cursor-pointer shadow-sm select-none",
+        "group absolute inset-x-0.5 top-0.5 rounded border-l-4 p-1.5 text-[10px] font-medium cursor-pointer shadow-sm select-none",
         "transition-all flex flex-col justify-between overflow-hidden",
         STATUS_BG[demand.status] ?? "bg-[#38a1db] text-white",
         PRIORITY_COLOR[demand.priority] ?? "border-l-zinc-500",
