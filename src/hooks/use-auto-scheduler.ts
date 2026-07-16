@@ -38,11 +38,10 @@ export function useAutoScheduler() {
       }
     }
 
-    // Skip demands the user manually placed on the agenda — respect their position.
-    const movable = (demands as any[]).filter((d) => !d.is_manually_scheduled && d.status !== "concluido");
-    if (movable.length === 0) return;
+    const active = (demands as any[]).filter((d) => d.status !== "concluido");
+    if (active.length === 0) return;
 
-    const forScheduler = movable.map((d: any) => ({
+    const items = active.map((d: any) => ({
       id: d.id,
       title: d.title,
       priority: d.priority as "low" | "medium" | "high" | "urgent",
@@ -50,23 +49,12 @@ export function useAutoScheduler() {
       due_date: d.due_date,
       estimated_hours: d.estimated_hours ? Number(d.estimated_hours) : 1.0,
       created_at: d.created_at,
+      is_manually_scheduled: !!d.is_manually_scheduled,
     }));
 
-    const fixed = (demands as any[])
-      .filter((d) => d.is_manually_scheduled && d.status !== "concluido" && d.due_date)
-      .map((d: any) => ({
-        id: d.id,
-        title: d.title,
-        priority: d.priority,
-        status: d.status,
-        due_date: d.due_date,
-        estimated_hours: d.estimated_hours ? Number(d.estimated_hours) : 1.0,
-        created_at: d.created_at,
-      }));
-
-    const scheduled = scheduleByPriority(forScheduler, config, fixed);
+    const scheduled = scheduleByPriority(items as any, config);
     const updates: { id: string; due_date: string | null }[] = [];
-    for (const d of movable) {
+    for (const d of active) {
       const next = scheduled[d.id];
       if (next && next !== d.due_date) {
         updates.push({ id: d.id, due_date: next });
