@@ -39,6 +39,51 @@ export const Route = createFileRoute("/_authenticated/clients/$id")({
   component: ClientPage,
 });
 
+// Inline credit progress bar for the Demands tab of a specific client
+function ClientCreditProgressInline({
+  clientId,
+  demands,
+}: {
+  clientId: string;
+  demands: any[];
+}) {
+  const getTiersFn = useServerFn(getClientCreditTiers);
+
+  const { data: creditConfig } = useQuery({
+    queryKey: ["client-credit-tiers", clientId],
+    queryFn: () => getTiersFn({ data: { client_id: clientId } }),
+  });
+
+  const monthlyCredits = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+    return demands
+      .filter((d) => {
+        if (d.status !== "concluido") return false;
+        if (!d.due_date) return false;
+        const dateStr = d.due_date.slice(0, 10);
+        return dateStr >= startOfMonth && dateStr <= endOfMonth;
+      })
+      .reduce((sum, d) => sum + (d.estimated_credits || 0), 0);
+  }, [demands]);
+
+  if (!creditConfig) return null;
+
+  const now = new Date();
+  const monthLabel = now.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const capitalizedMonth = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+
+  return (
+    <CreditProgressBar
+      totalCredits={monthlyCredits}
+      tiers={creditConfig.tiers}
+      title={`Progresso de Créditos — ${capitalizedMonth}`}
+    />
+  );
+}
+
 function ClientPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
@@ -163,6 +208,13 @@ function ClientPage() {
               <Plus className="h-4 w-4 mr-1" /> Nova demanda
             </Button>
           </div>
+
+          {client.billing_model === "credits" && (
+            <ClientCreditProgressInline
+              clientId={client.id}
+              demands={clientDemands}
+            />
+          )}
 
           <KanbanBoard
             demands={clientDemands.map((d) => ({
@@ -827,15 +879,6 @@ function ClientReportsPanel({
           </Card>
         )}
       </div>
-
-      {/* Credit Progress Bar – only for credit billing model */}
-      {billingModel === "credits" && (
-        <CreditProgressBar
-          totalCredits={totalCredits}
-          tiers={creditTiers}
-          title={`Progresso de Créditos — ${formattedPeriodLabel}`}
-        />
-      )}
 
       {/* Services Table */}
       <Card className="p-4">
