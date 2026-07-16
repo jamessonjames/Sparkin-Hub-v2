@@ -52,7 +52,19 @@ export function useAutoScheduler() {
       created_at: d.created_at,
     }));
 
-    const scheduled = scheduleByPriority(forScheduler, config);
+    const fixed = (demands as any[])
+      .filter((d) => d.is_manually_scheduled && d.status !== "concluido" && d.due_date)
+      .map((d: any) => ({
+        id: d.id,
+        title: d.title,
+        priority: d.priority,
+        status: d.status,
+        due_date: d.due_date,
+        estimated_hours: d.estimated_hours ? Number(d.estimated_hours) : 1.0,
+        created_at: d.created_at,
+      }));
+
+    const scheduled = scheduleByPriority(forScheduler, config, fixed);
     const updates: { id: string; due_date: string | null }[] = [];
     for (const d of movable) {
       const next = scheduled[d.id];
