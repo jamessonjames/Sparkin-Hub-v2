@@ -7,6 +7,7 @@ import {
   getClient,
   updateClient,
   deleteClient,
+  setClientCreditsEnabled,
 } from "@/lib/clients.functions";
 import {
   listDemands,
@@ -123,7 +124,8 @@ function ClientPage() {
   async function handleSave(values: ClientFormValues) {
     setSaving(true);
     try {
-      await updateFn({ data: { ...values, id } });
+      // Preserve credits_enabled — it's managed separately by the portal toggle
+      await updateFn({ data: { ...values, id, credits_enabled: client.credits_enabled ?? false } });
       toast.success("Salvo!");
       qc.invalidateQueries({ queryKey: ["clients"] });
       qc.invalidateQueries({ queryKey: ["client", id] });
@@ -131,6 +133,19 @@ function ClientPage() {
       toast.error(e instanceof Error ? e.message : "Erro");
     } finally {
       setSaving(false);
+    }
+  }
+
+  const setCreditsEnabledFn = useServerFn(setClientCreditsEnabled);
+
+  async function handleToggleProgress(val: boolean) {
+    try {
+      await setCreditsEnabledFn({ data: { id, credits_enabled: val } });
+      qc.invalidateQueries({ queryKey: ["client", id] });
+      qc.invalidateQueries({ queryKey: ["clients"] });
+      toast.success(val ? "Progresso visível no portal." : "Progresso ocultado no portal.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
     }
   }
 
@@ -246,7 +261,6 @@ function ClientPage() {
                     monthly_value: client.monthly_value,
                     commercial_notes: client.commercial_notes,
                     internal_notes: client.internal_notes,
-                    credits_enabled: client.credits_enabled,
                     access_active: client.access_active,
                   }}
                   onSubmit={handleSave}
@@ -256,7 +270,11 @@ function ClientPage() {
             </div>
             {client.billing_model === "credits" && (
               <div className="lg:col-span-1">
-                <CreditTiersEditor clientId={client.id} />
+                <CreditTiersEditor
+                  clientId={client.id}
+                  showProgress={client.credits_enabled ?? false}
+                  onToggleProgress={handleToggleProgress}
+                />
               </div>
             )}
           </div>
@@ -390,7 +408,15 @@ function ClientNotesPanel({ clientId }: { clientId: string }) {
   );
 }
 
-function CreditTiersEditor({ clientId }: { clientId: string }) {
+function CreditTiersEditor({
+  clientId,
+  showProgress,
+  onToggleProgress,
+}: {
+  clientId: string;
+  showProgress: boolean;
+  onToggleProgress: (val: boolean) => void;
+}) {
   const getTiersFn = useServerFn(getClientCreditTiers);
   const saveTiersFn = useServerFn(saveClientCreditTiers);
   const qc = useQueryClient();
@@ -401,13 +427,11 @@ function CreditTiersEditor({ clientId }: { clientId: string }) {
   });
 
   const [editingTiers, setEditingTiers] = useState<CreditTier[]>([]);
-  const [showProgressBar, setShowProgressBar] = useState(true);
   const [savingTiers, setSavingTiers] = useState(false);
 
   useEffect(() => {
     if (creditConfig) {
       setEditingTiers(creditConfig.tiers || []);
-      setShowProgressBar(creditConfig.show_progress_bar ?? true);
     }
   }, [creditConfig]);
 
@@ -444,7 +468,7 @@ function CreditTiersEditor({ clientId }: { clientId: string }) {
         data: {
           client_id: clientId,
           tiers: editingTiers,
-          show_progress_bar: showProgressBar,
+          show_progress_bar: showProgress,
         },
       });
       toast.success("Regras de crédito salvas com sucesso!");
@@ -468,27 +492,27 @@ function CreditTiersEditor({ clientId }: { clientId: string }) {
       <div className="flex items-center justify-between border border-border/80 bg-muted/20 p-3 rounded-lg">
         <div className="flex flex-col gap-0.5">
           <Label htmlFor="show-progress" className="font-bold text-xs cursor-pointer select-none">
-            Exibir progresso de consumo
+            Exibir progresso no portal do cliente
           </Label>
           <span className="text-[10px] text-muted-foreground">
-            Exibe a barra de progresso de créditos na área do cliente
+            Mostra a barra de consumo de créditos na área pública do cliente
           </span>
         </div>
         <button
           id="show-progress"
           type="button"
           role="switch"
-          aria-checked={showProgressBar}
-          onClick={() => setShowProgressBar(!showProgressBar)}
+          aria-checked={showProgress}
+          onClick={() => onToggleProgress(!showProgress)}
           className={cn(
             "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-            showProgressBar ? "bg-emerald-500" : "bg-input"
+            showProgress ? "bg-emerald-500" : "bg-input"
           )}
         >
           <span
             className={cn(
               "pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform duration-200 ease-in-out",
-              showProgressBar ? "translate-x-4" : "translate-x-0"
+              showProgress ? "translate-x-4" : "translate-x-0"
             )}
           />
         </button>

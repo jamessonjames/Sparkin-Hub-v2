@@ -46,6 +46,8 @@ export const getPublicPortal = createServerFn({ method: "GET" })
 
     let creditConfig = null;
     if (client.billing_model === "credits") {
+      // Load tiers from the config note (if exists)
+      let tiers: any[] = [];
       const { data: noteRows } = await sb
         .from("notes")
         .select("content")
@@ -58,15 +60,18 @@ export const getPublicPortal = createServerFn({ method: "GET" })
         try {
           const parsed = JSON.parse(noteRows[0].content ?? "{}");
           if (parsed && Array.isArray(parsed)) {
-            creditConfig = { show_progress_bar: true, tiers: parsed };
-          } else if (parsed) {
-            creditConfig = {
-              show_progress_bar: parsed.show_progress_bar ?? true,
-              tiers: parsed.tiers ?? []
-            };
+            tiers = parsed;
+          } else if (parsed?.tiers) {
+            tiers = parsed.tiers;
           }
         } catch {}
       }
+
+      // show_progress_bar is controlled by client.credits_enabled field
+      creditConfig = {
+        show_progress_bar: client.credits_enabled === true,
+        tiers,
+      };
     }
 
     return { client, demands: demands ?? [], creditConfig };

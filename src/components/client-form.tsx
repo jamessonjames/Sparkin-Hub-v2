@@ -17,7 +17,6 @@ export type ClientFormValues = {
   monthly_value?: number | null;
   commercial_notes?: string | null;
   internal_notes?: string | null;
-  credits_enabled: boolean;
   access_active: boolean;
 };
 
@@ -42,7 +41,6 @@ export function ClientForm({
     monthly_value: initial?.monthly_value ?? null,
     commercial_notes: initial?.commercial_notes ?? "",
     internal_notes: initial?.internal_notes ?? "",
-    credits_enabled: initial?.credits_enabled ?? false,
     access_active: initial?.access_active ?? true,
   });
 
@@ -139,13 +137,6 @@ export function ClientForm({
       </div>
 
       <div className="flex items-center gap-6">
-        <label className="flex items-center gap-2 text-sm">
-          <Switch
-            checked={v.credits_enabled}
-            onCheckedChange={(c) => setV({ ...v, credits_enabled: c })}
-          />
-          Créditos habilitados
-        </label>
         <label className="flex items-center gap-2 text-sm">
           <Switch
             checked={v.access_active}
