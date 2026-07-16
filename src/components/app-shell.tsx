@@ -6,10 +6,15 @@ import { DemandOverlayProvider } from "@/contexts/demand-overlay";
 import { DemandOverlayRenderer } from "@/components/demand-overlay-renderer";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, UserCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { LogOut, UserCircle, ChevronDown } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Proprietário",
@@ -59,44 +64,53 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
                 {title && <h1 className="font-display font-semibold text-foreground">{title}</h1>}
               </div>
               
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 {currentUser && (
-                  <div className="flex items-center gap-2">
-                    <Link
-                      to="/profile"
-                      title="Minha Conta"
-                      className="hover:opacity-80 transition-opacity flex items-center gap-2"
-                    >
-                      <UserCircle className="h-5 w-5 text-muted-foreground hover:text-primary transition-colors cursor-pointer shrink-0" />
-                      <span className="text-xs text-zinc-300 hidden md:inline shrink-0 select-none">
-                        {currentUser.email}
-                      </span>
-                    </Link>
-                    {currentUserRole && (
-                      <span
-                        className={cn(
-                          "text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider select-none shrink-0",
-                          currentUserRole === "owner" && "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-                          currentUserRole === "admin" && "bg-blue-500/10 text-blue-400 border border-blue-500/20",
-                          currentUserRole === "collaborator" && "bg-zinc-800 text-zinc-400 border border-zinc-700/60"
-                        )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="flex items-center gap-2 hover:opacity-85 transition-opacity focus:outline-none cursor-pointer text-left py-1 px-2 rounded-lg hover:bg-zinc-800/40 border border-transparent hover:border-zinc-800/60 select-none">
+                        <UserCircle className="h-5 w-5 text-muted-foreground shrink-0" />
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-zinc-300 shrink-0">
+                            {currentUser.email}
+                          </span>
+                          {currentUserRole && (
+                            <span
+                              className={cn(
+                                "text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0",
+                                currentUserRole === "owner" && "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+                                currentUserRole === "admin" && "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+                                currentUserRole === "collaborator" && "bg-zinc-800 text-zinc-400 border border-zinc-700/60"
+                              )}
+                            >
+                              {ROLE_LABELS[currentUserRole] || currentUserRole}
+                            </span>
+                          )}
+                        </div>
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    
+                    <DropdownMenuContent align="end" className="w-48 bg-zinc-950 border border-zinc-850 text-zinc-200">
+                      <DropdownMenuItem asChild>
+                        <Link
+                          to="/profile"
+                          className="flex items-center gap-2 w-full cursor-pointer hover:bg-zinc-850/60 focus:bg-zinc-850/60 py-2 text-zinc-300"
+                        >
+                          <UserCircle className="h-4 w-4 text-zinc-400" />
+                          <span>Configurações</span>
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={signOut}
+                        className="flex items-center gap-2 w-full cursor-pointer text-red-400 hover:text-red-300 hover:bg-zinc-850/60 focus:bg-zinc-850/60 py-2"
                       >
-                        {ROLE_LABELS[currentUserRole] || currentUserRole}
-                      </span>
-                    )}
-                    <span className="h-4 w-px bg-zinc-800 hidden md:block mx-1" />
-                  </div>
+                        <LogOut className="h-4 w-4" />
+                        <span>Sair</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={signOut}
-                  className="text-xs text-muted-foreground hover:text-foreground gap-1.5 h-8 px-2 hover:bg-zinc-800/40 cursor-pointer"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span className="hidden sm:inline">Sair</span>
-                </Button>
               </div>
             </header>
             <main className="flex-1 min-w-0 pb-16 md:pb-0">{children}</main>
