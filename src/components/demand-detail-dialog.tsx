@@ -142,6 +142,20 @@ export function DemandDetailDialog({
     if (!clientId) { toast.error("Selecione um cliente."); return; }
     if (!title.trim()) { toast.error("O título não pode ficar vazio."); return; }
     
+    // Construct final due date preserving original time component if date is unchanged
+    let finalDueDate = null;
+    if (dueDate) {
+      const origDatePart = demand?.due_date ? demand.due_date.slice(0, 10) : "";
+      if (dueDate === origDatePart && demand?.due_date) {
+        finalDueDate = demand.due_date;
+      } else {
+        const origTimePart = demand?.due_date && demand.due_date.includes("T")
+          ? demand.due_date.split("T")[1]
+          : "12:00:00";
+        finalDueDate = `${dueDate}T${origTimePart}`;
+      }
+    }
+
     setSaving(true);
     try {
       if (isNew) {
@@ -152,7 +166,7 @@ export function DemandDetailDialog({
             description,
             status,
             priority,
-            due_date: dueDate || null,
+            due_date: finalDueDate,
             assignee_user_id: assigneeId || null,
           },
         });
@@ -169,7 +183,7 @@ export function DemandDetailDialog({
             description,
             status,
             priority,
-            due_date: dueDate || null,
+            due_date: finalDueDate,
             estimated_credits: demand?.estimated_credits,
             internal_notes: demand?.internal_notes,
             assignee_user_id: assigneeId || null,

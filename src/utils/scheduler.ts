@@ -53,6 +53,24 @@ export function getTzTime(timezone = "America/Sao_Paulo"): Date {
   }
 }
 
+/** Parse a date string safely avoiding UTC midnight shifting on YYYY-MM-DD */
+export function safeParseDate(dateStr: string): Date {
+  if (!dateStr) return new Date();
+  
+  // If it's a date-only format like YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Date(y, m - 1, d, 12, 0, 0); // local noon
+  }
+  
+  const cleaned = dateStr.replace(" ", "T");
+  const parsed = new Date(cleaned);
+  if (!isNaN(parsed.getTime())) {
+    return parsed;
+  }
+  return new Date(dateStr);
+}
+
 /** Check if a specific hour/date is a valid working slot */
 export function isValidSlot(date: Date, config: SchedulingConfig): boolean {
   const day = date.getDay();
@@ -130,7 +148,7 @@ export function scheduleDemands(
   // 1. Lock all fixed demands in their requested slots
   for (const demand of fixed) {
     if (demand.due_date) {
-      const parsedDate = new Date(demand.due_date);
+      const parsedDate = safeParseDate(demand.due_date);
       const slotKey = formatTzString(parsedDate);
       scheduledTimes[demand.id] = slotKey;
       takenSlots.add(slotKey);

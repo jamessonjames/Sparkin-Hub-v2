@@ -23,6 +23,7 @@ import {
   formatTzString,
   getTzTime,
   isValidSlot,
+  safeParseDate,
 } from "@/utils/scheduler";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -134,7 +135,7 @@ function AgendaPage() {
     for (const d of demands) {
       const finalDate = d.status === "concluido" ? d.due_date : (scheduledMap[d.id] ?? d.due_date);
       if (finalDate) {
-        const dt = new Date(finalDate);
+        const dt = safeParseDate(finalDate);
         const key = `${toISO(dt)}_${dt.getHours()}`;
         map.set(key, d);
       }
