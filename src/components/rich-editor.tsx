@@ -390,55 +390,78 @@ export function RichEditor({
             >
               <ListOrdered className="h-3.5 w-3.5" />
             </ToolbarBtn>
-            {enableTables && (
-              <>
-                <span className="w-px h-5 bg-border mx-1 shrink-0" />
-                {!editor.isActive("table") ? (
-                  <ToolbarBtn
-                    title="Inserir tabela"
-                    onClick={() =>
-                      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
-                    }
-                  >
-                    <TableIcon className="h-3.5 w-3.5" />
-                  </ToolbarBtn>
-                ) : (
-                  <>
-                    <ToolbarBtn
-                      title="Adicionar linha abaixo"
-                      onClick={() => editor.chain().focus().addRowAfter().run()}
-                    >
-                      <Rows3 className="h-3.5 w-3.5" />
-                    </ToolbarBtn>
-                    <ToolbarBtn
-                      title="Adicionar coluna à direita"
-                      onClick={() => editor.chain().focus().addColumnAfter().run()}
-                    >
-                      <Columns3 className="h-3.5 w-3.5" />
-                    </ToolbarBtn>
-                    <ToolbarBtn
-                      title="Excluir linha"
-                      onClick={() => editor.chain().focus().deleteRow().run()}
-                    >
-                      <span className="text-[10px] font-bold">−R</span>
-                    </ToolbarBtn>
-                    <ToolbarBtn
-                      title="Excluir coluna"
-                      onClick={() => editor.chain().focus().deleteColumn().run()}
-                    >
-                      <span className="text-[10px] font-bold">−C</span>
-                    </ToolbarBtn>
-                    <ToolbarBtn
-                      title="Excluir tabela"
-                      onClick={() => editor.chain().focus().deleteTable().run()}
-                    >
-                      <Trash className="h-3.5 w-3.5" />
-                    </ToolbarBtn>
-                  </>
-                )}
-              </>
-            )}
           </>
+        </div>
+      </TiptapBubbleMenu>
+
+      {/* Bubble menu for table controls (appears while cursor is inside a table) */}
+      {enableTables && (
+        <TiptapBubbleMenu
+          editor={editor}
+          shouldShow={({ editor }) => editor.isActive("table")}
+          options={{ placement: "top" }}
+        >
+          <div className="flex items-center gap-1 px-2 py-1.5 rounded-xl border border-border bg-popover shadow-2xl text-xs select-none">
+            <ToolbarBtn
+              title="Adicionar linha abaixo"
+              onClick={() => editor.chain().focus().addRowAfter().run()}
+            >
+              <Rows3 className="h-3.5 w-3.5" />
+            </ToolbarBtn>
+            <ToolbarBtn
+              title="Adicionar coluna à direita"
+              onClick={() => editor.chain().focus().addColumnAfter().run()}
+            >
+              <Columns3 className="h-3.5 w-3.5" />
+            </ToolbarBtn>
+            <ToolbarBtn
+              title="Excluir linha"
+              onClick={() => editor.chain().focus().deleteRow().run()}
+            >
+              <span className="text-[10px] font-bold">−R</span>
+            </ToolbarBtn>
+            <ToolbarBtn
+              title="Excluir coluna"
+              onClick={() => editor.chain().focus().deleteColumn().run()}
+            >
+              <span className="text-[10px] font-bold">−C</span>
+            </ToolbarBtn>
+            <span className="w-px h-5 bg-border mx-0.5 shrink-0" />
+            <button
+              type="button"
+              title="Excluir tabela"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                editor.chain().focus().deleteTable().run();
+              }}
+              className="h-7 px-2 flex items-center gap-1 rounded text-xs text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+            >
+              <Trash className="h-3.5 w-3.5" />
+              Excluir tabela
+            </button>
+          </div>
+        </TiptapBubbleMenu>
+      )}
+
+      {/* Bubble menu for image controls (appears when an image is selected) */}
+      <TiptapBubbleMenu
+        editor={editor}
+        shouldShow={({ editor }) => editor.isActive("image")}
+        options={{ placement: "top" }}
+      >
+        <div className="flex items-center gap-1 px-2 py-1.5 rounded-xl border border-border bg-popover shadow-2xl text-xs select-none">
+          <button
+            type="button"
+            title="Excluir imagem"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().deleteSelection().run();
+            }}
+            className="h-7 px-2 flex items-center gap-1 rounded text-xs text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+          >
+            <Trash className="h-3.5 w-3.5" />
+            Excluir imagem
+          </button>
         </div>
       </TiptapBubbleMenu>
 
@@ -464,6 +487,18 @@ export function RichEditor({
           >
             <CheckSquare className="h-3.5 w-3.5" />
           </button>
+          {enableTables && !editor.isActive("table") && (
+            <button
+              type="button"
+              title="Inserir tabela"
+              onClick={() =>
+                editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+              }
+              className="text-muted-foreground hover:text-foreground hover:bg-accent/65 p-1 rounded transition-colors cursor-pointer"
+            >
+              <TableIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       )}
 
