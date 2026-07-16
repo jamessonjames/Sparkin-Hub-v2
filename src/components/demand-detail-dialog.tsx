@@ -152,11 +152,6 @@ export function DemandDetailDialog({
     enabled: !portalMode,
   });
 
-  const selectedClient = !portalMode ? fullClients.find((c) => c.id === clientId) : null;
-  const isCreditBillingEnabled = portalMode
-    ? portalBillingModel === "credits"
-    : selectedClient?.billing_model === "credits";
-
   // ── Local form state ──
   const [clientId, setClientId] = useState("");
   const [title, setTitle] = useState("");
@@ -170,6 +165,12 @@ export function DemandDetailDialog({
   const [showComments, setShowComments] = useState(true);
   const [estimatedHours, setEstimatedHours] = useState<number>(1.0);
   const [estimatedCredits, setEstimatedCredits] = useState<number>(0);
+
+  // Derived from clientId state (must be after useState declarations)
+  const selectedClient = !portalMode ? fullClients.find((c) => c.id === clientId) : null;
+  const isCreditBillingEnabled = portalMode
+    ? portalBillingModel === "credits"
+    : selectedClient?.billing_model === "credits";
 
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentBody, setEditingCommentBody] = useState("");
