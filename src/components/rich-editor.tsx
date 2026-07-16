@@ -92,10 +92,10 @@ export function RichEditor({
         class: cn(
           "prose prose-invert prose-sm max-w-none outline-none text-zinc-200 w-full",
           isChatInput
-            ? "min-h-[20px] max-h-[120px] overflow-y-auto text-xs py-1 [&_p]:m-0"
+            ? "min-h-[20px] max-h-[140px] overflow-y-auto text-xs py-0.5 [&_p]:m-0"
             : borderless
-            ? "min-h-[160px] px-6 py-3"
-            : "min-h-[160px] p-3",
+            ? "min-h-[180px] p-4 text-sm"
+            : "min-h-[180px] p-4 text-sm",
         ),
       },
     },
@@ -132,7 +132,7 @@ export function RichEditor({
   if (isChatInput) {
     return (
       <div className="flex items-end gap-2 w-full">
-        <div className="flex-1 rounded-2xl border border-zinc-750 bg-zinc-850 py-1 px-3.5 relative min-w-0">
+        <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-950 py-1 px-3 relative min-w-0">
           <TiptapBubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>
             <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-zinc-700/80 bg-zinc-950 shadow-2xl text-xs select-none">
               <ToolbarBtn
@@ -188,10 +188,10 @@ export function RichEditor({
   return (
     <div
       className={cn(
-        "w-full relative",
+        "w-full relative overflow-hidden transition-all",
         borderless
-          ? "border-y border-zinc-800 bg-zinc-900/10"
-          : "rounded-lg border border-zinc-700 bg-zinc-800/50 overflow-hidden",
+          ? "rounded-xl border border-zinc-800 bg-zinc-950/60"
+          : "rounded-xl border border-zinc-800 bg-zinc-950/60",
       )}
     >
       <TiptapBubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>

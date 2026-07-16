@@ -425,13 +425,13 @@ export function DemandDetailDialog({
                 </div>
 
                 {/* Rich Editor */}
-                <div className="flex-1 flex flex-col min-h-[160px] -mx-6">
-                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold mb-1.5 block px-6">Descrição</label>
+                <div className="flex flex-col min-h-[180px]">
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold mb-1.5 block">Descrição</label>
                   <div className="flex-1">
                     <RichEditor
                       content={description}
                       onChange={(html) => setDescription(html)}
-                      borderless={true}
+                      borderless={false}
                     />
                   </div>
                 </div>
@@ -440,12 +440,12 @@ export function DemandDetailDialog({
               {/* Right Panel - Comments */}
               {!isNew && showComments && (
                 <div className="w-[360px] md:w-[400px] shrink-0 border-l border-zinc-850 flex flex-col bg-zinc-900/40">
-                  <div className="px-4 py-3 border-b border-zinc-800 shrink-0">
+                  <div className="px-3.5 py-2.5 border-b border-zinc-800 shrink-0">
                     <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Comentários</h4>
                   </div>
 
                   {/* Comments list (placed in middle, scrollable) */}
-                  <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+                  <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-4">
                     {comments.map((c) => {
                       const initials = c.author_label
                         ? c.author_label.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
@@ -519,7 +519,7 @@ export function DemandDetailDialog({
                   </div>
 
                   {/* Comment Input (placed at bottom) */}
-                  <div className="px-4 py-3.5 border-t border-zinc-800 bg-zinc-900/60 shrink-0">
+                  <div className="px-3.5 py-2.5 border-t border-zinc-800 bg-zinc-950/40 shrink-0">
                     <RichEditor
                       content={comment}
                       onChange={(html) => setComment(html)}

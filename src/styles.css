@@ -194,8 +194,6 @@
 /* ── Tiptap Rich Editor ── */
 .tiptap {
   outline: none;
-  min-height: 120px;
-  padding: 0.75rem;
   color: #e4e4e7;
   font-size: 0.875rem;
   line-height: 1.6;
