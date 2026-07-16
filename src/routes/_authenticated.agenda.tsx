@@ -163,7 +163,7 @@ function AgendaPage() {
       estimated_hours: d.estimated_hours ? Number(d.estimated_hours) : 1.0,
       created_at: d.created_at,
     }));
-    return scheduleDemands(forScheduler, config);
+    return scheduleByPriority(forScheduler, config);
   }, [demands, config]);
 
   // Sync scheduled times to DB
