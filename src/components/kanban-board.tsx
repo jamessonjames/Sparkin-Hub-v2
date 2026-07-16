@@ -31,10 +31,10 @@ const STATUS_STYLES: Record<string, { dot: string; text: string; badge: string; 
 };
 
 const PRIORITY_CHIP: Record<string, string> = {
-  low:    "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300",
-  medium: "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300",
-  high:   "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-300",
-  urgent: "bg-red-100/70 dark:bg-red-950/40 text-red-600 dark:text-red-300",
+  low:    "bg-zinc-500 dark:bg-zinc-700 text-white font-semibold",
+  medium: "bg-blue-500 dark:bg-blue-600 text-white font-semibold",
+  high:   "bg-amber-500 dark:bg-amber-600 text-white font-semibold",
+  urgent: "bg-red-500 dark:bg-red-650 text-white font-semibold",
 };
 
 export function KanbanBoard({

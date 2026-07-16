@@ -36,10 +36,10 @@ const STATUS_CHIP: Record<string, string> = {
 };
 
 const PRIORITY_CHIP: Record<string, string> = {
-  low:    "bg-zinc-700 text-zinc-300",
-  medium: "bg-blue-800 text-blue-200",
-  high:   "bg-amber-800 text-amber-200",
-  urgent: "bg-red-800 text-red-200",
+  low:    "bg-zinc-500 dark:bg-zinc-700 text-white font-semibold hover:bg-zinc-600",
+  medium: "bg-blue-500 dark:bg-blue-600 text-white font-semibold hover:bg-blue-600",
+  high:   "bg-amber-500 dark:bg-amber-600 text-white font-semibold hover:bg-amber-500",
+  urgent: "bg-red-500 dark:bg-red-650 text-white font-semibold hover:bg-red-600",
 };
 
 export function DemandDetailDialog({
