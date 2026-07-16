@@ -38,7 +38,7 @@ export const getClientCreditTiers = createServerFn({ method: "GET" })
     }
 
     try {
-      const parsed = JSON.parse(rows[0].content) as CreditTier[];
+      const parsed = JSON.parse(rows[0].content ?? "[]") as CreditTier[];
       return parsed && Array.isArray(parsed) ? parsed : DEFAULT_CREDIT_TIERS;
     } catch {
       return DEFAULT_CREDIT_TIERS;
