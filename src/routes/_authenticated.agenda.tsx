@@ -184,6 +184,7 @@ function AgendaPage() {
   const updateFn = useServerFn(updateDemand);
   const overlay = useDemandOverlay();
   const qc = useQueryClient();
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
   const { data: demands = [] } = useQuery({
     queryKey: ["demands"],
@@ -228,7 +229,7 @@ function AgendaPage() {
 
   // Group demands by date/hour/minute slot for display
   const demandsBySlot = useMemo(() => {
-    const map = new Map<string, typeof demands[number]>();
+    const map = new Map<string, AgendaDemand>();
     for (const d of demands) {
       const finalDate = d.status === "concluido" ? d.due_date : (scheduledMap[d.id] ?? d.due_date);
       if (finalDate) {
@@ -237,7 +238,7 @@ function AgendaPage() {
         // round to nearest 30-min block
         const mStr = dt.getMinutes() >= 30 ? "30" : "00";
         const key = `${toISO(dt)}_${hStr}_${mStr}`;
-        map.set(key, d);
+        map.set(key, { ...(d as AgendaDemand), due_date: finalDate });
       }
     }
     return map;
