@@ -83,6 +83,7 @@ export function RichEditor({
   onSubmitChat,
   borderless = false,
   readOnly = false,
+  enableTables = false,
 }: RichEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -95,6 +96,14 @@ export function RichEditor({
       TaskList,
       TaskItem.configure({ nested: true }),
       Placeholder.configure({ placeholder }),
+      ...(enableTables
+        ? [
+            Table.configure({ resizable: true, HTMLAttributes: { class: "rich-table" } }),
+            TableRow,
+            TableHeader,
+            TableCell,
+          ]
+        : []),
     ],
     content: content || "",
     editable: !readOnly,
