@@ -30,6 +30,7 @@ const upsertSchema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
   due_date: z.string().optional().nullable(),
   estimated_credits: z.number().int().optional().nullable(),
+  estimated_hours: z.number().optional().nullable(),
   internal_notes: z.string().optional().nullable(),
   assignee_user_id: z.string().uuid().optional().nullable(),
 });
@@ -39,7 +40,7 @@ export const listDemands = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("demands")
-      .select("id, title, description, client_id, status, priority, due_date, estimated_credits, sort_order, updated_at, created_at, assignee_user_id, clients(id, name)")
+      .select("id, title, description, client_id, status, priority, due_date, estimated_credits, estimated_hours, sort_order, updated_at, created_at, assignee_user_id, clients(id, name)")
       .is("deleted_at", null)
       .order("sort_order", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false });
@@ -76,6 +77,7 @@ export const createDemand = createServerFn({ method: "POST" })
         priority: data.priority,
         due_date: data.due_date || null,
         estimated_credits: data.estimated_credits ?? undefined,
+        estimated_hours: data.estimated_hours ?? 1.0,
         internal_notes: data.internal_notes || null,
         assignee_user_id: data.assignee_user_id || null,
         created_by_user_id: context.userId,
@@ -102,6 +104,7 @@ export const updateDemand = createServerFn({ method: "POST" })
         priority: rest.priority,
         due_date: rest.due_date || null,
         estimated_credits: rest.estimated_credits ?? undefined,
+        estimated_hours: rest.estimated_hours ?? 1.0,
         internal_notes: rest.internal_notes || null,
         assignee_user_id: rest.assignee_user_id || null,
       })

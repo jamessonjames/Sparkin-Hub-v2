@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState, useRef, useEffect } from "react";
-import { listDemands, batchUpdateDueDates } from "@/lib/demands.functions";
+import { listDemands, batchUpdateDueDates, updateDemand } from "@/lib/demands.functions";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
-import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2 } from "lucide-react";
 import { STATUS_LABELS } from "@/lib/demand-labels";
 import { cn } from "@/lib/utils";
 import {
@@ -37,7 +37,19 @@ export const Route = createFileRoute("/_authenticated/agenda")({
 
 const DAYS_SHORT = ["DOM.", "SEG.", "TER.", "QUA.", "QUI.", "SEX.", "SÁB."];
 const WEEKDAY_NAMES = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
-const HOURS = Array.from({ length: 24 }, (_, i) => i); // 0..23
+
+// Generate 48 half-hour slots per day
+interface TimeSlot {
+  h: number;
+  m: number;
+  label: string;
+}
+
+const SLOTS: TimeSlot[] = [];
+for (let h = 0; h < 24; h++) {
+  SLOTS.push({ h, m: 0, label: `${String(h).padStart(2, "0")}:00` });
+  SLOTS.push({ h, m: 30, label: `${String(h).padStart(2, "0")}:30` });
+}
 
 const STATUS_BG: Record<string, string> = {
   nao_iniciado: "bg-zinc-800 border-zinc-700 text-zinc-100",
@@ -71,6 +83,7 @@ type ViewMode = "day" | "week" | "month";
 function AgendaPage() {
   const listFn = useServerFn(listDemands);
   const batchUpdateFn = useServerFn(batchUpdateDueDates);
+  const updateFn = useServerFn(updateDemand);
   const overlay = useDemandOverlay();
   const qc = useQueryClient();
 
@@ -106,6 +119,7 @@ function AgendaPage() {
       priority: d.priority as "low" | "medium" | "high" | "urgent",
       status: d.status,
       due_date: d.due_date,
+      estimated_hours: d.estimated_hours ? Number(d.estimated_hours) : 1.0,
       created_at: d.created_at,
     }));
     return scheduleDemands(forScheduler, config);
@@ -129,14 +143,17 @@ function AgendaPage() {
     }
   }, [scheduledMap, demands, batchUpdateFn, qc]);
 
-  // Group demands by date/hour slot for display
+  // Group demands by date/hour/minute slot for display
   const demandsBySlot = useMemo(() => {
     const map = new Map<string, typeof demands[number]>();
     for (const d of demands) {
       const finalDate = d.status === "concluido" ? d.due_date : (scheduledMap[d.id] ?? d.due_date);
       if (finalDate) {
         const dt = safeParseDate(finalDate);
-        const key = `${toISO(dt)}_${dt.getHours()}`;
+        const hStr = String(dt.getHours()).padStart(2, "0");
+        // round to nearest 30-min block
+        const mStr = dt.getMinutes() >= 30 ? "30" : "00";
+        const key = `${toISO(dt)}_${hStr}_${mStr}`;
         map.set(key, d);
       }
     }
@@ -163,7 +180,6 @@ function AgendaPage() {
     if (viewMode === "day") {
       return [new Date(currentDate)];
     }
-    // "week" mode uses the Sunday of the current week
     const start = weekStart(currentDate);
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(start);
@@ -181,16 +197,13 @@ function AgendaPage() {
     const totalDays = new Date(year, month + 1, 0).getDate();
 
     const cells: Array<{ date: Date | null; key: string }> = [];
-    // Padding at start
     for (let i = 0; i < startDow; i++) {
       cells.push({ date: null, key: `pad-${i}` });
     }
-    // Days
     for (let d = 1; d <= totalDays; d++) {
       const date = new Date(year, month, d);
       cells.push({ date, key: date.toISOString() });
     }
-    // Padding at end
     while (cells.length % 7 !== 0) {
       cells.push({ date: null, key: `tail-${cells.length}` });
     }
@@ -208,6 +221,35 @@ function AgendaPage() {
       next.setMonth(next.getMonth() - 1);
     }
     setCurrentDate(next);
+  }
+
+  // Handle demand resize inside calendar
+  async function handleResizeDemand(demandId: string, hours: number) {
+    const dObj = demands.find((d) => d.id === demandId);
+    if (!dObj) return;
+
+    qc.setQueryData<typeof demands>(["demands"], (prev) =>
+      (prev ?? []).map((d) => (d.id === demandId ? { ...d, estimated_hours: hours } : d))
+    );
+
+    try {
+      await updateFn({
+        data: {
+          id: demandId,
+          client_id: dObj.client_id,
+          title: dObj.title,
+          description: dObj.description,
+          status: dObj.status,
+          priority: dObj.priority,
+          due_date: dObj.due_date,
+          estimated_hours: hours,
+        },
+      });
+      qc.invalidateQueries({ queryKey: ["demands"] });
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao atualizar o tempo estimado.");
+    }
   }
 
   function handleNext() {
@@ -241,7 +283,7 @@ function AgendaPage() {
     return currentDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   }, [currentDate, viewMode, weekDays]);
 
-  // Drag and Drop
+  // Drag and Drop sensors
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   async function handleDragEnd(e: DragEndEvent) {
@@ -249,13 +291,14 @@ function AgendaPage() {
     if (!over) return;
 
     const demandId = String(active.id);
-    const targetSlotId = String(over.id); // e.g. "slot_2026-07-15_9"
+    const targetSlotId = String(over.id); // e.g. "slot_2026-07-15_09_30"
     const parts = targetSlotId.split("_");
-    if (parts.length < 3) return;
+    if (parts.length < 4) return;
 
     const dateStr = parts[1];
     const hourVal = parseInt(parts[2], 10);
-    const targetDate = new Date(`${dateStr}T${String(hourVal).padStart(2, "0")}:00:00`);
+    const minVal = parseInt(parts[3], 10);
+    const targetDate = new Date(`${dateStr}T${String(hourVal).padStart(2, "0")}:${String(minVal).padStart(2, "0")}:00`);
     const formatted = formatTzString(targetDate);
 
     qc.setQueryData<typeof demands>(["demands"], (prev) =>
@@ -275,7 +318,8 @@ function AgendaPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scrollRef.current && viewMode !== "month") {
-      const top = Math.max(0, (config.startHour - 1) * 56);
+      // scroll to config.startHour (each hour = 2 slots of 40px = 80px)
+      const top = Math.max(0, (config.startHour - 1) * 80);
       scrollRef.current.scrollTop = top;
     }
   }, [config.startHour, viewMode]);
@@ -364,14 +408,12 @@ function AgendaPage() {
         {viewMode === "month" ? (
           /* ── MONTH VIEW ── */
           <div className="flex-1 flex flex-col min-h-0 bg-zinc-950/20">
-            {/* Weekday labels */}
             <div className="grid grid-cols-7 border-b border-zinc-800/80 bg-zinc-900/30 text-center py-2 text-xs font-bold text-zinc-500">
               {DAYS_SHORT.map((day) => (
                 <div key={day}>{day}</div>
               ))}
             </div>
 
-            {/* Days Grid */}
             <div className="flex-1 grid grid-cols-7 grid-rows-5 md:grid-rows-6 border-b border-zinc-800/20">
               {monthCells.map(({ date, key }) => {
                 if (!date) {
@@ -384,7 +426,7 @@ function AgendaPage() {
                 return (
                   <div
                     key={key}
-                    onClick={() => overlay.openNew(clientsForOverlay, undefined, "nao_iniciado")}
+                    onClick={() => overlay.openNew(clientsForOverlay, iso, "nao_iniciado")}
                     className={cn(
                       "border-r border-b border-zinc-850 p-1 flex flex-col justify-start gap-1 overflow-hidden cursor-pointer hover:bg-zinc-900/30 transition-colors",
                       isToday && "bg-primary/5"
@@ -399,7 +441,6 @@ function AgendaPage() {
                       </span>
                     </div>
 
-                    {/* Compact demand chips */}
                     <div className="space-y-1 overflow-y-auto max-h-[80px] scrollbar-thin">
                       {cellDemands.map((d) => (
                         <div
@@ -425,7 +466,7 @@ function AgendaPage() {
             </div>
           </div>
         ) : (
-          /* ── GRID FOR DAY / WEEK VIEW ── */
+          /* ── GRID FOR DAY / WEEK VIEW (30-Minute Slots) ── */
           <>
             {/* Headers */}
             <div className="flex border-b border-zinc-800/60 bg-zinc-900/30 shrink-0">
@@ -453,13 +494,13 @@ function AgendaPage() {
             <div ref={scrollRef} className="flex-1 overflow-y-auto">
               <div className="flex relative">
                 
-                {/* Hour labels */}
+                {/* Hour labels (Only printed on the hour, every 2 slots) */}
                 <div className="w-[60px] shrink-0 select-none bg-zinc-900/20 border-r border-zinc-800/20 z-10">
-                  {HOURS.map((h) => (
-                    <div key={h} className="h-14 relative flex items-start justify-end pr-2.5">
-                      {h > 0 && (
+                  {SLOTS.map((slot, index) => (
+                    <div key={index} className="h-10 relative flex items-start justify-end pr-2.5">
+                      {slot.m === 0 && slot.h > 0 && (
                         <span className="text-[10px] text-zinc-600 font-semibold mt-[-6px]">
-                          {String(h).padStart(2, "0")}:00
+                          {slot.label}
                         </span>
                       )}
                     </div>
@@ -481,20 +522,23 @@ function AgendaPage() {
                         isToday && "bg-primary/5"
                       )}
                     >
-                      {HOURS.map((h) => {
-                        const slotKey = `${iso}_${h}`;
+                      {SLOTS.map((slot, index) => {
+                        const hStr = String(slot.h).padStart(2, "0");
+                        const mStr = String(slot.m).padStart(2, "0");
+                        const slotKey = `${iso}_${hStr}_${mStr}`;
                         const demand = demandsBySlot.get(slotKey);
-                        const isBusiness = isValidSlot(new Date(`${iso}T${String(h).padStart(2, "0")}:00:00`), config);
+                        const isBusiness = isValidSlot(new Date(`${iso}T${hStr}:${mStr}:00`), config);
 
                         return (
                           <DroppableHourCell
-                            key={h}
-                            id={`slot_${iso}_${h}`}
+                            key={index}
+                            id={`slot_${iso}_${hStr}_${mStr}`}
                             isBusiness={isBusiness}
                           >
                             {demand && (
                               <DraggableDemandCard
                                 demand={demand}
+                                onResize={handleResizeDemand}
                                 onClick={() => overlay.open(demand.id, clientsForOverlay)}
                               />
                             )}
@@ -506,7 +550,7 @@ function AgendaPage() {
                       {isToday && (
                         <div
                           className="absolute left-0 right-0 z-20 pointer-events-none"
-                          style={{ top: `${(currentHour * 60 + currentMinute) / 60 * 56}px` }}
+                          style={{ top: `${(currentHour * 60 + currentMinute) / 60 * 80}px` }}
                         >
                           <div className="relative flex items-center">
                             <div className="h-2 w-2 rounded-full bg-red-500 -ml-1 shrink-0" />
@@ -547,7 +591,7 @@ function DroppableHourCell({
     <div
       ref={setNodeRef}
       className={cn(
-        "h-14 border-t border-zinc-800/10 p-0.5 relative transition-colors duration-150",
+        "h-10 border-t border-zinc-800/10 p-0.5 relative transition-colors duration-150",
         !isBusiness && "bg-zinc-950/40 opacity-70",
         isOver && (isBusiness ? "bg-primary/20 border-t-primary" : "bg-red-950/20 border-t-red-700")
       )}
@@ -560,15 +604,65 @@ function DroppableHourCell({
 function DraggableDemandCard({
   demand,
   onClick,
+  onResize,
 }: {
   demand: any;
   onClick: () => void;
+  onResize: (demandId: string, hours: number) => Promise<void>;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: demand.id,
   });
 
-  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
+  const [isResizing, setIsResizing] = useState(false);
+  const [tempHours, setTempHours] = useState(demand.estimated_hours ? Number(demand.estimated_hours) : 1.0);
+
+  const startResize = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsResizing(true);
+    
+    const startY = e.clientY;
+    const startHours = demand.estimated_hours ? Number(demand.estimated_hours) : 1.0;
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaY = moveEvent.clientY - startY;
+      // 1 slot = 40px = 0.5 hours. So 80px = 1 hour.
+      const deltaHours = Math.round((deltaY / 80) * 2) / 2; // round to nearest 0.5
+      const newHours = Math.max(0.5, startHours + deltaHours);
+      setTempHours(newHours);
+    };
+    
+    const handleMouseUp = async (upEvent: MouseEvent) => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      setIsResizing(false);
+      
+      const deltaY = upEvent.clientY - startY;
+      const deltaHours = Math.round((deltaY / 80) * 2) / 2;
+      const finalHours = Math.max(0.5, startHours + deltaHours);
+      
+      if (finalHours !== startHours) {
+        await onResize(demand.id, finalHours);
+      }
+    };
+    
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const transformStyle = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
+
+  // Calculate dynamic card height representing estimated time
+  const displayHours = isResizing ? tempHours : (demand.estimated_hours ? Number(demand.estimated_hours) : 1.0);
+  const slotsCount = displayHours / 0.5;
+  const cardHeight = slotsCount * 40 - 4; // in pixels (each cell = 40px)
+
+  const style = {
+    ...transformStyle,
+    height: `${cardHeight}px`,
+    zIndex: isResizing || isDragging ? 50 : 20,
+  };
 
   return (
     <div
@@ -577,11 +671,13 @@ function DraggableDemandCard({
       {...attributes}
       {...listeners}
       onClick={(e) => {
+        // Prevent clicking while drag resizing
+        if (isResizing) return;
         e.stopPropagation();
         onClick();
       }}
       className={cn(
-        "absolute inset-0.5 rounded border-l-3 p-1 text-[10px] font-medium cursor-pointer shadow-md select-none",
+        "absolute inset-x-0.5 top-0.5 rounded border-l-3 p-1.5 text-[10px] font-medium cursor-pointer shadow-md select-none",
         "transition-all flex flex-col justify-between overflow-hidden",
         STATUS_BG[demand.status] ?? "bg-zinc-800 border-zinc-700 text-zinc-100",
         PRIORITY_COLOR[demand.priority] ?? "border-zinc-500",
@@ -589,12 +685,26 @@ function DraggableDemandCard({
         demand.status === "concluido" && "line-through opacity-60"
       )}
     >
-      <div className="font-semibold truncate leading-tight">{demand.title}</div>
-      <div className="flex items-center justify-between text-[9px] opacity-75 mt-0.5">
-        <span className="truncate max-w-[60px]">
-          {demand.clients?.name ?? "Geral"}
-        </span>
-        <span className="shrink-0">{STATUS_LABELS[demand.status]}</span>
+      <div className="flex flex-col gap-0.5 h-full justify-between min-w-0">
+        <div className="min-w-0">
+          <div className="font-semibold truncate leading-tight">{demand.title}</div>
+          <div className="text-[9px] opacity-75 mt-0.5 truncate max-w-full">
+            {demand.clients?.name ?? "Geral"}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between text-[8px] opacity-60 shrink-0 mt-1">
+          <span>{displayHours}h estimadas</span>
+          <span className="font-semibold">{STATUS_LABELS[demand.status]}</span>
+        </div>
+      </div>
+
+      {/* Dynamic Resize Handle at the bottom border */}
+      <div
+        onMouseDown={startResize}
+        className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize hover:bg-primary/40 flex items-center justify-center group z-30"
+      >
+        <span className="w-5 h-0.5 bg-zinc-600 group-hover:bg-primary rounded-full transition-colors" />
       </div>
     </div>
   );

@@ -53,24 +53,6 @@ export function getTzTime(timezone = "America/Sao_Paulo"): Date {
   }
 }
 
-/** Parse a date string safely avoiding UTC midnight shifting on YYYY-MM-DD */
-export function safeParseDate(dateStr: string): Date {
-  if (!dateStr) return new Date();
-  
-  // If it's a date-only format like YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    const [y, m, d] = dateStr.split("-").map(Number);
-    return new Date(y, m - 1, d, 12, 0, 0); // local noon
-  }
-  
-  const cleaned = dateStr.replace(" ", "T");
-  const parsed = new Date(cleaned);
-  if (!isNaN(parsed.getTime())) {
-    return parsed;
-  }
-  return new Date(dateStr);
-}
-
 /** Check if a specific hour/date is a valid working slot */
 export function isValidSlot(date: Date, config: SchedulingConfig): boolean {
   const day = date.getDay();
@@ -83,15 +65,13 @@ export function isValidSlot(date: Date, config: SchedulingConfig): boolean {
   return true;
 }
 
-/** Move the date forward to the next valid working slot */
+/** Move the date forward to the next valid 30-minute working slot */
 export function getNextSlot(date: Date, config: SchedulingConfig): Date {
   const next = new Date(date);
-  next.setMinutes(0, 0, 0);
   
-  // Try adding 1 hour increments until we find a valid slot
   let safety = 0;
-  while (safety < 1000) {
-    next.setHours(next.getHours() + 1);
+  while (safety < 2000) {
+    next.setMinutes(next.getMinutes() + 30);
     if (isValidSlot(next, config)) {
       return next;
     }
@@ -100,15 +80,43 @@ export function getNextSlot(date: Date, config: SchedulingConfig): Date {
   return next;
 }
 
-/** Format a Date object to YYYY-MM-DDTHH:mm:ss in ISO style but local-like timezone */
+/** Helper to convert date to local YYYY-MM-DD string */
+function toISO(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Format a Date object to YYYY-MM-DDTHH:mm:ss with the correct local timezone offset */
 export function formatTzString(date: Date): string {
+  const tzo = -date.getTimezoneOffset();
+  const dif = tzo >= 0 ? "+" : "-";
+  const pad = (num: number) => String(Math.floor(Math.abs(num))).padStart(2, "0");
+  
   const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  const hh = String(date.getHours()).padStart(2, "0");
-  const mm = String(date.getMinutes()).padStart(2, "0");
-  const ss = String(date.getSeconds()).padStart(2, "0");
-  return `${y}-${m}-${d}T${hh}:${mm}:${ss}`;
+  const m = pad(date.getMonth() + 1);
+  const d = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const mm = pad(date.getMinutes());
+  const ss = pad(date.getSeconds());
+  
+  return `${y}-${m}-${d}T${hh}:${mm}:${ss}${dif}${pad(tzo / 60)}:${pad(tzo % 60)}`;
+}
+
+/** Parse a date string safely avoiding UTC midnight shifting on YYYY-MM-DD */
+export function safeParseDate(dateStr: string): Date {
+  if (!dateStr) return new Date();
+  
+  // If it's a date-only format like YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Date(y, m - 1, d, 12, 0, 0); // local noon fallback
+  }
+  
+  const cleaned = dateStr.replace(" ", "T");
+  const parsed = new Date(cleaned);
+  if (!isNaN(parsed.getTime())) {
+    return parsed;
+  }
+  return new Date(dateStr);
 }
 
 export interface UnscheduledDemand {
@@ -116,21 +124,39 @@ export interface UnscheduledDemand {
   title: string;
   priority: "low" | "medium" | "high" | "urgent";
   status: string;
-  due_date: string | null; // Current due date string (if any)
+  due_date: string | null;
+  estimated_hours?: number | null;
   created_at: string;
 }
 
+/** Helper to block slots occupied by a demand */
+function blockSlots(startDate: Date, durationHours: number, takenSlots: Set<string>) {
+  const steps = Math.ceil(durationHours / 0.5);
+  const current = new Date(startDate);
+  for (let i = 0; i < steps; i++) {
+    takenSlots.add(formatTzString(current));
+    current.setMinutes(current.getMinutes() + 30);
+  }
+}
+
+/** Helper to check if slots are free for a demand */
+function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<string>): boolean {
+  const steps = Math.ceil(durationHours / 0.5);
+  const current = new Date(startDate);
+  for (let i = 0; i < steps; i++) {
+    if (takenSlots.has(formatTzString(current))) {
+      return false;
+    }
+    current.setMinutes(current.getMinutes() + 30);
+  }
+  return true;
+}
+
 /**
- * Runs the Prioritized Scheduling Algorithm.
- * 1. Filters active demands (status !== 'concluido').
- * 2. Sorts them:
- *    - Urgent > High > Medium > Low
- *    - By requested datetime (if set)
- *    - By created_at (earliest first)
- * 3. Assigns slots:
- *    - If a demand has an explicit slot requested, we try to assign it.
- *    - If the slot is taken, or if no slot is requested, we find the next available future slot.
- *    - High priority demands will reserve slots first, naturally "pushing" lower priority demands.
+ * Runs the Prioritized 30-Minute Scheduling Algorithm.
+ * 1. Fixed demands (has due_date with time component) are locked first.
+ * 2. Day-constrained demands (due_date of 10 chars, YYYY-MM-DD) are scheduled on that day's next free slot.
+ * 3. Floating demands (due_date is null) are auto-scheduled in remaining slots.
  */
 export function scheduleDemands(
   demands: UnscheduledDemand[],
@@ -138,51 +164,128 @@ export function scheduleDemands(
 ): Record<string, string> {
   const active = demands.filter(d => d.status !== "concluido");
   
-  // Separate fixed (already have due_date) and floating (due_date is null) demands
-  const fixed = active.filter(d => d.due_date !== null);
+  // Categorize demands
+  const fixed = active.filter(d => d.due_date && d.due_date.length > 10);
+  const dayConstrained = active.filter(d => d.due_date && d.due_date.length === 10);
   const floating = active.filter(d => d.due_date === null);
   
   const scheduledTimes: Record<string, string> = {}; // demandId -> ISO string
   const takenSlots = new Set<string>();
 
-  // 1. Lock all fixed demands in their requested slots
+  // 1. Lock all fully fixed demands in their requested slots and block their times
   for (const demand of fixed) {
     if (demand.due_date) {
       const parsedDate = safeParseDate(demand.due_date);
       const slotKey = formatTzString(parsedDate);
       scheduledTimes[demand.id] = slotKey;
-      takenSlots.add(slotKey);
+      
+      const duration = demand.estimated_hours ? Number(demand.estimated_hours) : 1.0;
+      blockSlots(parsedDate, duration, takenSlots);
     }
   }
 
-  // 2. Sort floating demands by priority (descending weight), then by created_at
-  const sortedFloating = [...floating].sort((a, b) => {
+  const now = getTzTime(config.timezone);
+
+  // 2. Schedule day-constrained demands (first available slot on their chosen day)
+  const sortedDayConstrained = [...dayConstrained].sort((a, b) => {
     const pwA = PRIORITY_WEIGHT[a.priority] ?? 2;
     const pwB = PRIORITY_WEIGHT[b.priority] ?? 2;
-    
-    if (pwA !== pwB) return pwB - pwA; // Higher priority first
+    if (pwA !== pwB) return pwB - pwA;
     return a.created_at.localeCompare(b.created_at);
   });
 
-  const now = getTzTime(config.timezone);
-  
-  // Get the start of the next slot relative to "now"
+  for (const demand of sortedDayConstrained) {
+    const duration = demand.estimated_hours ? Number(demand.estimated_hours) : 1.0;
+    const targetDayStr = demand.due_date!; // YYYY-MM-DD
+    
+    // Start scanning slots on this day from working hours start
+    const dayStart = new Date(`${targetDayStr}T${String(config.startHour).padStart(2, "0")}:00:00`);
+    
+    // If target day is today, start from now (rounded to next 30-min slot)
+    let searchStart = new Date(dayStart);
+    if (targetDayStr === toISO(now)) {
+      const nowSlot = new Date(now);
+      const mins = nowSlot.getMinutes();
+      if (mins > 0 && mins <= 30) {
+        nowSlot.setMinutes(30, 0, 0);
+      } else {
+        if (mins > 30) {
+          nowSlot.setHours(nowSlot.getHours() + 1);
+        }
+        nowSlot.setMinutes(0, 0, 0);
+      }
+      if (nowSlot.getTime() > dayStart.getTime()) {
+        searchStart = nowSlot;
+      }
+    }
+    
+    let currentSearch = new Date(searchStart);
+    let scheduled = false;
+    let safety = 0;
+    
+    while (safety < 48) {
+      if (currentSearch.getHours() >= config.endHour || toISO(currentSearch) !== targetDayStr) {
+        break; // Passed end of working hours or target day
+      }
+      
+      if (isValidSlot(currentSearch, config) && areSlotsFree(currentSearch, duration, takenSlots)) {
+        const slotKey = formatTzString(currentSearch);
+        scheduledTimes[demand.id] = slotKey;
+        blockSlots(currentSearch, duration, takenSlots);
+        scheduled = true;
+        break;
+      }
+      
+      currentSearch.setMinutes(currentSearch.getMinutes() + 30);
+      safety++;
+    }
+    
+    // Fallback if day is fully booked: use searchStart
+    if (!scheduled) {
+      let fallbackSearch = new Date(dayStart);
+      if (targetDayStr === toISO(now)) {
+        fallbackSearch = new Date(searchStart);
+      }
+      const slotKey = formatTzString(fallbackSearch);
+      scheduledTimes[demand.id] = slotKey;
+      blockSlots(fallbackSearch, duration, takenSlots);
+    }
+  }
+
+  // 3. Schedule fully floating demands in remaining available future slots
+  const sortedFloating = [...floating].sort((a, b) => {
+    const pwA = PRIORITY_WEIGHT[a.priority] ?? 2;
+    const pwB = PRIORITY_WEIGHT[b.priority] ?? 2;
+    if (pwA !== pwB) return pwB - pwA;
+    return a.created_at.localeCompare(b.created_at);
+  });
+
   let nextAvailable = new Date(now);
-  nextAvailable.setMinutes(0, 0, 0);
+  const mins = nextAvailable.getMinutes();
+  if (mins > 0 && mins <= 30) {
+    nextAvailable.setMinutes(30, 0, 0);
+  } else {
+    if (mins > 30) {
+      nextAvailable.setHours(nextAvailable.getHours() + 1);
+    }
+    nextAvailable.setMinutes(0, 0, 0);
+  }
   if (!isValidSlot(nextAvailable, config)) {
     nextAvailable = getNextSlot(nextAvailable, config);
   }
 
-  // 3. Assign the next available free slots to the floating demands
   for (const demand of sortedFloating) {
+    const duration = demand.estimated_hours ? Number(demand.estimated_hours) : 1.0;
+    
     let currentSearch = new Date(nextAvailable);
     let safety = 0;
-    while (safety < 1000) {
-      const searchKey = formatTzString(currentSearch);
-      if (!takenSlots.has(searchKey) && currentSearch.getTime() > now.getTime()) {
-        scheduledTimes[demand.id] = searchKey;
-        takenSlots.add(searchKey);
-        // Advance nextAvailable to avoid redundant checks next time
+    while (safety < 2000) {
+      if (areSlotsFree(currentSearch, duration, takenSlots) && currentSearch.getTime() > now.getTime()) {
+        const slotKey = formatTzString(currentSearch);
+        scheduledTimes[demand.id] = slotKey;
+        
+        blockSlots(currentSearch, duration, takenSlots);
+        
         nextAvailable = new Date(currentSearch);
         break;
       }

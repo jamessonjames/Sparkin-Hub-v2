@@ -99,6 +99,7 @@ export function DemandDetailDialog({
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
   const [showComments, setShowComments] = useState(true);
+  const [estimatedHours, setEstimatedHours] = useState<number>(1.0);
 
   // Comments editing states
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -114,6 +115,7 @@ export function DemandDetailDialog({
       setPriority("medium");
       setDueDate("");
       setAssigneeId("");
+      setEstimatedHours(1.0);
     } else if (demand) {
       setClientId(demand.client_id);
       setTitle(demand.title);
@@ -122,12 +124,13 @@ export function DemandDetailDialog({
       setPriority(demand.priority as "low" | "medium" | "high" | "urgent");
       setDueDate(demand.due_date ? demand.due_date.slice(0, 10) : "");
       setAssigneeId(demand.assignee_user_id || "");
+      setEstimatedHours(demand.estimated_hours ? Number(demand.estimated_hours) : 1.0);
     }
   }, [demand, isNew, defaultClientId, defaultStatus, clients]);
 
   // Track if any properties were modified
   const isDirty = isNew
-    ? title.trim() !== "" || description !== "" || dueDate !== "" || assigneeId !== ""
+    ? title.trim() !== "" || description !== "" || dueDate !== "" || assigneeId !== "" || estimatedHours !== 1.0
     : demand && (
         clientId !== demand.client_id ||
         title !== demand.title ||
@@ -135,7 +138,8 @@ export function DemandDetailDialog({
         status !== demand.status ||
         priority !== demand.priority ||
         dueDate !== (demand.due_date ? demand.due_date.slice(0, 10) : "") ||
-        assigneeId !== (demand.assignee_user_id || "")
+        assigneeId !== (demand.assignee_user_id || "") ||
+        estimatedHours !== (demand.estimated_hours ? Number(demand.estimated_hours) : 1.0)
       );
 
   async function handleSave() {
@@ -167,6 +171,7 @@ export function DemandDetailDialog({
             status,
             priority,
             due_date: finalDueDate,
+            estimated_hours: estimatedHours,
             assignee_user_id: assigneeId || null,
           },
         });
@@ -185,6 +190,7 @@ export function DemandDetailDialog({
             priority,
             due_date: finalDueDate,
             estimated_credits: demand?.estimated_credits,
+            estimated_hours: estimatedHours,
             internal_notes: demand?.internal_notes,
             assignee_user_id: assigneeId || null,
           },
@@ -385,7 +391,7 @@ export function DemandDetailDialog({
                   </div>
 
                   {/* Assignee Select */}
-                  <div className="flex flex-col gap-1 col-span-1 md:col-span-2">
+                  <div className="flex flex-col gap-1">
                     <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold flex items-center gap-1">
                       <User className="h-3 w-3 text-zinc-500" /> Responsável
                     </label>
@@ -402,6 +408,19 @@ export function DemandDetailDialog({
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  {/* Estimated Hours Input */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Tempo Estimado</label>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      value={estimatedHours}
+                      onChange={(e) => setEstimatedHours(parseFloat(e.target.value) || 1.0)}
+                      className="h-8 text-xs bg-zinc-850 border-zinc-700 text-zinc-200"
+                    />
                   </div>
                 </div>
 
