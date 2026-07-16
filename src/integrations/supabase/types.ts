@@ -222,6 +222,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           estimated_credits: number
+          estimated_hours: number | null
           id: string
           internal_notes: string | null
           priority: Database["public"]["Enums"]["demand_priority"]
@@ -244,6 +245,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           estimated_credits?: number
+          estimated_hours?: number | null
           id?: string
           internal_notes?: string | null
           priority?: Database["public"]["Enums"]["demand_priority"]
@@ -266,6 +268,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           estimated_credits?: number
+          estimated_hours?: number | null
           id?: string
           internal_notes?: string | null
           priority?: Database["public"]["Enums"]["demand_priority"]
