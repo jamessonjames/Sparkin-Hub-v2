@@ -668,14 +668,6 @@ function DraggableDemandCard({
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
-      onClick={(e) => {
-        // Prevent clicking while drag resizing
-        if (isResizing) return;
-        e.stopPropagation();
-        onClick();
-      }}
       className={cn(
         "absolute inset-x-0.5 top-0.5 rounded border-l-3 p-1.5 text-[10px] font-medium cursor-pointer shadow-md select-none",
         "transition-all flex flex-col justify-between overflow-hidden",
@@ -685,7 +677,17 @@ function DraggableDemandCard({
         demand.status === "concluido" && "line-through opacity-60"
       )}
     >
-      <div className="flex flex-col gap-0.5 h-full justify-between min-w-0">
+      <div
+        {...attributes}
+        {...listeners}
+        onClick={(e) => {
+          // Prevent clicking while drag resizing
+          if (isResizing) return;
+          e.stopPropagation();
+          onClick();
+        }}
+        className="flex flex-col gap-0.5 h-full justify-between min-w-0 pb-1"
+      >
         <div className="min-w-0">
           <div className="font-semibold truncate leading-tight">{demand.title}</div>
           <div className="text-[9px] opacity-75 mt-0.5 truncate max-w-full">
