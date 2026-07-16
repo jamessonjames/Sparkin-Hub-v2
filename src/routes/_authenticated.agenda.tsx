@@ -312,6 +312,15 @@ function AgendaPage() {
     const dObj = demands.find((d) => d.id === demandId);
     if (!dObj) return;
 
+    const effectiveDueDate = getEffectiveDueDate(dObj as AgendaDemand);
+    if (effectiveDueDate) {
+      const conflict = findSchedulingConflict(demandId, safeParseDate(effectiveDueDate), hours);
+      if (!conflict.ok) {
+        toast.error(conflict.message);
+        return;
+      }
+    }
+
     qc.setQueryData<typeof demands>(["demands"], (prev) =>
       (prev ?? []).map((d) => (d.id === demandId ? { ...d, estimated_hours: hours } : d))
     );
@@ -405,11 +414,11 @@ function AgendaPage() {
     return demand.status === "concluido" ? demand.due_date : (scheduledMap[demand.id] ?? demand.due_date);
   }
 
-  function findSchedulingConflict(demandId: string, targetDate: Date) {
+  function findSchedulingConflict(demandId: string, targetDate: Date, durationOverride?: number) {
     const movingDemand = demands.find((d) => d.id === demandId) as AgendaDemand | undefined;
     if (!movingDemand) return { ok: false as const, message: "Demanda não encontrada." };
 
-    const duration = getDemandDurationHours(movingDemand);
+    const duration = durationOverride ?? getDemandDurationHours(movingDemand);
     const slotCursor = new Date(targetDate);
     for (let step = 0; step < Math.ceil(duration / 0.5); step += 1) {
       if (!isValidSlot(slotCursor, config)) {
