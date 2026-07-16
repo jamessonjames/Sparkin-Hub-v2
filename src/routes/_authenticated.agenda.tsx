@@ -154,9 +154,7 @@ function AgendaPage() {
 
   // Auto-schedule logic
   const scheduledMap = useMemo(() => {
-    const movable = demands.filter((d: any) => !d.is_manually_scheduled && d.status !== "concluido");
-    const fixed = demands.filter((d: any) => d.is_manually_scheduled && d.status !== "concluido" && d.due_date);
-    const toItem = (d: any) => ({
+    const items = demands.map((d: any) => ({
       id: d.id,
       title: d.title,
       priority: d.priority as "low" | "medium" | "high" | "urgent",
@@ -164,8 +162,9 @@ function AgendaPage() {
       due_date: d.due_date,
       estimated_hours: d.estimated_hours ? Number(d.estimated_hours) : 1.0,
       created_at: d.created_at,
-    });
-    return scheduleByPriority(movable.map(toItem), config, fixed.map(toItem));
+      is_manually_scheduled: !!d.is_manually_scheduled,
+    }));
+    return scheduleByPriority(items as any, config);
   }, [demands, config]);
 
   // Persistence handled globally by useAutoScheduler hook (mounted in AppShell).
