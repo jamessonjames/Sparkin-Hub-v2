@@ -193,7 +193,8 @@ export function DemandDetailDialog({
   }
 
   async function handleAddComment() {
-    if (!comment.trim()) return;
+    const textContent = comment.replace(/<[^>]*>/g, "").trim();
+    if (!textContent && !comment.includes("<img")) return;
     try {
       await addCommentFn({ data: { demand_id: id, body: comment } });
       setComment("");
@@ -212,10 +213,15 @@ export function DemandDetailDialog({
         ) : (
           <>
             {/* ── TOP BAR ── */}
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-zinc-800 shrink-0 flex-wrap bg-zinc-900/80">
-              <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mr-2">
-                {isNew ? "Nova Demanda" : "Detalhes da Demanda"}
-              </span>
+            <div className="flex items-center gap-4 px-5 py-2.5 border-b border-zinc-800 shrink-0 flex-wrap bg-zinc-900/80 w-full">
+              <div className="flex-1 min-w-[200px]">
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="text-base font-bold bg-transparent border-transparent hover:border-zinc-700/60 focus:border-primary/65 text-zinc-100 h-8 transition-colors p-0.5 px-2 rounded w-full max-w-xl focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-zinc-500 placeholder:italic"
+                  placeholder={isNew ? "Título da nova demanda..." : "Título da demanda..."}
+                />
+              </div>
 
               <div className="ml-auto flex items-center gap-1.5">
                 {!isNew && (
@@ -347,24 +353,14 @@ export function DemandDetailDialog({
                   </div>
                 </div>
 
-                {/* Title */}
-                <div>
-                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold mb-1 block">Título</label>
-                  <Input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="text-lg font-bold bg-transparent border-transparent hover:border-zinc-700 focus:border-primary/60 text-zinc-50 px-2 transition-colors"
-                    placeholder="Título da demanda..."
-                  />
-                </div>
-
                 {/* Rich Editor */}
-                <div className="flex-1 flex flex-col min-h-[160px]">
-                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold mb-1 block">Descrição</label>
+                <div className="flex-1 flex flex-col min-h-[160px] -mx-6">
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold mb-1.5 block px-6">Descrição</label>
                   <div className="flex-1">
                     <RichEditor
                       content={description}
                       onChange={(html) => setDescription(html)}
+                      borderless={true}
                     />
                   </div>
                 </div>
@@ -378,22 +374,14 @@ export function DemandDetailDialog({
                   </div>
 
                   {/* Comment Input */}
-                  <div className="px-4 py-3 border-b border-zinc-800 space-y-2">
-                    <Input
+                  <div className="px-4 py-3 border-b border-zinc-800">
+                    <RichEditor
+                      content={comment}
+                      onChange={(html) => setComment(html)}
+                      isChatInput={true}
+                      onSubmitChat={handleAddComment}
                       placeholder="Escrever comentário..."
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") handleAddComment(); }}
-                      className="bg-zinc-850 border-zinc-700 text-xs h-9"
                     />
-                    <Button
-                      size="sm"
-                      className="w-full gap-1.5 h-8 text-xs font-semibold"
-                      onClick={handleAddComment}
-                      disabled={!comment.trim()}
-                    >
-                      <Send className="h-3 w-3" /> Enviar
-                    </Button>
                   </div>
 
                   {/* Comments list */}
@@ -412,9 +400,10 @@ export function DemandDetailDialog({
                               <span className="text-xs font-bold text-zinc-200">{c.author_label ?? "Equipe"}</span>
                               <span className="text-[9px] text-zinc-500">{new Date(c.created_at).toLocaleDateString("pt-BR")}</span>
                             </div>
-                            <div className="text-xs text-zinc-300 bg-zinc-800/40 rounded-lg px-2.5 py-1.5 border border-zinc-800">
-                              {c.body}
-                            </div>
+                            <div 
+                              className="text-xs text-zinc-300 bg-zinc-800/40 rounded-lg px-2.5 py-1.5 border border-zinc-800 prose prose-invert prose-xs max-w-none break-words [&_p]:m-0"
+                              dangerouslySetInnerHTML={{ __html: c.body }}
+                            />
                           </div>
                         </div>
                       );
