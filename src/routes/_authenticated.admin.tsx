@@ -191,7 +191,7 @@ function AdminPage() {
       </div>
 
       <Tabs defaultValue="branding" className="w-full">
-        <TabsList className="bg-zinc-900 border border-zinc-800">
+        <TabsList className="bg-surface-2 border border-border">
           <TabsTrigger value="branding" className="text-xs gap-1.5">
             <Palette className="h-3.5 w-3.5" /> Marca & Tema
           </TabsTrigger>
@@ -205,51 +205,51 @@ function AdminPage() {
 
         {/* ── SEÇÃO: MARCA & TEMA ── */}
         <TabsContent value="branding" className="mt-4">
-          <Card className="bg-zinc-900 border-zinc-800">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-sm font-bold uppercase tracking-wider text-zinc-400">Personalização Visual</CardTitle>
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Personalização Visual</CardTitle>
               <CardDescription className="text-xs">Configure o nome da plataforma, ícones e cores.</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSaveBranding} className="space-y-5 max-w-xl">
                 <div className="space-y-1">
-                  <Label htmlFor="sysname" className="text-xs text-zinc-400 font-semibold">Nome do Sistema</Label>
+                  <Label htmlFor="sysname" className="text-xs text-muted-foreground font-semibold">Nome do Sistema</Label>
                   <Input
                     id="sysname"
                     value={systemName}
                     onChange={(e) => setSystemName(e.target.value)}
-                    className="bg-zinc-850 border-zinc-700 text-zinc-200 text-sm h-9"
+                    className="bg-surface-2 border-border text-foreground text-sm h-9"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="favicon" className="text-xs text-zinc-400 font-semibold font-sans">URL do Favicon (.ico / .png)</Label>
+                  <Label htmlFor="favicon" className="text-xs text-muted-foreground font-semibold font-sans">URL do Favicon (.ico / .png)</Label>
                   <div className="flex gap-2">
                     <Input
                       id="favicon"
                       placeholder="https://exemplo.com/favicon.png"
                       value={faviconUrl}
                       onChange={(e) => setFaviconUrl(e.target.value)}
-                      className="bg-zinc-850 border-zinc-700 text-zinc-200 text-sm h-9 flex-1"
+                      className="bg-surface-2 border-border text-foreground text-sm h-9 flex-1"
                     />
-                    <Button type="button" variant="outline" className="border-zinc-700 gap-1.5 text-xs text-zinc-300 hover:bg-zinc-800 h-9">
+                    <Button type="button" variant="outline" className="border-border gap-1.5 text-xs text-foreground hover:bg-surface-2 h-9">
                       <Upload className="h-3.5 w-3.5" /> Subir
                     </Button>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs text-zinc-400 font-semibold">Tema Padrão</Label>
+                  <Label className="text-xs text-muted-foreground font-semibold">Tema Padrão</Label>
                   <div className="flex gap-4">
                     <label className={cn(
-                      "flex items-center gap-2 border border-zinc-850 bg-zinc-950/20 rounded-lg px-4 py-2 cursor-pointer hover:bg-zinc-850/50 transition-all flex-1 text-center justify-center font-semibold text-xs text-zinc-400",
+                      "flex items-center gap-2 border border-border bg-surface-2/40 rounded-lg px-4 py-2 cursor-pointer hover:bg-surface-2 transition-all flex-1 text-center justify-center font-semibold text-xs text-muted-foreground",
                       theme === "dark" && "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
                     )}>
                       <input type="radio" name="theme" value="dark" checked={theme === "dark"} onChange={() => setTheme("dark")} className="hidden" />
                       Tema Escuro (Recomendado)
                     </label>
                     <label className={cn(
-                      "flex items-center gap-2 border border-zinc-850 bg-zinc-950/20 rounded-lg px-4 py-2 cursor-pointer hover:bg-zinc-850/50 transition-all flex-1 text-center justify-center font-semibold text-xs text-zinc-400",
+                      "flex items-center gap-2 border border-border bg-surface-2/40 rounded-lg px-4 py-2 cursor-pointer hover:bg-surface-2 transition-all flex-1 text-center justify-center font-semibold text-xs text-muted-foreground",
                       theme === "light" && "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
                     )}>
                       <input type="radio" name="theme" value="light" checked={theme === "light"} onChange={() => setTheme("light")} className="hidden" />
@@ -259,7 +259,7 @@ function AdminPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs text-zinc-400 font-semibold">Cor de Destaque</Label>
+                  <Label className="text-xs text-muted-foreground font-semibold">Cor de Destaque</Label>
                   <div className="flex gap-3 flex-wrap">
                     {(Object.keys(HIGHLIGHT_COLORS) as HighlightColor[]).map((color) => {
                       const details = HIGHLIGHT_COLORS[color];
@@ -273,7 +273,7 @@ function AdminPage() {
                             "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer",
                             highlightColor === color
                               ? "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
-                              : "border-zinc-800 bg-zinc-950/20 text-zinc-400 hover:border-zinc-700"
+                              : "border-border bg-surface-2/40 text-muted-foreground hover:border-foreground/30"
                           )}
                           style={{
                             "--primary": details.primary,
@@ -304,10 +304,10 @@ function AdminPage() {
           <div className="grid md:grid-cols-3 gap-6">
             
             {/* Users list (Left) */}
-            <Card className="bg-zinc-900 border-zinc-800 md:col-span-2">
+            <Card className="bg-card border-border md:col-span-2">
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <div>
-                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-zinc-400">Usuários Cadastrados</CardTitle>
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Usuários Cadastrados</CardTitle>
                   <CardDescription className="text-xs">Defina o nível de acesso para cada membro da equipe.</CardDescription>
                 </div>
                 <Button onClick={() => setOpenCreate(true)} size="sm" className="gap-1.5 text-xs h-8">
@@ -316,7 +316,7 @@ function AdminPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {isLoading ? (
-                  <div className="py-6 text-center text-zinc-600 text-xs">Carregando usuários...</div>
+                  <div className="py-6 text-center text-muted-foreground text-xs">Carregando usuários...</div>
                 ) : (
                   users.map((u) => {
                     const role = u.user_roles?.[0]?.role ?? "collaborator";
@@ -325,14 +325,14 @@ function AdminPage() {
                       : "?";
 
                     return (
-                      <div key={u.id} className="flex items-center justify-between p-3 rounded-lg bg-zinc-950/20 border border-zinc-850 gap-4 flex-wrap">
+                      <div key={u.id} className="flex items-center justify-between p-3 rounded-lg bg-surface-2/40 border border-border gap-4 flex-wrap">
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-full bg-primary/10 text-primary border border-primary/20 text-xs font-bold flex items-center justify-center">
                             {initials}
                           </div>
                           <div>
-                            <div className="text-xs font-bold text-zinc-200">{u.name ?? "Sem nome"}</div>
-                            <div className="text-[10px] text-zinc-500">{u.email}</div>
+                            <div className="text-xs font-bold text-foreground">{u.name ?? "Sem nome"}</div>
+                            <div className="text-[10px] text-muted-foreground">{u.email}</div>
                           </div>
                         </div>
 
@@ -340,7 +340,7 @@ function AdminPage() {
                           <select
                             value={role}
                             onChange={(e) => handleRoleChange(u.id, e.target.value as any)}
-                            className="bg-zinc-850 border border-zinc-700 rounded-md px-2 py-1 text-xs text-zinc-200 focus:outline-none"
+                            className="bg-surface-2 border border-border rounded-md px-2 py-1 text-xs text-foreground focus:outline-none"
                           >
                             <option value="owner">Proprietário</option>
                             <option value="admin">Administrador</option>
@@ -355,26 +355,26 @@ function AdminPage() {
             </Card>
 
             {/* Rules explanation (Right) */}
-            <Card className="bg-zinc-900 border-zinc-800 h-fit">
+            <Card className="bg-card border-border h-fit">
               <CardHeader>
-                <CardTitle className="text-sm font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <Info className="h-4 w-4 text-primary" /> Regras de Permissão
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 text-xs leading-relaxed text-zinc-400">
+              <CardContent className="space-y-4 text-xs leading-relaxed text-muted-foreground">
                 <div>
-                  <h5 className="font-bold text-zinc-200 mb-0.5">👑 Proprietário</h5>
-                  <p className="text-[11px] text-zinc-500">{ROLE_DESC.owner}</p>
+                  <h5 className="font-bold text-foreground mb-0.5">👑 Proprietário</h5>
+                  <p className="text-[11px] text-muted-foreground">{ROLE_DESC.owner}</p>
                 </div>
-                <hr className="border-zinc-800" />
+                <hr className="border-border" />
                 <div>
-                  <h5 className="font-bold text-zinc-200 mb-0.5">🛠️ Administrador</h5>
-                  <p className="text-[11px] text-zinc-500">{ROLE_DESC.admin}</p>
+                  <h5 className="font-bold text-foreground mb-0.5">🛠️ Administrador</h5>
+                  <p className="text-[11px] text-muted-foreground">{ROLE_DESC.admin}</p>
                 </div>
-                <hr className="border-zinc-800" />
+                <hr className="border-border" />
                 <div>
-                  <h5 className="font-bold text-zinc-200 mb-0.5">🧑‍💻 Colaborador</h5>
-                  <p className="text-[11px] text-zinc-500">{ROLE_DESC.collaborator}</p>
+                  <h5 className="font-bold text-foreground mb-0.5">🧑‍💻 Colaborador</h5>
+                  <p className="text-[11px] text-muted-foreground">{ROLE_DESC.collaborator}</p>
                 </div>
               </CardContent>
             </Card>
@@ -383,25 +383,25 @@ function AdminPage() {
 
         {/* ── SEÇÃO: INTEGRAÇÕES ── */}
         <TabsContent value="integrations" className="mt-4">
-          <Card className="bg-zinc-900 border-zinc-800">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-sm font-bold uppercase tracking-wider text-zinc-400">Hub de Conectividade</CardTitle>
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Hub de Conectividade</CardTitle>
               <CardDescription className="text-xs">Sincronize com ferramentas de produtividade para importar e resumir demandas automaticamente.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               
               {/* Notion Integration Card */}
-              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/20 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
+              <div className="p-4 rounded-xl border border-border bg-surface-2/40 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
                 <div className="flex gap-3">
-                  <div className="h-10 w-10 bg-zinc-850 rounded-lg flex items-center justify-center shrink-0 border border-zinc-700">
-                    <Globe className="h-5 w-5 text-zinc-400" />
+                  <div className="h-10 w-10 bg-surface-2 rounded-lg flex items-center justify-center shrink-0 border border-border">
+                    <Globe className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
                       Notion
                       {notionEnabled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
                     </h4>
-                    <p className="text-[11px] text-zinc-500 mt-0.5 max-w-lg">
+                    <p className="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
                       Importe projetos de banco de dados do Notion. Mapeie campos como status, prioridade e prazos.
                     </p>
                   </div>
@@ -412,17 +412,17 @@ function AdminPage() {
               </div>
 
               {/* Trello Integration Card */}
-              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/20 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
+              <div className="p-4 rounded-xl border border-border bg-surface-2/40 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
                 <div className="flex gap-3">
-                  <div className="h-10 w-10 bg-zinc-850 rounded-lg flex items-center justify-center shrink-0 border border-zinc-700">
-                    <LinkIcon className="h-5 w-5 text-zinc-400" />
+                  <div className="h-10 w-10 bg-surface-2 rounded-lg flex items-center justify-center shrink-0 border border-border">
+                    <LinkIcon className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
                       Trello
                       {trelloEnabled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
                     </h4>
-                    <p className="text-[11px] text-zinc-500 mt-0.5 max-w-lg">
+                    <p className="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
                       Sincronize quadros de tarefas do Trello e traga novas atividades direto para o Kanban.
                     </p>
                   </div>
@@ -433,17 +433,17 @@ function AdminPage() {
               </div>
 
               {/* Google Calendar Integration */}
-              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/20 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
+              <div className="p-4 rounded-xl border border-border bg-surface-2/40 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
                 <div className="flex gap-3">
-                  <div className="h-10 w-10 bg-zinc-850 rounded-lg flex items-center justify-center shrink-0 border border-zinc-700">
-                    <Calendar className="h-5 w-5 text-zinc-400" />
+                  <div className="h-10 w-10 bg-surface-2 rounded-lg flex items-center justify-center shrink-0 border border-border">
+                    <Calendar className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
                       Google Agenda
                       {googleCalendarEnabled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
                     </h4>
-                    <p className="text-[11px] text-zinc-500 mt-0.5 max-w-lg">
+                    <p className="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
                       Sincronização bidirecional. Mova datas de entrega no Creative Flow e veja atualizado no seu calendário.
                     </p>
                   </div>
@@ -454,17 +454,17 @@ function AdminPage() {
               </div>
 
               {/* Whatsapp Resumo (Placeholder) */}
-              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/20 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
+              <div className="p-4 rounded-xl border border-border bg-surface-2/40 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
                 <div className="flex gap-3">
-                  <div className="h-10 w-10 bg-zinc-850 rounded-lg flex items-center justify-center shrink-0 border border-zinc-700">
+                  <div className="h-10 w-10 bg-surface-2 rounded-lg flex items-center justify-center shrink-0 border border-border">
                     <MessageSquare className="h-5 w-5 text-emerald-500" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
                       WhatsApp Business (Resumo Inteligente)
                       {whatsappEnabled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
                     </h4>
-                    <p className="text-[11px] text-zinc-500 mt-0.5 max-w-lg">
+                    <p className="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
                       Uma extensão que monitora e lê as conversas do WhatsApp do cliente, entregando resumos instantâneos das últimas demandas solicitadas por mensagem.
                     </p>
                   </div>
@@ -486,56 +486,56 @@ function AdminPage() {
       </Tabs>
 
       <Dialog open={openCreate} onOpenChange={setOpenCreate}>
-        <DialogContent className="max-w-md w-full bg-zinc-900 border border-zinc-800 text-zinc-100">
+        <DialogContent className="max-w-md w-full bg-card border border-border text-foreground">
           <DialogHeader>
-            <DialogTitle className="text-zinc-200">Cadastrar Novo Usuário</DialogTitle>
-            <DialogDescription className="text-zinc-500 text-xs">
+            <DialogTitle className="text-foreground">Cadastrar Novo Usuário</DialogTitle>
+            <DialogDescription className="text-muted-foreground text-xs">
               Registre um novo membro da equipe. Ele poderá fazer login imediatamente com os dados informados.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleCreateUser} className="space-y-4 pt-2">
             <div className="space-y-1">
-              <Label className="text-[10px] text-zinc-500 uppercase font-bold">Nome completo</Label>
+              <Label className="text-[10px] text-muted-foreground uppercase font-bold">Nome completo</Label>
               <Input
                 placeholder="Ex: Ana Silva"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                className="bg-zinc-850 border-zinc-700 text-sm h-9 text-zinc-200"
+                className="bg-surface-2 border-border text-sm h-9 text-foreground"
                 required
               />
             </div>
 
             <div className="space-y-1">
-              <Label className="text-[10px] text-zinc-500 uppercase font-bold">E-mail</Label>
+              <Label className="text-[10px] text-muted-foreground uppercase font-bold">E-mail</Label>
               <Input
                 type="email"
                 placeholder="Ex: ana@empresa.com"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
-                className="bg-zinc-850 border-zinc-700 text-sm h-9 text-zinc-200"
+                className="bg-surface-2 border-border text-sm h-9 text-foreground"
                 required
               />
             </div>
 
             <div className="space-y-1">
-              <Label className="text-[10px] text-zinc-500 uppercase font-bold">Senha de Acesso</Label>
+              <Label className="text-[10px] text-muted-foreground uppercase font-bold">Senha de Acesso</Label>
               <Input
                 type="password"
                 placeholder="Mínimo 6 caracteres"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="bg-zinc-850 border-zinc-700 text-sm h-9 text-zinc-200"
+                className="bg-surface-2 border-border text-sm h-9 text-foreground"
                 required
               />
             </div>
 
             <div className="space-y-1">
-              <Label className="text-[10px] text-zinc-500 uppercase font-bold">Nível de Acesso</Label>
+              <Label className="text-[10px] text-muted-foreground uppercase font-bold">Nível de Acesso</Label>
               <select
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value as any)}
-                className="w-full bg-zinc-850 border border-zinc-700 rounded-md p-2 text-xs text-zinc-200 focus:outline-none h-9"
+                className="w-full bg-surface-2 border border-border rounded-md p-2 text-xs text-foreground focus:outline-none h-9"
               >
                 <option value="owner">Proprietário</option>
                 <option value="admin">Administrador</option>
