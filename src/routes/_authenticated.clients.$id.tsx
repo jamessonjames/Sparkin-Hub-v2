@@ -509,7 +509,6 @@ function ClientReportsPanel({
   onOpenDemand: (id: string) => void;
 }) {
   const getTiersFn = useServerFn(getClientCreditTiers);
-  const listProfilesFn = useServerFn(listProfiles);
 
   const [period, setPeriod] = useState<"semanal" | "mensal" | "anual" | "personalizado">("mensal");
   const [startDate, setStartDate] = useState(() => {
@@ -518,12 +517,6 @@ function ClientReportsPanel({
   });
   const [endDate, setEndDate] = useState(() => {
     return new Date().toISOString().slice(0, 10);
-  });
-
-  // Load profiles to show assignee names
-  const { data: profiles = [] } = useQuery({
-    queryKey: ["profiles"],
-    queryFn: () => listProfilesFn(),
   });
 
   // Load client credit tiers
@@ -568,32 +561,6 @@ function ClientReportsPanel({
   const totalPrice = billingModel === "credits"
     ? calculateTiersPrice(totalCredits, creditTiers)
     : monthlyValue ?? 0;
-
-  const getAssigneeName = (userId: string | null) => {
-    if (!userId) return "—";
-    const p = profiles.find((p) => p.id === userId);
-    return p ? p.name : "Carregando...";
-  };
-
-  const getPriorityBadge = (p: string) => {
-    const colors: Record<string, string> = {
-      low: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
-      medium: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-      high: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-      urgent: "bg-red-500/10 text-red-400 border-red-500/20",
-    };
-    const labels: Record<string, string> = {
-      low: "Baixa",
-      medium: "Média",
-      high: "Alta",
-      urgent: "Urgente",
-    };
-    return (
-      <Badge variant="outline" className={colors[p] || colors.medium}>
-        {labels[p] || "Média"}
-      </Badge>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -701,8 +668,6 @@ function ClientReportsPanel({
               <tr className="bg-muted/40 border-b border-border text-[10px] text-muted-foreground uppercase font-bold">
                 <th className="p-3">Demanda</th>
                 <th className="p-3">Conclusão / Entrega</th>
-                <th className="p-3">Prioridade</th>
-                <th className="p-3">Responsável</th>
                 <th className="p-3 text-center">Horas</th>
                 {billingModel === "credits" && <th className="p-3 text-center">Créditos</th>}
               </tr>
@@ -721,12 +686,6 @@ function ClientReportsPanel({
                   <td className="p-3 text-muted-foreground">
                     {d.due_date ? new Date(d.due_date + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
                   </td>
-                  <td className="p-3">
-                    {getPriorityBadge(d.priority)}
-                  </td>
-                  <td className="p-3 text-muted-foreground">
-                    {getAssigneeName(d.assignee_user_id)}
-                  </td>
                   <td className="p-3 text-center text-muted-foreground">
                     {d.estimated_hours ? `${Number(d.estimated_hours)}h` : "—"}
                   </td>
@@ -740,7 +699,7 @@ function ClientReportsPanel({
               {completedDemands.length === 0 && (
                 <tr>
                   <td
-                    colSpan={billingModel === "credits" ? 6 : 5}
+                    colSpan={billingModel === "credits" ? 4 : 3}
                     className="p-8 text-center text-muted-foreground/60 italic"
                   >
                     Nenhum serviço concluído no período selecionado.
