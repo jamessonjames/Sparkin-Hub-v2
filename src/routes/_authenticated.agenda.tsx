@@ -767,6 +767,34 @@ function DraggableDemandCard({
         </div>
       </div>
 
+      {/* Pin toggle — top right. Não afeta arrasto. */}
+      <button
+        type="button"
+        title={
+          demand.is_manually_scheduled
+            ? "Fixado — o sistema não vai reagendar. Clique para liberar."
+            : "Fixar aqui — impede o auto-scheduler de mover."
+        }
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onTogglePin(demand.id, !demand.is_manually_scheduled);
+        }}
+        className={cn(
+          "absolute top-0.5 right-0.5 z-40 h-4 w-4 flex items-center justify-center rounded-sm transition-opacity",
+          demand.is_manually_scheduled
+            ? "opacity-90 hover:opacity-100"
+            : "opacity-0 hover:opacity-80 group-hover:opacity-60"
+        )}
+      >
+        {demand.is_manually_scheduled ? (
+          <Pin className="h-2.5 w-2.5 fill-current" />
+        ) : (
+          <PinOff className="h-2.5 w-2.5" />
+        )}
+      </button>
+
       {/* Dynamic Resize Handle at the bottom border */}
       <div
         onMouseDown={startResize}
