@@ -859,8 +859,6 @@ function DraggableDemandCard({
     window.addEventListener("mouseup", handleMouseUp);
   };
 
-  const transformStyle = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
-
   // Compute if the event time has passed (Google Calendar style transparency)
   const isPast = useMemo(() => {
     if (!demand.due_date) return false;
@@ -876,7 +874,6 @@ function DraggableDemandCard({
   const cardHeight = slotsCount * 40 - 4; // in pixels (each cell = 40px)
 
   const style = {
-    ...transformStyle,
     height: `${cardHeight}px`,
     zIndex: isResizing || isDragging ? 50 : 20,
   };
