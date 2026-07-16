@@ -659,10 +659,12 @@ function DraggableDemandCard({
   demand,
   onClick,
   onResize,
+  onTogglePin,
 }: {
   demand: any;
   onClick: () => void;
   onResize: (demandId: string, hours: number) => Promise<void>;
+  onTogglePin: (demandId: string, nextValue: boolean) => Promise<void>;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: demand.id,
