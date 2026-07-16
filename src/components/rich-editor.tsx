@@ -487,6 +487,18 @@ export function RichEditor({
           >
             <CheckSquare className="h-3.5 w-3.5" />
           </button>
+          {enableTables && !editor.isActive("table") && (
+            <button
+              type="button"
+              title="Inserir tabela"
+              onClick={() =>
+                editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+              }
+              className="text-muted-foreground hover:text-foreground hover:bg-accent/65 p-1 rounded transition-colors cursor-pointer"
+            >
+              <TableIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       )}
 
