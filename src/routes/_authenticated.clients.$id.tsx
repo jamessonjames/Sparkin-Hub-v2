@@ -881,7 +881,10 @@ function ClientReportsPanel({
             </Card>
 
             <Card className="p-4 flex flex-col justify-between h-24 border-emerald-500/25 bg-emerald-500/[0.02]">
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase tracking-wider font-bold">Valor Calculado (Faixas)</span>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase tracking-wider font-bold">Valor a Cobrar</span>
+                <span className="text-[9px] text-muted-foreground">Mínimo da faixa vigente</span>
+              </div>
               <div className="flex items-baseline gap-1 mt-2">
                 <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">R$</span>
                 <span className="text-3xl font-display font-extrabold text-emerald-600 dark:text-emerald-400">

@@ -123,18 +123,18 @@ export const saveClientCreditTiers = createServerFn({ method: "POST" })
   });
 
 // Financial helper function
+// Uses retainer model: even 0 credits consumed = minimum tier price (first tier)
 export function calculateTiersPrice(totalCredits: number, tiers: CreditTier[]): number {
-  if (totalCredits <= 0) return 0;
-  
+  if (!tiers || tiers.length === 0) return 0;
+
   // Sort tiers by min_credits ascending
   const sorted = [...tiers].sort((a, b) => a.min_credits - b.min_credits);
-  
-  // Find if there's a tier where totalCredits falls within min and max
+
+  // Find the tier where totalCredits falls within min and max
   for (const tier of sorted) {
     if (totalCredits >= tier.min_credits && (tier.max_credits === null || totalCredits <= tier.max_credits)) {
       if (tier.max_credits === null && tier.extra_per_credit) {
-        // e.g. min_credits = 49, max_credits = null, price = 2400, extra = 70.
-        // baseCredits to subtract is (min_credits - 1) = 48
+        // Unlimited tier with per-credit overage
         const baseCredits = tier.min_credits - 1;
         const extraCredits = Math.max(0, totalCredits - baseCredits);
         return Number(tier.price) + extraCredits * Number(tier.extra_per_credit);
