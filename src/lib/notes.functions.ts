@@ -4,6 +4,9 @@ import { z } from "zod";
 
 export const NOTE_TYPES = ["reuniao", "briefing", "ideias", "copy", "planejamento", "observacoes"] as const;
 
+// Internal note titles that must never appear in the client-facing notes list
+const INTERNAL_NOTE_TITLES = ["__credit_tiers_config__"];
+
 export const listNotes = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { client_id: string }) =>
@@ -12,9 +15,11 @@ export const listNotes = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
       .from("notes")
-      .select("id, title, content, note_type, visibility, client_id, updated_at, created_at")
+      .select("id, title, content, note_type, visibility, client_id, is_pinned, updated_at, created_at")
       .is("deleted_at", null)
       .eq("client_id", data.client_id)
+      .not("title", "in", `(${INTERNAL_NOTE_TITLES.map((t) => `"${t}"`).join(",")})`)
+      .order("is_pinned", { ascending: false })
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
     return rows ?? [];
@@ -62,6 +67,20 @@ export const upsertNote = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
     return row;
+  });
+
+export const toggleNotePin = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string; is_pinned: boolean }) =>
+    z.object({ id: z.string().uuid(), is_pinned: z.boolean() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("notes")
+      .update({ is_pinned: data.is_pinned })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 export const deleteNote = createServerFn({ method: "POST" })
