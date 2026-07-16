@@ -82,6 +82,19 @@
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
+.light {
+  --background:  oklch(0.98 0.005 0);
+  --surface:     oklch(1.0 0 0);
+  --surface-2:   oklch(0.95 0.005 0);
+  --foreground:  oklch(0.15 0.01 250);
+  --muted:       oklch(0.92 0.005 0);
+  --muted-foreground: oklch(0.45 0.01 250);
+  --border:      oklch(0.89 0.01 250);
+  --input:       oklch(0.95 0.005 0);
+  --ring:        oklch(0.46 0.18 264);
+}
+
+
 /* Utilities */
 @utility surface-card {
   background-color: var(--surface);

@@ -120,11 +120,16 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+import { applyThemeAndHighlight } from "@/utils/theme";
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
 
   useEffect(() => {
+    // Apply branding, theme, and highlight color settings on mount
+    applyThemeAndHighlight();
+
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       router.invalidate();
@@ -137,7 +142,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
-      <Toaster theme="dark" position="top-right" richColors />
+      <Toaster theme="system" position="top-right" richColors />
     </QueryClientProvider>
   );
 }

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listUsersWithRoles, updateUserRole } from "@/lib/users.functions";
+import { applyThemeAndHighlight, HIGHLIGHT_COLORS, type HighlightColor } from "@/utils/theme";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +62,7 @@ function AdminPage() {
   const [systemName, setSystemName] = useState("Creative Flow");
   const [faviconUrl, setFaviconUrl] = useState("");
   const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [highlightColor, setHighlightColor] = useState<HighlightColor>("roxo");
 
   // User creation states
   const [openCreate, setOpenCreate] = useState(false);
@@ -86,9 +88,11 @@ function AdminPage() {
       const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
       const savedTheme = (localStorage.getItem("CF_Theme") as "light" | "dark") || "dark";
       const savedFavicon = localStorage.getItem("CF_Favicon") || "";
+      const savedColor = (localStorage.getItem("CF_HighlightColor") || "roxo") as HighlightColor;
       setSystemName(savedName);
       setTheme(savedTheme);
       setFaviconUrl(savedFavicon);
+      setHighlightColor(savedColor);
 
       setNotionEnabled(localStorage.getItem("CF_Int_NotionEnabled") === "true");
       setNotionToken(localStorage.getItem("CF_Int_NotionToken") || "");
@@ -106,25 +110,10 @@ function AdminPage() {
     localStorage.setItem("CF_SystemName", systemName);
     localStorage.setItem("CF_Theme", theme);
     localStorage.setItem("CF_Favicon", faviconUrl);
+    localStorage.setItem("CF_HighlightColor", highlightColor);
     
-    // Apply theme
-    if (theme === "light") {
-      document.documentElement.classList.remove("dark");
-    } else {
-      document.documentElement.classList.add("dark");
-    }
-
-    // Apply document title/favicon if valid
-    document.title = `${systemName} Hub`;
-    if (faviconUrl) {
-      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
-      if (!link) {
-        link = document.createElement("link");
-        link.rel = "icon";
-        document.head.appendChild(link);
-      }
-      link.href = faviconUrl;
-    }
+    // Apply changes instantly
+    applyThemeAndHighlight();
 
     toast.success("Configurações de marca atualizadas!");
   }
@@ -253,19 +242,52 @@ function AdminPage() {
                   <Label className="text-xs text-zinc-400 font-semibold">Tema Padrão</Label>
                   <div className="flex gap-4">
                     <label className={cn(
-                      "flex items-center gap-2 border border-zinc-800 rounded-lg px-4 py-2 cursor-pointer hover:bg-zinc-850/50 transition-all flex-1 text-center justify-center font-semibold text-xs",
-                      theme === "dark" && "border-primary bg-primary/10 text-white"
+                      "flex items-center gap-2 border border-zinc-850 bg-zinc-950/20 rounded-lg px-4 py-2 cursor-pointer hover:bg-zinc-850/50 transition-all flex-1 text-center justify-center font-semibold text-xs text-zinc-400",
+                      theme === "dark" && "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
                     )}>
                       <input type="radio" name="theme" value="dark" checked={theme === "dark"} onChange={() => setTheme("dark")} className="hidden" />
                       Tema Escuro (Recomendado)
                     </label>
                     <label className={cn(
-                      "flex items-center gap-2 border border-zinc-800 rounded-lg px-4 py-2 cursor-pointer hover:bg-zinc-850/50 transition-all flex-1 text-center justify-center font-semibold text-xs",
-                      theme === "light" && "border-primary bg-primary/10 text-white"
+                      "flex items-center gap-2 border border-zinc-850 bg-zinc-950/20 rounded-lg px-4 py-2 cursor-pointer hover:bg-zinc-850/50 transition-all flex-1 text-center justify-center font-semibold text-xs text-zinc-400",
+                      theme === "light" && "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
                     )}>
                       <input type="radio" name="theme" value="light" checked={theme === "light"} onChange={() => setTheme("light")} className="hidden" />
                       Tema Claro
                     </label>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-zinc-400 font-semibold">Cor de Destaque</Label>
+                  <div className="flex gap-3 flex-wrap">
+                    {(Object.keys(HIGHLIGHT_COLORS) as HighlightColor[]).map((color) => {
+                      const details = HIGHLIGHT_COLORS[color];
+                      const nameCapitalized = color === "roxo" ? "Roxo (Padrão)" : color.charAt(0).toUpperCase() + color.slice(1);
+                      return (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setHighlightColor(color)}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer",
+                            highlightColor === color
+                              ? "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
+                              : "border-zinc-800 bg-zinc-950/20 text-zinc-400 hover:border-zinc-700"
+                          )}
+                          style={{
+                            "--primary": details.primary,
+                          } as React.CSSProperties}
+                        >
+                          <span
+                            className="h-3 w-3 rounded-full shrink-0 border border-black/20"
+                            style={{ backgroundColor: details.primary }}
+                          />
+                          {nameCapitalized}
+                          {highlightColor === color && <Check className="h-3.5 w-3.5 ml-1 text-primary shrink-0" />}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
