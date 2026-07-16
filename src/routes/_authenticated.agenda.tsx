@@ -446,7 +446,7 @@ function AgendaPage() {
                       {cellDemands.map((d) => (
                         <div
                           key={d.id}
-                          title={`${d.title} (${STATUS_LABELS[d.status]})`}
+                          title={`${d.title} (${(STATUS_LABELS as Record<string, string>)[d.status]})`}
                           onClick={(e) => {
                             e.stopPropagation();
                             overlay.open(d.id, clientsForOverlay);
@@ -708,7 +708,7 @@ function DraggableDemandCard({
 
         <div className="flex items-center justify-between text-[8px] opacity-60 shrink-0 mt-1">
           <span>{displayHours}h estimadas</span>
-          <span className="font-semibold">{STATUS_LABELS[demand.status]}</span>
+          <span className="font-semibold">{(STATUS_LABELS as Record<string, string>)[demand.status]}</span>
         </div>
       </div>
 

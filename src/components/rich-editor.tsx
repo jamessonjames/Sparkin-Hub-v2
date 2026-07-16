@@ -138,7 +138,7 @@ export function RichEditor({
     return (
       <div className="flex items-end gap-2 w-full">
         <div className="flex-1 rounded-xl border border-border bg-background py-1.5 px-3 relative min-w-0 shadow-sm focus-within:ring-1 focus-within:ring-ring focus-within:border-ring">
-          <TiptapBubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>
+          <TiptapBubbleMenu editor={editor}>
             <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-border bg-popover shadow-2xl text-xs select-none">
               <>
                 <select
@@ -271,7 +271,7 @@ export function RichEditor({
           : "rounded-xl border border-border bg-background",
       )}
     >
-      <TiptapBubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>
+      <TiptapBubbleMenu editor={editor}>
         <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-border bg-popover shadow-2xl text-xs select-none">
           <>
             <select

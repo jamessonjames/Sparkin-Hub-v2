@@ -98,7 +98,7 @@ export function KanbanBoard({
   });
 
   const getStatusLabel = useCallback((status: string) => {
-    return customStatusNames[status] ?? STATUS_LABELS[status] ?? status;
+    return customStatusNames[status] ?? (STATUS_LABELS as Record<string, string>)[status] ?? status;
   }, [customStatusNames]);
 
   // Sync external changes into local state

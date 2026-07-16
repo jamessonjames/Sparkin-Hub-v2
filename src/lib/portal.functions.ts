@@ -157,7 +157,7 @@ export const updatePortalDemandsOrder = createServerFn({ method: "POST" })
     const promises = data.updates.map(async (u) => {
       const { error } = await sb
         .from("demands")
-        .update({ sort_order: u.sort_order, status: u.status })
+        .update({ sort_order: u.sort_order, status: u.status as "com_ajustes" | "concluido" | "fazendo" | "nao_iniciado" | "para_analise" | "rascunho" })
         .eq("id", u.id)
         .eq("client_id", client.id);
       if (error) throw new Error(error.message);
