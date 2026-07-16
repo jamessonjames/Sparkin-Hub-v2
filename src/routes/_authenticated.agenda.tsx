@@ -14,6 +14,8 @@ import {
   useSensors,
   useDraggable,
   useDroppable,
+  DragOverlay,
+  type DragStartEvent,
   type DragEndEvent,
   pointerWithin,
 } from "@dnd-kit/core";
@@ -80,6 +82,61 @@ function weekStart(d: Date) {
 }
 
 type ViewMode = "day" | "week" | "month";
+
+type AgendaDemand = {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  due_date: string | null;
+  estimated_hours?: number | null;
+  is_manually_scheduled?: boolean | null;
+  clients?: { id: string; name: string } | null;
+};
+
+function getDemandDurationHours(demand: Pick<AgendaDemand, "estimated_hours">) {
+  const value = demand.estimated_hours ? Number(demand.estimated_hours) : 1;
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+function addHours(date: Date, hours: number) {
+  return new Date(date.getTime() + hours * 60 * 60 * 1000);
+}
+
+function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
+  return aStart.getTime() < bEnd.getTime() && aEnd.getTime() > bStart.getTime();
+}
+
+function parseSlotId(slotId: string) {
+  const parts = slotId.split("_");
+  if (parts.length < 4 || parts[0] !== "slot") return null;
+
+  const dateStr = parts[1];
+  const hourVal = Number.parseInt(parts[2], 10);
+  const minVal = Number.parseInt(parts[3], 10);
+  if (!dateStr || Number.isNaN(hourVal) || Number.isNaN(minVal)) return null;
+
+  return new Date(`${dateStr}T${String(hourVal).padStart(2, "0")}:${String(minVal).padStart(2, "0")}:00`);
+}
+
+function getSlotIdFromDragEnd(event: DragEndEvent) {
+  const translatedRect = event.active.rect.current.translated;
+  if (translatedRect && typeof document !== "undefined") {
+    const targetX = translatedRect.left + translatedRect.width / 2;
+    const targetY = translatedRect.top + 8;
+    const slotElements = Array.from(document.querySelectorAll<HTMLElement>("[data-agenda-slot-id]"));
+    const directHit = slotElements.find((element) => {
+      const rect = element.getBoundingClientRect();
+      return targetX >= rect.left && targetX <= rect.right && targetY >= rect.top && targetY <= rect.bottom;
+    });
+
+    if (directHit?.dataset.agendaSlotId) {
+      return directHit.dataset.agendaSlotId;
+    }
+  }
+
+  return event.over ? String(event.over.id) : null;
+}
 
 // Custom collision detection based on the top edge of the dragged element
 const customCollisionDetection = (args: any) => {
