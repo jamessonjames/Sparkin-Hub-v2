@@ -28,6 +28,8 @@ import {
   Info,
   Save,
   Plus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -58,12 +60,17 @@ function AdminPage() {
     queryFn: () => listUsersFn(),
   });
 
+  const currentUserRole = users.find((u: any) => u.id === currentUser?.id)?.user_roles?.[0]?.role ?? null;
+
   // Local storage branding settings
   const [systemName, setSystemName] = useState("Creative Flow");
   const [faviconUrl, setFaviconUrl] = useState("");
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [highlightColor, setHighlightColor] = useState<HighlightColor>("roxo");
   const [customHex, setCustomHex] = useState("#4f46e5");
+
+  // Logged-in user state
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // User creation states
   const [openCreate, setOpenCreate] = useState(false);
@@ -72,6 +79,14 @@ function AdminPage() {
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<"owner" | "admin" | "collaborator">("collaborator");
   const [creatingUser, setCreatingUser] = useState(false);
+
+  // User edit states
+  const [openEdit, setOpenEdit] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [updatingUser, setUpdatingUser] = useState(false);
 
   // Integrations states (persisted in localstorage)
   const [notionEnabled, setNotionEnabled] = useState(false);
@@ -105,6 +120,13 @@ function AdminPage() {
       setGoogleClientId(localStorage.getItem("CF_Int_GoogleClientId") || "");
       setWhatsappEnabled(localStorage.getItem("CF_Int_WhatsappEnabled") === "true");
       setWhatsappPhone(localStorage.getItem("CF_Int_WhatsappPhone") || "");
+
+      // Get logged-in user
+      supabase.auth.getUser().then(({ data }) => {
+        if (data?.user) {
+          setCurrentUser(data.user);
+        }
+      });
     }
   }, []);
 
@@ -221,6 +243,82 @@ function AdminPage() {
       toast.error(e instanceof Error ? e.message : "Erro ao criar usuário");
     } finally {
       setCreatingUser(false);
+    }
+  }
+
+  async function handleUpdateUser(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingUser) return;
+    if (!editName.trim() || !editEmail.trim()) {
+      toast.error("Nome e E-mail são obrigatórios.");
+      return;
+    }
+
+    setUpdatingUser(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-users", {
+        body: {
+          action: "updateUser",
+          user_id: editingUser.id,
+          name: editName,
+          email: editEmail,
+          password: editPassword ? editPassword : undefined,
+        },
+      });
+
+      if (error) {
+        let msg = error.message;
+        try {
+          if (error.context && typeof error.context.json === "function") {
+            const body = await error.context.json();
+            if (body && body.error) msg = body.error;
+          }
+        } catch (_) {}
+        throw new Error(msg);
+      }
+
+      toast.success("Informações do usuário atualizadas com sucesso!");
+      setOpenEdit(false);
+      setEditingUser(null);
+      setEditName("");
+      setEditEmail("");
+      setEditPassword("");
+      qc.invalidateQueries({ queryKey: ["users-with-roles"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao atualizar usuário");
+    } finally {
+      setUpdatingUser(false);
+    }
+  }
+
+  async function handleDeleteUser(userId: string) {
+    if (!confirm("Tem certeza que deseja excluir permanentemente este usuário? Esta ação não pode ser desfeita.")) {
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-users", {
+        body: {
+          action: "deleteUser",
+          user_id: userId,
+        },
+      });
+
+      if (error) {
+        let msg = error.message;
+        try {
+          if (error.context && typeof error.context.json === "function") {
+            const body = await error.context.json();
+            if (body && body.error) msg = body.error;
+          }
+        } catch (_) {}
+        throw new Error(msg);
+      }
+
+      toast.success("Usuário excluído com sucesso!");
+      qc.invalidateQueries({ queryKey: ["users-with-roles"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao excluir usuário");
     }
   }
 
@@ -468,12 +566,43 @@ function AdminPage() {
                           <select
                             value={role}
                             onChange={(e) => handleRoleChange(u.id, e.target.value as any)}
+                            disabled={u.id === currentUser?.id || (currentUserRole === "admin" && role === "owner")}
                             className="bg-surface-2 border border-border rounded-md px-2 py-1 text-xs text-foreground focus:outline-none"
                           >
                             <option value="owner">Proprietário</option>
                             <option value="admin">Administrador</option>
                             <option value="collaborator">Colaborador</option>
                           </select>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            type="button"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-surface-2"
+                            onClick={() => {
+                              setEditingUser(u);
+                              setEditName(u.name ?? "");
+                              setEditEmail(u.email ?? "");
+                              setEditPassword("");
+                              setOpenEdit(true);
+                            }}
+                            disabled={u.id === currentUser?.id || (currentUserRole === "admin" && role === "owner")}
+                            title="Editar informações do usuário"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            type="button"
+                            className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDeleteUser(u.id)}
+                            disabled={u.id === currentUser?.id || (currentUserRole === "admin" && role === "owner")}
+                            title="Excluir usuário permanentemente"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
                     );
@@ -678,6 +807,63 @@ function AdminPage() {
               <Button type="submit" disabled={creatingUser} className="h-9 px-6 text-xs font-bold gap-1.5">
                 <Check className="h-3.5 w-3.5" />
                 {creatingUser ? "Cadastrando..." : "Confirmar Cadastro"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={openEdit} onOpenChange={setOpenEdit}>
+        <DialogContent className="max-w-md w-full bg-card border border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Editar Usuário</DialogTitle>
+            <DialogDescription className="text-muted-foreground text-xs">
+              Altere os dados cadastrais do membro da equipe. O e-mail e nome serão atualizados imediatamente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateUser} className="space-y-4 pt-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground uppercase font-bold">Nome completo</Label>
+              <Input
+                placeholder="Ex: Ana Silva"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="bg-surface-2 border-border text-sm h-9 text-foreground"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground uppercase font-bold">E-mail</Label>
+              <Input
+                type="email"
+                placeholder="Ex: ana@empresa.com"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                className="bg-surface-2 border-border text-sm h-9 text-foreground"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground uppercase font-bold">Nova Senha (deixe em branco para manter)</Label>
+              <Input
+                type="password"
+                placeholder="Mínimo 6 caracteres"
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                className="bg-surface-2 border-border text-sm h-9 text-foreground"
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end pt-3">
+              <Button type="button" variant="ghost" onClick={() => setOpenEdit(false)} className="h-9 px-4 text-xs">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updatingUser} className="h-9 px-6 text-xs font-bold gap-1.5 btn-primary">
+                <Check className="h-3.5 w-3.5" />
+                {updatingUser ? "Salvando..." : "Salvar Alterações"}
               </Button>
             </div>
           </form>
