@@ -18,7 +18,7 @@ import {
   pointerWithin,
 } from "@dnd-kit/core";
 import {
-  scheduleDemands,
+  scheduleByPriority,
   DEFAULT_CONFIG,
   type SchedulingConfig,
   formatTzString,
