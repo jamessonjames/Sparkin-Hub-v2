@@ -306,9 +306,15 @@ export function scheduleDemands(
 export function scheduleByPriority(
   demands: UnscheduledDemand[],
   config: SchedulingConfig = DEFAULT_CONFIG,
-  fixed: UnscheduledDemand[] = []
+  _fixed: UnscheduledDemand[] = []
 ): Record<string, string> {
-  const active = demands.filter((d) => d.status !== "concluido");
+  // Sort ALL active demands strictly by priority (urgent > high > medium > low),
+  // ties broken by created_at ASC. Manually-placed demands are included in this
+  // sort; higher-priority demands always win, but a manual position is honored
+  // when it doesn't conflict with a higher-priority placement.
+  const active = [..._fixed, ...demands]
+    .filter((d) => d.status !== "concluido")
+    .filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i);
 
   const sorted = [...active].sort((a, b) => {
     const pw = (PRIORITY_WEIGHT[b.priority] ?? 2) - (PRIORITY_WEIGHT[a.priority] ?? 2);
@@ -318,14 +324,6 @@ export function scheduleByPriority(
 
   const scheduledTimes: Record<string, string> = {};
   const takenSlots = new Set<string>();
-
-  // Reserve slots used by fixed (manually-scheduled) demands so we don't overlap them.
-  for (const f of fixed) {
-    if (!f.due_date) continue;
-    const parsed = safeParseDate(f.due_date);
-    const duration = f.estimated_hours ? Number(f.estimated_hours) : 1.0;
-    blockSlots(parsed, duration, takenSlots);
-  }
 
   const now = getTzTime(config.timezone);
   let cursor = new Date(now);
@@ -339,19 +337,44 @@ export function scheduleByPriority(
 
   for (const demand of sorted) {
     const duration = demand.estimated_hours ? Number(demand.estimated_hours) : 1.0;
-    let search = new Date(cursor);
-    let safety = 0;
-    while (safety < 5000) {
-      if (isValidSlot(search, config) && areSlotsFree(search, duration, takenSlots)) {
-        scheduledTimes[demand.id] = formatTzString(search);
-        blockSlots(search, duration, takenSlots);
-        cursor = new Date(search);
-        break;
+    let placed: Date | null = null;
+
+    // Honor manually-dragged preference if the slot is still valid, in the
+    // future, and not already claimed by a higher-priority demand processed
+    // earlier in this loop.
+    if ((demand as any).is_manually_scheduled && demand.due_date) {
+      const pref = safeParseDate(demand.due_date);
+      if (
+        pref.getTime() >= now.getTime() &&
+        isValidSlot(pref, config) &&
+        areSlotsFree(pref, duration, takenSlots)
+      ) {
+        placed = pref;
       }
-      search = getNextSlot(search, config);
-      safety++;
+    }
+
+    if (!placed) {
+      let search = new Date(cursor);
+      let safety = 0;
+      while (safety < 5000) {
+        if (isValidSlot(search, config) && areSlotsFree(search, duration, takenSlots)) {
+          placed = new Date(search);
+          break;
+        }
+        search = getNextSlot(search, config);
+        safety++;
+      }
+    }
+
+    if (placed) {
+      scheduledTimes[demand.id] = formatTzString(placed);
+      blockSlots(placed, duration, takenSlots);
+      if (placed.getTime() >= cursor.getTime()) {
+        cursor = new Date(placed);
+      }
     }
   }
 
   return scheduledTimes;
 }
+
