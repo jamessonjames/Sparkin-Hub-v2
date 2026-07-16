@@ -29,8 +29,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Trash2, Plus } from "lucide-react";
-import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, type CreditTier } from "@/lib/credit-tiers";
+import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, DEFAULT_CREDIT_TIERS, type CreditTier } from "@/lib/credit-tiers";
 import { listProfiles } from "@/lib/users.functions";
 
 export const Route = createFileRoute("/_authenticated/clients/$id")({
@@ -510,7 +510,9 @@ function ClientReportsPanel({
 }) {
   const getTiersFn = useServerFn(getClientCreditTiers);
 
-  const [period, setPeriod] = useState<"semanal" | "mensal" | "anual" | "personalizado">("mensal");
+  const [period, setPeriod] = useState<"diario" | "semanal" | "mensal" | "anual" | "personalizado">("mensal");
+  const [refDate, setRefDate] = useState(() => new Date());
+
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
@@ -526,25 +528,82 @@ function ClientReportsPanel({
     enabled: billingModel === "credits",
   });
 
-  // Calculate actual filter boundaries based on selected period
-  const today = new Date();
-  let actualStart = startDate;
-  let actualEnd = endDate;
+  const handlePrevPeriod = () => {
+    setRefDate((prev) => {
+      const next = new Date(prev);
+      if (period === "diario") {
+        next.setDate(prev.getDate() - 1);
+      } else if (period === "semanal") {
+        next.setDate(prev.getDate() - 7);
+      } else if (period === "mensal") {
+        next.setMonth(prev.getMonth() - 1);
+      } else if (period === "anual") {
+        next.setFullYear(prev.getFullYear() - 1);
+      }
+      return next;
+    });
+  };
 
-  if (period === "semanal") {
-    const start = new Date(today);
-    start.setDate(today.getDate() - 7);
-    actualStart = start.toISOString().slice(0, 10);
-    actualEnd = today.toISOString().slice(0, 10);
-  } else if (period === "mensal") {
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    actualStart = start.toISOString().slice(0, 10);
-    actualEnd = end.toISOString().slice(0, 10);
-  } else if (period === "anual") {
-    actualStart = `${today.getFullYear()}-01-01`;
-    actualEnd = `${today.getFullYear()}-12-31`;
-  }
+  const handleNextPeriod = () => {
+    setRefDate((prev) => {
+      const next = new Date(prev);
+      if (period === "diario") {
+        next.setDate(prev.getDate() + 1);
+      } else if (period === "semanal") {
+        next.setDate(prev.getDate() + 7);
+      } else if (period === "mensal") {
+        next.setMonth(prev.getMonth() + 1);
+      } else if (period === "anual") {
+        next.setFullYear(prev.getFullYear() + 1);
+      }
+      return next;
+    });
+  };
+
+  const { actualStart, actualEnd, formattedPeriodLabel } = useMemo(() => {
+    let start = "";
+    let end = "";
+    let label = "";
+
+    if (period === "diario") {
+      start = refDate.toISOString().slice(0, 10);
+      end = start;
+      const rawLabel = refDate.toLocaleDateString("pt-BR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+      label = rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
+    } else if (period === "semanal") {
+      const dStart = new Date(refDate);
+      dStart.setDate(refDate.getDate() - refDate.getDay());
+      const dEnd = new Date(dStart);
+      dEnd.setDate(dStart.getDate() + 6);
+      
+      start = dStart.toISOString().slice(0, 10);
+      end = dEnd.toISOString().slice(0, 10);
+      label = `Semana de ${dStart.getDate().toString().padStart(2, "0")}/${(dStart.getMonth() + 1).toString().padStart(2, "0")} a ${dEnd.getDate().toString().padStart(2, "0")}/${(dEnd.getMonth() + 1).toString().padStart(2, "0")}/${dEnd.getFullYear()}`;
+    } else if (period === "mensal") {
+      const dStart = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
+      const dEnd = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0);
+      
+      start = dStart.toISOString().slice(0, 10);
+      end = dEnd.toISOString().slice(0, 10);
+      const rawLabel = refDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+      label = rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
+    } else if (period === "anual") {
+      start = `${refDate.getFullYear()}-01-01`;
+      end = `${refDate.getFullYear()}-12-31`;
+      label = `Ano de ${refDate.getFullYear()}`;
+    } else {
+      start = startDate;
+      end = endDate;
+      label = "Personalizado";
+    }
+
+    return { actualStart: start, actualEnd: end, formattedPeriodLabel: label };
+  }, [period, refDate, startDate, endDate]);
 
   // Filter demands by status === "concluido" and within date range (based on due_date)
   const completedDemands = demands.filter((d) => {
@@ -562,25 +621,94 @@ function ClientReportsPanel({
     ? calculateTiersPrice(totalCredits, creditTiers)
     : monthlyValue ?? 0;
 
+  // Credit progress calculations
+  const sortedTiers = useMemo(() => {
+    const activeTiers = creditTiers && creditTiers.length > 0 ? creditTiers : DEFAULT_CREDIT_TIERS;
+    return [...activeTiers].sort((a, b) => a.min_credits - b.min_credits);
+  }, [creditTiers]);
+
+  const { currentTier, currentTierIndex, nextTier, percent, remaining } = useMemo(() => {
+    const idx = sortedTiers.findIndex(
+      (t) => totalCredits >= t.min_credits && (t.max_credits === null || totalCredits <= t.max_credits)
+    );
+    const curr = idx !== -1 ? sortedTiers[idx] : null;
+    const nxt = curr && curr.max_credits !== null && idx + 1 < sortedTiers.length ? sortedTiers[idx + 1] : null;
+
+    let pct = 0;
+    let rem = 0;
+
+    if (curr) {
+      if (curr.max_credits !== null) {
+        pct = Math.min(100, Math.max(0, (totalCredits / curr.max_credits) * 100));
+        rem = curr.max_credits - totalCredits;
+      } else {
+        pct = 100;
+        rem = 0;
+      }
+    }
+
+    return {
+      currentTier: curr,
+      currentTierIndex: idx,
+      nextTier: nxt,
+      percent: pct,
+      remaining: rem,
+    };
+  }, [sortedTiers, totalCredits]);
+
   return (
     <div className="space-y-6">
       {/* Filters Card */}
       <Card className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-1.5 bg-muted/40 p-1 rounded-lg border border-border/60 w-fit">
-          {(["semanal", "mensal", "anual", "personalizado"] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={cn(
-                "px-3 py-1.5 rounded-md text-xs font-medium capitalize cursor-pointer transition-all",
-                period === p
-                  ? "bg-background text-foreground shadow-sm font-bold"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background/40"
-              )}
-            >
-              {p}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Period Selector Tabs */}
+          <div className="flex flex-wrap items-center gap-1.5 bg-muted/40 p-1 rounded-lg border border-border/60 w-fit">
+            {([
+              { value: "diario", label: "Dia" },
+              { value: "semanal", label: "Semana" },
+              { value: "mensal", label: "Mês" },
+              { value: "anual", label: "Ano" },
+              { value: "personalizado", label: "Personalizado" }
+            ] as const).map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setPeriod(value)}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-all",
+                  period === value
+                    ? "bg-background text-foreground shadow-sm font-bold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Navigation Arrows & Current Label */}
+          {period !== "personalizado" && (
+            <div className="flex items-center gap-1 bg-muted/20 border border-border/60 rounded-lg p-0.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 hover:bg-muted"
+                onClick={handlePrevPeriod}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-xs font-bold px-3 text-foreground capitalize min-w-[140px] text-center select-none">
+                {formattedPeriodLabel}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 hover:bg-muted"
+                onClick={handleNextPeriod}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
 
         {period === "personalizado" && (
@@ -658,6 +786,89 @@ function ClientReportsPanel({
           </Card>
         )}
       </div>
+
+      {/* Credits Progress Bar Section */}
+      {billingModel === "credits" && currentTier && (
+        <Card className="p-5 border-emerald-500/10 bg-emerald-500/[0.01] space-y-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
+            <div>
+              <h4 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                Faixa de Crédito Ativa no Período
+              </h4>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {currentTier.max_credits !== null ? (
+                  <>
+                    Você está na <strong>Faixa {currentTierIndex + 1}</strong> ({currentTier.min_credits} a {currentTier.max_credits} créditos):{" "}
+                    <span className="font-bold text-emerald-650 dark:text-emerald-400">
+                      R$ {currentTier.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Você está na <strong>Faixa Final/Ilimitada</strong> ({currentTier.min_credits}+ créditos):{" "}
+                    <span className="font-bold text-emerald-650 dark:text-emerald-400">
+                      R$ {currentTier.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </span>{" "}
+                    +{" "}
+                    <span className="font-bold text-emerald-655 dark:text-emerald-400 font-mono">
+                      R$ {currentTier.extra_per_credit?.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </span>{" "}
+                    por crédito extra
+                  </>
+                )}
+              </p>
+            </div>
+            <div className="text-xs font-bold text-right shrink-0">
+              <span className="text-muted-foreground">Consumo:</span>{" "}
+              <span className="text-emerald-600 dark:text-emerald-400 text-sm font-extrabold">{totalCredits}</span>{" "}
+              <span className="text-muted-foreground">
+                {currentTier.max_credits !== null ? `/ ${currentTier.max_credits} cr.` : "créditos"}
+              </span>
+            </div>
+          </div>
+
+          {/* The Bar */}
+          <div className="space-y-2">
+            <div className="relative w-full h-3.5 bg-muted rounded-full overflow-hidden border border-border/80">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-500 ease-out",
+                  currentTier.max_credits === null
+                    ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-500 animate-pulse"
+                    : percent >= 90
+                    ? "bg-gradient-to-r from-emerald-500 to-amber-500"
+                    : "bg-gradient-to-r from-emerald-500 to-teal-500"
+                )}
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+
+            {/* Markers & Remaining description */}
+            <div className="flex justify-between items-center text-[10px] text-muted-foreground px-0.5">
+              <span>{currentTier.min_credits} cr.</span>
+              <span className="font-semibold">
+                {currentTier.max_credits !== null ? (
+                  remaining > 0 ? (
+                    <>
+                      Falta(m) <strong className="text-foreground">{remaining} crédito(s)</strong> para a próxima faixa{" "}
+                      {nextTier ? `(R$ ${nextTier.price.toLocaleString("pt-BR")})` : "(limite final)"}
+                    </>
+                  ) : (
+                    <strong className="text-emerald-650 dark:text-emerald-450">Limite de faixa atingido! Próximo crédito avança de faixa.</strong>
+                  )
+                ) : (
+                  <>
+                    Consumo excedente: <strong className="text-indigo-650 dark:text-indigo-400">{Math.max(0, totalCredits - (currentTier.min_credits - 1))} cr.</strong>
+                    {" "} (+ R$ {(Math.max(0, totalCredits - (currentTier.min_credits - 1)) * (currentTier.extra_per_credit ?? 0)).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+                  </>
+                )}
+              </span>
+              <span>{currentTier.max_credits !== null ? `${currentTier.max_credits} cr.` : "Ilimitado"}</span>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Services Table */}
       <Card className="p-4">
