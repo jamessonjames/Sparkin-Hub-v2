@@ -14,6 +14,8 @@ import {
   useSensors,
   useDraggable,
   useDroppable,
+  DragOverlay,
+  type DragStartEvent,
   type DragEndEvent,
   pointerWithin,
 } from "@dnd-kit/core";
@@ -81,6 +83,61 @@ function weekStart(d: Date) {
 
 type ViewMode = "day" | "week" | "month";
 
+type AgendaDemand = {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  due_date: string | null;
+  estimated_hours?: number | null;
+  is_manually_scheduled?: boolean | null;
+  clients?: { id: string; name: string } | null;
+};
+
+function getDemandDurationHours(demand: Pick<AgendaDemand, "estimated_hours">) {
+  const value = demand.estimated_hours ? Number(demand.estimated_hours) : 1;
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+function addHours(date: Date, hours: number) {
+  return new Date(date.getTime() + hours * 60 * 60 * 1000);
+}
+
+function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
+  return aStart.getTime() < bEnd.getTime() && aEnd.getTime() > bStart.getTime();
+}
+
+function parseSlotId(slotId: string) {
+  const parts = slotId.split("_");
+  if (parts.length < 4 || parts[0] !== "slot") return null;
+
+  const dateStr = parts[1];
+  const hourVal = Number.parseInt(parts[2], 10);
+  const minVal = Number.parseInt(parts[3], 10);
+  if (!dateStr || Number.isNaN(hourVal) || Number.isNaN(minVal)) return null;
+
+  return new Date(`${dateStr}T${String(hourVal).padStart(2, "0")}:${String(minVal).padStart(2, "0")}:00`);
+}
+
+function getSlotIdFromDragEnd(event: DragEndEvent) {
+  const translatedRect = event.active.rect.current.translated;
+  if (translatedRect && typeof document !== "undefined") {
+    const targetX = translatedRect.left + translatedRect.width / 2;
+    const targetY = translatedRect.top + 8;
+    const slotElements = Array.from(document.querySelectorAll<HTMLElement>("[data-agenda-slot-id]"));
+    const directHit = slotElements.find((element) => {
+      const rect = element.getBoundingClientRect();
+      return targetX >= rect.left && targetX <= rect.right && targetY >= rect.top && targetY <= rect.bottom;
+    });
+
+    if (directHit?.dataset.agendaSlotId) {
+      return directHit.dataset.agendaSlotId;
+    }
+  }
+
+  return event.over ? String(event.over.id) : null;
+}
+
 // Custom collision detection based on the top edge of the dragged element
 const customCollisionDetection = (args: any) => {
   const { active, droppableContainers, pointerCoordinates } = args;
@@ -127,6 +184,7 @@ function AgendaPage() {
   const updateFn = useServerFn(updateDemand);
   const overlay = useDemandOverlay();
   const qc = useQueryClient();
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
   const { data: demands = [] } = useQuery({
     queryKey: ["demands"],
@@ -171,7 +229,7 @@ function AgendaPage() {
 
   // Group demands by date/hour/minute slot for display
   const demandsBySlot = useMemo(() => {
-    const map = new Map<string, typeof demands[number]>();
+    const map = new Map<string, AgendaDemand>();
     for (const d of demands) {
       const finalDate = d.status === "concluido" ? d.due_date : (scheduledMap[d.id] ?? d.due_date);
       if (finalDate) {
@@ -180,7 +238,7 @@ function AgendaPage() {
         // round to nearest 30-min block
         const mStr = dt.getMinutes() >= 30 ? "30" : "00";
         const key = `${toISO(dt)}_${hStr}_${mStr}`;
-        map.set(key, d);
+        map.set(key, { ...(d as AgendaDemand), due_date: finalDate });
       }
     }
     return map;
@@ -254,6 +312,15 @@ function AgendaPage() {
     const dObj = demands.find((d) => d.id === demandId);
     if (!dObj) return;
 
+    const effectiveDueDate = getEffectiveDueDate(dObj as AgendaDemand);
+    if (effectiveDueDate) {
+      const conflict = findSchedulingConflict(demandId, safeParseDate(effectiveDueDate), hours);
+      if (!conflict.ok) {
+        toast.error(conflict.message);
+        return;
+      }
+    }
+
     qc.setQueryData<typeof demands>(["demands"], (prev) =>
       (prev ?? []).map((d) => (d.id === demandId ? { ...d, estimated_hours: hours } : d))
     );
@@ -279,19 +346,23 @@ function AgendaPage() {
   }
 
   async function handleTogglePin(demandId: string, nextValue: boolean) {
+    const currentDemand = demands.find((d) => d.id === demandId) as AgendaDemand | undefined;
+    const effectiveDueDate = currentDemand ? (scheduledMap[demandId] ?? currentDemand.due_date ?? null) : null;
+
     qc.setQueryData<typeof demands>(["demands"], (prev) =>
       (prev ?? []).map((d) =>
-        d.id === demandId ? ({ ...d, is_manually_scheduled: nextValue } as any) : d
+        d.id === demandId
+          ? ({ ...d, due_date: nextValue ? effectiveDueDate : null, is_manually_scheduled: nextValue } as any)
+          : d
       )
     );
     try {
-      const dObj = demands.find((d) => d.id === demandId);
       await batchUpdateFn({
         data: {
           updates: [
             {
               id: demandId,
-              due_date: nextValue ? (dObj?.due_date ?? null) : null,
+              due_date: nextValue ? effectiveDueDate : null,
               is_manually_scheduled: nextValue,
             },
           ],
@@ -339,19 +410,64 @@ function AgendaPage() {
   // Drag and Drop sensors
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  function getEffectiveDueDate(demand: AgendaDemand) {
+    return demand.status === "concluido" ? demand.due_date : (scheduledMap[demand.id] ?? demand.due_date);
+  }
+
+  function findSchedulingConflict(demandId: string, targetDate: Date, durationOverride?: number) {
+    const movingDemand = demands.find((d) => d.id === demandId) as AgendaDemand | undefined;
+    if (!movingDemand) return { ok: false as const, message: "Demanda não encontrada." };
+
+    const duration = durationOverride ?? getDemandDurationHours(movingDemand);
+    const slotCursor = new Date(targetDate);
+    for (let step = 0; step < Math.ceil(duration / 0.5); step += 1) {
+      if (!isValidSlot(slotCursor, config)) {
+        return { ok: false as const, message: "Este intervalo fica fora do expediente configurado." };
+      }
+      slotCursor.setMinutes(slotCursor.getMinutes() + 30);
+    }
+
+    const targetEnd = addHours(targetDate, duration);
+    for (const demand of demands as AgendaDemand[]) {
+      if (demand.id === demandId) continue;
+
+      const dueDate = getEffectiveDueDate(demand);
+      if (!dueDate) continue;
+
+      const otherStart = safeParseDate(dueDate);
+      const otherEnd = addHours(otherStart, getDemandDurationHours(demand));
+      if (rangesOverlap(targetDate, targetEnd, otherStart, otherEnd)) {
+        return {
+          ok: false as const,
+          message: `Horário ocupado por “${demand.title}”. Escolha um intervalo livre.`,
+        };
+      }
+    }
+
+    return { ok: true as const };
+  }
+
+  function handleDragStart(e: DragStartEvent) {
+    setActiveDragId(String(e.active.id));
+  }
+
   async function handleDragEnd(e: DragEndEvent) {
-    const { active, over } = e;
-    if (!over) return;
+    setActiveDragId(null);
+
+    const { active } = e;
+    const targetSlotId = getSlotIdFromDragEnd(e);
+    if (!targetSlotId) return;
 
     const demandId = String(active.id);
-    const targetSlotId = String(over.id); // e.g. "slot_2026-07-15_09_30"
-    const parts = targetSlotId.split("_");
-    if (parts.length < 4) return;
+    const targetDate = parseSlotId(targetSlotId);
+    if (!targetDate) return;
 
-    const dateStr = parts[1];
-    const hourVal = parseInt(parts[2], 10);
-    const minVal = parseInt(parts[3], 10);
-    const targetDate = new Date(`${dateStr}T${String(hourVal).padStart(2, "0")}:${String(minVal).padStart(2, "0")}:00`);
+    const conflict = findSchedulingConflict(demandId, targetDate);
+    if (!conflict.ok) {
+      toast.error(conflict.message);
+      return;
+    }
+
     const formatted = formatTzString(targetDate);
 
     qc.setQueryData<typeof demands>(["demands"], (prev) =>
@@ -367,6 +483,13 @@ function AgendaPage() {
       qc.invalidateQueries({ queryKey: ["demands"] });
     }
   }
+
+  const activeDragDemand = useMemo(() => {
+    if (!activeDragId) return null;
+    const demand = demands.find((d) => d.id === activeDragId) as AgendaDemand | undefined;
+    if (!demand) return null;
+    return { ...demand, due_date: getEffectiveDueDate(demand) };
+  }, [activeDragId, demands, scheduledMap]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -388,7 +511,13 @@ function AgendaPage() {
   }, [demands]);
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={customCollisionDetection}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveDragId(null)}
+      collisionDetection={customCollisionDetection}
+    >
       <div className="flex flex-col h-[calc(100vh-60px)] bg-background text-foreground overflow-hidden relative">
         
         {/* ── TOOLBAR ── */}
@@ -626,6 +755,10 @@ function AgendaPage() {
           <span>Fuso Horário: {config.timezone}</span>
         </div>
 
+        <DragOverlay dropAnimation={null}>
+          {activeDragDemand ? <AgendaDemandCardPreview demand={activeDragDemand} /> : null}
+        </DragOverlay>
+
       </div>
     </DndContext>
   );
@@ -644,6 +777,7 @@ function DroppableHourCell({
   return (
     <div
       ref={setNodeRef}
+      data-agenda-slot-id={id}
       className={cn(
         "h-10 border-t border-border/15 p-0.5 relative transition-colors duration-150",
         !isBusiness && "bg-muted/30 opacity-70",
@@ -651,6 +785,33 @@ function DroppableHourCell({
       )}
     >
       {children}
+    </div>
+  );
+}
+
+function AgendaDemandCardPreview({ demand }: { demand: AgendaDemand }) {
+  const displayHours = getDemandDurationHours(demand);
+  const cardHeight = (displayHours / 0.5) * 40 - 4;
+
+  return (
+    <div
+      style={{ height: `${cardHeight}px`, width: 180 }}
+      className={cn(
+        "rounded border-l-4 p-1.5 text-[10px] font-medium shadow-2xl select-none flex flex-col justify-between overflow-hidden opacity-95",
+        STATUS_BG[demand.status] ?? "bg-card text-foreground border-border",
+        PRIORITY_COLOR[demand.priority] ?? "border-l-border"
+      )}
+    >
+      <div className="min-w-0">
+        <div className="font-semibold truncate leading-tight">{demand.title}</div>
+        <div className="text-[9px] opacity-75 mt-0.5 truncate max-w-full">
+          {demand.clients?.name ?? "Geral"}
+        </div>
+      </div>
+      <div className="flex items-center justify-between text-[8px] opacity-70 shrink-0 mt-1">
+        <span>{displayHours}h estimadas</span>
+        <span className="font-semibold">{(STATUS_LABELS as Record<string, string>)[demand.status]}</span>
+      </div>
     </div>
   );
 }
@@ -707,8 +868,6 @@ function DraggableDemandCard({
     window.addEventListener("mouseup", handleMouseUp);
   };
 
-  const transformStyle = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
-
   // Compute if the event time has passed (Google Calendar style transparency)
   const isPast = useMemo(() => {
     if (!demand.due_date) return false;
@@ -724,7 +883,6 @@ function DraggableDemandCard({
   const cardHeight = slotsCount * 40 - 4; // in pixels (each cell = 40px)
 
   const style = {
-    ...transformStyle,
     height: `${cardHeight}px`,
     zIndex: isResizing || isDragging ? 50 : 20,
   };
