@@ -18,6 +18,7 @@ import {
 import { listClients } from "@/lib/clients.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type NavItem = { title: string; to: string; icon: typeof LayoutDashboard; exact?: boolean };
 const NAV_ITEMS: NavItem[] = [
@@ -25,7 +26,6 @@ const NAV_ITEMS: NavItem[] = [
   { title: "Clientes", to: "/clients", icon: Users },
   { title: "Demandas", to: "/demands", icon: ListChecks },
   { title: "Agenda", to: "/agenda", icon: CalendarDays },
-  { title: "Painel Admin", to: "/admin", icon: Settings },
 ];
 
 export function AppSidebar() {
@@ -50,12 +50,26 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1">
-          <div className="h-8 w-8 rounded-md bg-primary/20 text-primary grid place-items-center font-display font-bold">
-            S
+        <div className="flex items-center justify-between px-2 py-1">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-md bg-primary/20 text-primary grid place-items-center font-display font-bold">
+              S
+            </div>
+            {!collapsed && (
+              <div className="font-display font-bold text-sm text-foreground">Creative Flow</div>
+            )}
           </div>
           {!collapsed && (
-            <div className="font-display font-bold text-sm text-foreground">Creative Flow</div>
+            <Link
+              to="/admin"
+              title="Painel Admin"
+              className={cn(
+                "p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors shrink-0",
+                pathname.startsWith("/admin") && "text-primary bg-zinc-800/60"
+              )}
+            >
+              <Settings className="h-4 w-4" />
+            </Link>
           )}
         </div>
       </SidebarHeader>
@@ -123,14 +137,14 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="flex items-center gap-2 p-2">
+        <div className={cn("flex items-center p-2", collapsed ? "flex-col gap-3 justify-center" : "gap-2")}>
           <Link to="/profile" title="Minha Conta" className="hover:opacity-80 transition-opacity">
-            <UserCircle className="h-5 w-5 text-muted-foreground hover:text-primary transition-colors cursor-pointer shrink-0" />
+            <UserCircle className="h-5.5 w-5.5 text-muted-foreground hover:text-primary transition-colors cursor-pointer shrink-0" />
           </Link>
-          {!collapsed && (
-            <Button variant="ghost" size="sm" onClick={signOut} className="text-xs h-7">
-              Sair
-            </Button>
+          {collapsed && (
+            <Link to="/admin" title="Painel Admin" className="hover:opacity-80 transition-opacity">
+              <Settings className="h-5 w-5 text-muted-foreground hover:text-primary transition-colors cursor-pointer shrink-0" />
+            </Link>
           )}
         </div>
       </SidebarFooter>
