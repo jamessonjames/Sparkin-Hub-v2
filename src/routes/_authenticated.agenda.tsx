@@ -502,7 +502,13 @@ function AgendaPage() {
   }, [demands]);
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={customCollisionDetection}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveDragId(null)}
+      collisionDetection={customCollisionDetection}
+    >
       <div className="flex flex-col h-[calc(100vh-60px)] bg-background text-foreground overflow-hidden relative">
         
         {/* ── TOOLBAR ── */}
@@ -739,6 +745,10 @@ function AgendaPage() {
           <span>Prioridade: Vermelho = Urgente • Laranja = Alta • Azul = Média • Cinza = Baixa</span>
           <span>Fuso Horário: {config.timezone}</span>
         </div>
+
+        <DragOverlay dropAnimation={null}>
+          {activeDragDemand ? <AgendaDemandCardPreview demand={activeDragDemand} /> : null}
+        </DragOverlay>
 
       </div>
     </DndContext>
