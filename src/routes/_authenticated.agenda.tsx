@@ -81,6 +81,46 @@ function weekStart(d: Date) {
 
 type ViewMode = "day" | "week" | "month";
 
+// Custom collision detection based on the top edge of the dragged element
+const customCollisionDetection = (args: any) => {
+  const { active, droppableContainers, pointerCoordinates } = args;
+  
+  if (!active || !active.rect.current.translated) {
+    return pointerWithin(args);
+  }
+
+  const rect = active.rect.current.translated;
+  
+  // X: Use the pointer's horizontal coordinate (cursor position) to determine the day column.
+  // Y: Use the top edge of the dragged card (+ 10px buffer) to determine the time slot.
+  const targetX = pointerCoordinates ? pointerCoordinates.x : (rect.left + rect.width / 2);
+  const targetY = rect.top + 10; 
+
+  const collisions = [];
+  for (const container of droppableContainers) {
+    const containerRect = container.rect.current;
+    if (!containerRect) continue;
+
+    if (
+      targetX >= containerRect.left &&
+      targetX <= containerRect.right &&
+      targetY >= containerRect.top &&
+      targetY <= containerRect.bottom
+    ) {
+      collisions.push({
+        id: container.id,
+        data: container.data,
+      });
+    }
+  }
+
+  if (collisions.length > 0) {
+    return collisions;
+  }
+
+  return pointerWithin(args);
+};
+
 function AgendaPage() {
   const listFn = useServerFn(listDemands);
   const batchUpdateFn = useServerFn(batchUpdateDueDates);
@@ -336,7 +376,7 @@ function AgendaPage() {
   }, [demands]);
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={pointerWithin}>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={customCollisionDetection}>
       <div className="flex flex-col h-[calc(100vh-60px)] bg-background text-foreground overflow-hidden relative">
         
         {/* ── TOOLBAR ── */}
