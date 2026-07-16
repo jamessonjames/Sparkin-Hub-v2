@@ -136,18 +136,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter>
-        <div className={cn("flex items-center p-2", collapsed ? "flex-col gap-3 justify-center" : "gap-2")}>
-          <Link to="/profile" title="Minha Conta" className="hover:opacity-80 transition-opacity">
-            <UserCircle className="h-5.5 w-5.5 text-muted-foreground hover:text-primary transition-colors cursor-pointer shrink-0" />
-          </Link>
-          {collapsed && (
-            <Link to="/admin" title="Painel Admin" className="hover:opacity-80 transition-opacity">
-              <Settings className="h-5 w-5 text-muted-foreground hover:text-primary transition-colors cursor-pointer shrink-0" />
-            </Link>
-          )}
-        </div>
-      </SidebarFooter>
+
     </Sidebar>
   );
 }
