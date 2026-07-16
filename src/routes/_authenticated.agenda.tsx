@@ -278,6 +278,33 @@ function AgendaPage() {
     }
   }
 
+  async function handleTogglePin(demandId: string, nextValue: boolean) {
+    qc.setQueryData<typeof demands>(["demands"], (prev) =>
+      (prev ?? []).map((d) =>
+        d.id === demandId ? ({ ...d, is_manually_scheduled: nextValue } as any) : d
+      )
+    );
+    try {
+      const dObj = demands.find((d) => d.id === demandId);
+      await batchUpdateFn({
+        data: {
+          updates: [
+            {
+              id: demandId,
+              due_date: nextValue ? (dObj?.due_date ?? null) : null,
+              is_manually_scheduled: nextValue,
+            },
+          ],
+        },
+      });
+      toast.success(nextValue ? "Demanda fixada nesta posição." : "Demanda liberada — o sistema pode reagendar.");
+    } catch (err) {
+      toast.error("Erro ao alterar o pin.");
+    } finally {
+      qc.invalidateQueries({ queryKey: ["demands"] });
+    }
+  }
+
   function handleNext() {
     const next = new Date(currentDate);
     if (viewMode === "day") {
