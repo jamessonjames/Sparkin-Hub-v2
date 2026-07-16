@@ -592,6 +592,7 @@ function AgendaPage() {
                               <DraggableDemandCard
                                 demand={demand}
                                 onResize={handleResizeDemand}
+                                onTogglePin={handleTogglePin}
                                 onClick={() => overlay.open(demand.id, clientsForOverlay)}
                               />
                             )}
