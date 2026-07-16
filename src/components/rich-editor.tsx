@@ -271,7 +271,7 @@ export function RichEditor({
           : "rounded-xl border border-border bg-background",
       )}
     >
-      <TiptapBubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>
+      <TiptapBubbleMenu editor={editor}>
         <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-border bg-popover shadow-2xl text-xs select-none">
           <>
             <select
