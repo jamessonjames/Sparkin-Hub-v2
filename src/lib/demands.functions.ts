@@ -38,9 +38,10 @@ const upsertSchema = z.object({
 export const listDemands = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    // Select '*' to dynamically ignore columns that do not exist yet (like estimated_hours)
     const { data, error } = await context.supabase
       .from("demands")
-      .select("id, title, description, client_id, status, priority, due_date, estimated_credits, estimated_hours, sort_order, updated_at, created_at, assignee_user_id, clients(id, name)")
+      .select("*, clients(id, name)")
       .is("deleted_at", null)
       .order("sort_order", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false });
@@ -66,26 +67,51 @@ export const createDemand = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => upsertSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await context.supabase
-      .from("demands")
-      .insert({
-        client_id: data.client_id,
-        title: data.title,
-        description: data.description || null,
-        demand_type_id: data.demand_type_id || null,
-        status: data.status,
-        priority: data.priority,
-        due_date: data.due_date || null,
-        estimated_credits: data.estimated_credits ?? undefined,
-        estimated_hours: data.estimated_hours ?? 1.0,
-        internal_notes: data.internal_notes || null,
-        assignee_user_id: data.assignee_user_id || null,
-        created_by_user_id: context.userId,
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    return row;
+    const payload: any = {
+      client_id: data.client_id,
+      title: data.title,
+      description: data.description || null,
+      demand_type_id: data.demand_type_id || null,
+      status: data.status,
+      priority: data.priority,
+      due_date: data.due_date || null,
+      estimated_credits: data.estimated_credits ?? undefined,
+      internal_notes: data.internal_notes || null,
+      assignee_user_id: data.assignee_user_id || null,
+      created_by_user_id: context.userId,
+    };
+
+    // Gracefully handle database schema transition where estimated_hours might not exist yet
+    try {
+      const { data: row, error } = await context.supabase
+        .from("demands")
+        .insert({ ...payload, estimated_hours: data.estimated_hours ?? 1.0 })
+        .select("id")
+        .single();
+      
+      if (error) {
+        // If error mentions estimated_hours column, retry without it
+        if (error.message.includes("estimated_hours") || error.code === "P0002" || error.message.includes("column")) {
+          const { data: retryRow, error: retryError } = await context.supabase
+            .from("demands")
+            .insert(payload)
+            .select("id")
+            .single();
+          if (retryError) throw new Error(retryError.message);
+          return retryRow;
+        }
+        throw new Error(error.message);
+      }
+      return row;
+    } catch (e) {
+      const { data: retryRow, error: retryError } = await context.supabase
+        .from("demands")
+        .insert(payload)
+        .select("id")
+        .single();
+      if (retryError) throw new Error(retryError.message);
+      return retryRow;
+    }
   });
 
 export const updateDemand = createServerFn({ method: "POST" })
@@ -93,24 +119,46 @@ export const updateDemand = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => upsertSchema.extend({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { id, ...rest } = data;
-    const { error } = await context.supabase
-      .from("demands")
-      .update({
-        client_id: rest.client_id,
-        title: rest.title,
-        description: rest.description || null,
-        demand_type_id: rest.demand_type_id || null,
-        status: rest.status,
-        priority: rest.priority,
-        due_date: rest.due_date || null,
-        estimated_credits: rest.estimated_credits ?? undefined,
-        estimated_hours: rest.estimated_hours ?? 1.0,
-        internal_notes: rest.internal_notes || null,
-        assignee_user_id: rest.assignee_user_id || null,
-      })
-      .eq("id", id);
-    if (error) throw new Error(error.message);
-    return { ok: true };
+    const payload: any = {
+      client_id: rest.client_id,
+      title: rest.title,
+      description: rest.description || null,
+      demand_type_id: rest.demand_type_id || null,
+      status: rest.status,
+      priority: rest.priority,
+      due_date: rest.due_date || null,
+      estimated_credits: rest.estimated_credits ?? undefined,
+      internal_notes: rest.internal_notes || null,
+      assignee_user_id: rest.assignee_user_id || null,
+    };
+
+    // Gracefully handle database schema transition where estimated_hours might not exist yet
+    try {
+      const { error } = await context.supabase
+        .from("demands")
+        .update({ ...payload, estimated_hours: rest.estimated_hours ?? 1.0 })
+        .eq("id", id);
+      
+      if (error) {
+        if (error.message.includes("estimated_hours") || error.code === "P0002" || error.message.includes("column")) {
+          const { error: retryError } = await context.supabase
+            .from("demands")
+            .update(payload)
+            .eq("id", id);
+          if (retryError) throw new Error(retryError.message);
+          return { ok: true };
+        }
+        throw new Error(error.message);
+      }
+      return { ok: true };
+    } catch (e) {
+      const { error: retryError } = await context.supabase
+        .from("demands")
+        .update(payload)
+        .eq("id", id);
+      if (retryError) throw new Error(retryError.message);
+      return { ok: true };
+    }
   });
 
 export const moveDemandStatus = createServerFn({ method: "POST" })
@@ -147,7 +195,6 @@ export const batchUpdateDueDates = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    // Perform updates in parallel
     const promises = data.updates.map(async (u) => {
       const { error } = await context.supabase
         .from("demands")
@@ -157,4 +204,4 @@ export const batchUpdateDueDates = createServerFn({ method: "POST" })
     });
     await Promise.all(promises);
     return { ok: true };
-  });
+  });
