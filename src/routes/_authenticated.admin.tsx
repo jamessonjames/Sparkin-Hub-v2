@@ -159,7 +159,14 @@ function AdminPage() {
       });
 
       if (error) {
-        throw new Error(error.message || "Erro ao atualizar cargo. Certifique-se de que você é o proprietário.");
+        let msg = error.message;
+        try {
+          if (error.context && typeof error.context.json === "function") {
+            const body = await error.context.json();
+            if (body && body.error) msg = body.error;
+          }
+        } catch (_) {}
+        throw new Error(msg);
       }
 
       toast.success("Nível de acesso atualizado com sucesso!");
@@ -193,8 +200,14 @@ function AdminPage() {
       });
 
       if (error) {
-        // If invoking edge function failed (e.g. function not deployed yet)
-        throw new Error(error.message || "A função edge 'admin-users' pode não estar implantada.");
+        let msg = error.message;
+        try {
+          if (error.context && typeof error.context.json === "function") {
+            const body = await error.context.json();
+            if (body && body.error) msg = body.error;
+          }
+        } catch (_) {}
+        throw new Error(msg);
       }
 
       toast.success("Usuário criado com sucesso!");
