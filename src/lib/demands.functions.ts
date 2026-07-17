@@ -252,7 +252,7 @@ export const batchUpdateDueDates = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    const promises = data.updates.map(async (u) => {
+    for (const u of data.updates) {
       const patch: Record<string, unknown> = { due_date: u.due_date };
       if (typeof u.is_manually_scheduled === "boolean") {
         patch.is_manually_scheduled = u.is_manually_scheduled;
@@ -262,7 +262,6 @@ export const batchUpdateDueDates = createServerFn({ method: "POST" })
         .update(patch as any)
         .eq("id", u.id);
       if (error) throw new Error(`Erro ao atualizar demanda ${u.id}: ${error.message}`);
-    });
-    await Promise.all(promises);
+    }
     return { ok: true };
   });

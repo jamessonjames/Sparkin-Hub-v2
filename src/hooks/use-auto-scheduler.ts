@@ -17,7 +17,9 @@ export function useAutoScheduler() {
   const listFn = useServerFn(listDemands);
   const batchFn = useServerFn(batchUpdateDueDates);
   const qc = useQueryClient();
-  const running = useRef(false);
+  const timeoutRef = useRef<any>(null);
+  const runningRef = useRef(false);
+  const pendingUpdatesRef = useRef<{ id: string; due_date: string | null }[] | null>(null);
 
   const { data: demands = [] } = useQuery({
     queryKey: ["demands"],
@@ -25,7 +27,6 @@ export function useAutoScheduler() {
   });
 
   useEffect(() => {
-    if (running.current) return;
     if (!demands || demands.length === 0) return;
 
     let config: SchedulingConfig = DEFAULT_CONFIG;
@@ -61,14 +62,65 @@ export function useAutoScheduler() {
       }
     }
 
-    if (updates.length === 0) return;
+    if (updates.length === 0) {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      return;
+    }
 
-    running.current = true;
-    batchFn({ data: { updates } })
-      .then(() => qc.invalidateQueries({ queryKey: ["demands"] }))
-      .catch((e) => console.error("Auto-scheduling error:", e))
-      .finally(() => {
-        running.current = false;
-      });
+    // Save the latest calculated updates
+    pendingUpdatesRef.current = updates;
+
+    // Clear previous timeout to debounce
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    // Set new timeout to debounce the database save by 1 second
+    timeoutRef.current = setTimeout(() => {
+      const runSave = async () => {
+        if (runningRef.current) {
+          // If a save is already in progress, retry shortly
+          timeoutRef.current = setTimeout(runSave, 500);
+          return;
+        }
+
+        const currentUpdates = pendingUpdatesRef.current;
+        if (!currentUpdates || currentUpdates.length === 0) return;
+
+        runningRef.current = true;
+        try {
+          await batchFn({ data: { updates: currentUpdates } });
+          
+          // Update the local query cache directly to keep UI fast and avoid refetch flicker
+          qc.setQueryData<any[]>(["demands"], (prev) => {
+            if (!prev) return [];
+            const updateMap = new Map(currentUpdates.map((u) => [u.id, u.due_date]));
+            return prev.map((d) => {
+              if (updateMap.has(d.id)) {
+                return { ...d, due_date: updateMap.get(d.id) };
+              }
+              return d;
+            });
+          });
+
+          pendingUpdatesRef.current = null;
+        } catch (e) {
+          console.error("Auto-scheduling error:", e);
+        } finally {
+          runningRef.current = false;
+        }
+      };
+
+      runSave();
+    }, 1000);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
   }, [demands, batchFn, qc]);
 }

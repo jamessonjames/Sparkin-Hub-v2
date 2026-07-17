@@ -799,7 +799,14 @@ function KanbanCardContent({
             )}
           >
             <Calendar className="h-3 w-3" />
-            {demand.due_date}
+            {(() => {
+              const pureDate = demand.due_date.includes("T") ? demand.due_date.split("T")[0] : demand.due_date;
+              const parts = pureDate.split("-");
+              if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+              }
+              return pureDate;
+            })()}
           </span>
         )}
       </div>

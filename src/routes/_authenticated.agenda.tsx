@@ -338,10 +338,10 @@ function AgendaPage() {
           estimated_hours: hours,
         },
       });
-      qc.invalidateQueries({ queryKey: ["demands"] });
     } catch (e) {
       console.error(e);
       toast.error("Erro ao atualizar o tempo estimado.");
+      qc.invalidateQueries({ queryKey: ["demands"] });
     }
   }
 
@@ -371,7 +371,6 @@ function AgendaPage() {
       toast.success(nextValue ? "Demanda fixada nesta posição." : "Demanda liberada — o sistema pode reagendar.");
     } catch (err) {
       toast.error("Erro ao alterar o pin.");
-    } finally {
       qc.invalidateQueries({ queryKey: ["demands"] });
     }
   }
@@ -479,7 +478,6 @@ function AgendaPage() {
       toast.success("Demanda reagendada!");
     } catch (err) {
       toast.error("Erro ao reagendar");
-    } finally {
       qc.invalidateQueries({ queryKey: ["demands"] });
     }
   }
