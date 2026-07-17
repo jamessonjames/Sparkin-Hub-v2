@@ -142,9 +142,11 @@ CREATE TABLE public.demands (
   status public.demand_status NOT NULL DEFAULT 'nao_iniciado',
   status_id UUID,
   priority public.demand_priority NOT NULL DEFAULT 'medium',
-  due_date DATE,
+  due_date TIMESTAMPTZ,
   reference_month DATE NOT NULL DEFAULT date_trunc('month', now())::date,
   estimated_credits INTEGER NOT NULL DEFAULT 0,
+  estimated_hours NUMERIC DEFAULT 1.0,
+  is_manually_scheduled BOOLEAN NOT NULL DEFAULT false,
   approved_credits INTEGER,
   assignee_user_id UUID REFERENCES auth.users(id),
   created_by_user_id UUID REFERENCES auth.users(id),
@@ -311,5 +313,46 @@ ALTER TABLE public.demands ALTER COLUMN due_date TYPE TIMESTAMPTZ USING due_date
 
 -- Add estimated_hours to demands table supporting 30-minute increments (e.g. 0.5, 1.0, 1.5)
 ALTER TABLE demands ADD COLUMN IF NOT EXISTS estimated_hours NUMERIC DEFAULT 1.0;
+
+-- ==========================================
+-- MIGRATION: 20260716222003_cc45f385-50d6-4d49-84fd-48229bdd77ad.sql
+-- ==========================================
+
+ALTER TABLE public.demands ADD COLUMN IF NOT EXISTS is_manually_scheduled BOOLEAN NOT NULL DEFAULT false;
+
+-- ==========================================
+-- MIGRATION: 20260716235356_69b21e47-654c-4c75-8068-5dd77dc10ed7.sql
+-- ==========================================
+
+ALTER TABLE public.demands
+  ALTER COLUMN due_date TYPE TIMESTAMPTZ
+  USING CASE
+    WHEN due_date IS NULL THEN NULL
+    ELSE (due_date::date + TIME '09:00') AT TIME ZONE 'America/Sao_Paulo'
+  END;
+
+-- ==========================================
+-- MIGRATION: normalize_midnight_demand_due_dates.sql
+-- ==========================================
+
+UPDATE public.demands
+SET due_date = (due_date::date + TIME '09:00') AT TIME ZONE 'America/Sao_Paulo'
+WHERE due_date IS NOT NULL
+  AND due_date::time = TIME '00:00';
+
+-- ==========================================
+-- MIGRATION: restrict_security_definer_functions.sql
+-- ==========================================
+
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.is_team(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM PUBLIC, anon;
+
+GRANT EXECUTE ON FUNCTION public.is_team(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated, service_role;
+
+ALTER FUNCTION public.is_team(uuid) SECURITY INVOKER;
+ALTER FUNCTION public.has_role(uuid, public.app_role) SECURITY INVOKER;
 
 
