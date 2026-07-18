@@ -1,0 +1,2 @@
+-- Add color field to clients for sidebar dot
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS color TEXT;

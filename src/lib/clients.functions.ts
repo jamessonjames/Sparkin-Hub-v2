@@ -16,6 +16,7 @@ const upsertSchema = z.object({
   internal_notes: z.string().optional().nullable(),
   credits_enabled: z.boolean().default(false),
   access_active: z.boolean().default(true),
+  color: z.string().optional().nullable(),
 });
 
 export const listClients = createServerFn({ method: "GET" })
@@ -43,7 +44,7 @@ export const listClients = createServerFn({ method: "GET" })
       
       const { data, error } = await context.supabase
         .from("clients")
-        .select("id, name, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, slug, updated_at")
+        .select("id, name, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, slug, updated_at, color")
         .in("id", clientIds)
         .is("deleted_at", null)
         .order("name", { ascending: true });
@@ -54,7 +55,7 @@ export const listClients = createServerFn({ method: "GET" })
 
     const { data, error } = await context.supabase
       .from("clients")
-      .select("id, name, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, slug, updated_at")
+      .select("id, name, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, slug, updated_at, color")
       .is("deleted_at", null)
       .order("name", { ascending: true });
     if (error) throw new Error(error.message);
@@ -124,6 +125,7 @@ export const createClient = createServerFn({ method: "POST" })
         internal_notes: data.internal_notes || null,
         credits_enabled: data.credits_enabled,
         access_active: data.access_active,
+        color: data.color || null,
         slug,
       })
       .select("id")
@@ -151,6 +153,7 @@ export const updateClient = createServerFn({ method: "POST" })
         internal_notes: rest.internal_notes || null,
         credits_enabled: rest.credits_enabled,
         access_active: rest.access_active,
+        color: rest.color || null,
       })
       .eq("id", id);
     if (error) throw new Error(error.message);

@@ -378,6 +378,7 @@ function ClientPage() {
                       commercial_notes: client.commercial_notes,
                       internal_notes: client.internal_notes,
                       access_active: client.access_active,
+                      color: client.color,
                     }}
                     onSubmit={handleSave}
                     submitting={saving}
