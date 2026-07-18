@@ -119,6 +119,7 @@ export function AppSidebar() {
   const [dropIdx, setDropIdx] = useState<number | null>(null);
   const dropIdxRef = useRef<number | null>(null);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [floatingPos, setFloatingPos] = useState({ y: 0 });
 
   const dragOverlayRef = useRef<HTMLDivElement | null>(null);
@@ -157,6 +158,7 @@ export function AppSidebar() {
       isDragging: false,
     };
     setDragIdx(index);
+    setIsDragging(false);
     setFloatingPos({ y: e.clientY });
   }
 
@@ -167,6 +169,7 @@ export function AppSidebar() {
     const dy = Math.abs(e.clientY - state.startY);
     if (!state.isDragging && dy > 6) {
       state.isDragging = true;
+      setIsDragging(true);
 
       const overlay = document.createElement("div");
       overlay.style.cssText = "position:fixed;inset:0;z-index:99998;pointer-events:auto;";
@@ -202,6 +205,7 @@ export function AppSidebar() {
       const upHandler = () => {
         removeDocListeners();
         cleanupDragOverlay();
+        setIsDragging(false);
 
         const s = dragState.current;
         dragState.current = null;
@@ -235,6 +239,7 @@ export function AppSidebar() {
     const state = dragState.current;
     if (!state) return;
     dragState.current = null;
+    setIsDragging(false);
     setDragIdx(null);
     setDropIdx(null);
   }
@@ -243,11 +248,12 @@ export function AppSidebar() {
     removeDocListeners();
     cleanupDragOverlay();
     dragState.current = null;
+    setIsDragging(false);
     setDragIdx(null);
     setDropIdx(null);
   }
 
-  const floatingItem = dragIdx !== null && orderedItems[dragIdx];
+  const floatingItem = isDragging && dragIdx !== null && orderedItems[dragIdx];
 
   function renderNavItem(item: NavItem, index: number) {
     if (item.to === "/clients") {
@@ -257,7 +263,7 @@ export function AppSidebar() {
   }
 
   function renderRegularNavItem(item: NavItem, index: number) {
-    const isDrag = dragIdx === index;
+    const isDrag = isDragging && dragIdx === index;
 
     return (
       <SidebarMenuItem
@@ -299,7 +305,7 @@ export function AppSidebar() {
   }
 
   function renderClientsNavItem(item: NavItem, index: number) {
-    const isDrag = dragIdx === index;
+    const isDrag = isDragging && dragIdx === index;
 
     return (
       <SidebarMenuItem
@@ -438,7 +444,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1.5">
               {orderedItems.map((item, index) => renderNavItem(item, index))}
             </SidebarMenu>
           </SidebarGroupContent>
