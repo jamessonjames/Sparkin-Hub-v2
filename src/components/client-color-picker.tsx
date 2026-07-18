@@ -11,6 +11,9 @@ export const CLIENT_COLORS = [
   "#8b5cf6",
   "#ec4899",
   "#78716c",
+  "#a855f7",
+  "#06b6d4",
+  "#f43f5e",
 ];
 
 interface Props {
