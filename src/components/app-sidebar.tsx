@@ -113,13 +113,35 @@ export function AppSidebar() {
   const dragState = useRef<{
     from: number;
     startY: number;
-    pointerId: number;
     isDragging: boolean;
   } | null>(null);
 
   const [dropIdx, setDropIdx] = useState<number | null>(null);
+  const dropIdxRef = useRef<number | null>(null);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [floatingPos, setFloatingPos] = useState({ y: 0 });
+
+  const dragOverlayRef = useRef<HTMLDivElement | null>(null);
+  const docMoveHandler = useRef<((e: PointerEvent) => void) | null>(null);
+  const docUpHandler = useRef<((e: PointerEvent) => void) | null>(null);
+
+  function cleanupDragOverlay() {
+    if (dragOverlayRef.current) {
+      document.body.removeChild(dragOverlayRef.current);
+      dragOverlayRef.current = null;
+    }
+  }
+
+  function removeDocListeners() {
+    if (docMoveHandler.current) {
+      document.removeEventListener("pointermove", docMoveHandler.current);
+      docMoveHandler.current = null;
+    }
+    if (docUpHandler.current) {
+      document.removeEventListener("pointerup", docUpHandler.current);
+      docUpHandler.current = null;
+    }
+  }
 
   function setItemRef(index: number, el: HTMLLIElement | null) {
     itemRefs.current[index] = el;
@@ -128,14 +150,10 @@ export function AppSidebar() {
   function handlePointerDown(e: React.PointerEvent, index: number) {
     if (collapsed) return;
     if ((e.target as HTMLElement).closest('[data-sidebar="menu-sub"], .sidebar-action-btn')) return;
-    const li = (e.target as HTMLElement).closest('[data-sidebar="menu-item"]') as HTMLElement;
-    if (!li) return;
 
-    li.setPointerCapture(e.pointerId);
     dragState.current = {
       from: index,
       startY: e.clientY,
-      pointerId: e.pointerId,
       isDragging: false,
     };
     setDragIdx(index);
@@ -149,58 +167,81 @@ export function AppSidebar() {
     const dy = Math.abs(e.clientY - state.startY);
     if (!state.isDragging && dy > 6) {
       state.isDragging = true;
-      e.preventDefault();
-    }
-    if (!state.isDragging) return;
 
-    e.preventDefault();
+      const overlay = document.createElement("div");
+      overlay.style.cssText = "position:fixed;inset:0;z-index:99998;pointer-events:auto;";
+      document.body.appendChild(overlay);
+      dragOverlayRef.current = overlay;
 
-    setFloatingPos({ y: e.clientY });
-
-    const items = itemRefs.current;
-    let found: number | null = null;
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item) {
-        const rect = item.getBoundingClientRect();
-        const mid = rect.top + rect.height / 2;
-        if (e.clientY <= mid) {
-          found = i;
-          break;
+      const moveHandler = (ev: PointerEvent) => {
+        ev.preventDefault();
+        setFloatingPos({ y: ev.clientY });
+        const items = itemRefs.current;
+        let found: number | null = null;
+        for (let i = 0; i < items.length; i++) {
+          const el = items[i];
+          if (el) {
+            const rect = el.getBoundingClientRect();
+            const mid = rect.top + rect.height / 2;
+            if (ev.clientY <= mid) {
+              found = i;
+              break;
+            }
+          }
         }
-      }
+        if (found === null && items.length > 0) {
+          const last = items[items.length - 1];
+          if (last && ev.clientY > last.getBoundingClientRect().bottom) {
+            found = items.length;
+          }
+        }
+        setDropIdx(found);
+        dropIdxRef.current = found;
+      };
+
+      const upHandler = () => {
+        removeDocListeners();
+        cleanupDragOverlay();
+
+        const s = dragState.current;
+        dragState.current = null;
+        const finalDrop = dropIdxRef.current;
+
+        if (s && s.isDragging && finalDrop !== null && s.from !== finalDrop) {
+          const to = finalDrop;
+          const updated = [...orderedItems];
+          const [moved] = updated.splice(s.from, 1);
+          updated.splice(to, 0, moved);
+          setOrderedItems(updated);
+          const newOrder = updated.map((item) => item.to);
+          setSidebarOrder(newOrder);
+          saveOrderFn({ data: { order: newOrder } }).catch(() => {});
+        }
+
+        setDragIdx(null);
+        setDropIdx(null);
+        dropIdxRef.current = null;
+      };
+
+      docMoveHandler.current = moveHandler;
+      docUpHandler.current = upHandler;
+      document.addEventListener("pointermove", moveHandler);
+      document.addEventListener("pointerup", upHandler);
+      return;
     }
-    if (found === null && items.length > 0) {
-      const last = items[items.length - 1];
-      if (last && e.clientY > last.getBoundingClientRect().bottom) {
-        found = items.length;
-      }
-    }
-    setDropIdx(found);
   }
 
-  function handlePointerUp(_e: React.PointerEvent) {
+  function handlePointerUp() {
     const state = dragState.current;
     if (!state) return;
-
     dragState.current = null;
-
-    if (state.isDragging && dropIdx !== null && state.from !== dropIdx) {
-      const to = dropIdx >= state.from ? dropIdx : dropIdx;
-      const updated = [...orderedItems];
-      const [moved] = updated.splice(state.from, 1);
-      updated.splice(to, 0, moved);
-      setOrderedItems(updated);
-      const newOrder = updated.map((item) => item.to);
-      setSidebarOrder(newOrder);
-      saveOrderFn({ data: { order: newOrder } }).catch(() => {});
-    }
-
     setDragIdx(null);
     setDropIdx(null);
   }
 
   function handlePointerCancel() {
+    removeDocListeners();
+    cleanupDragOverlay();
     dragState.current = null;
     setDragIdx(null);
     setDropIdx(null);
@@ -217,23 +258,19 @@ export function AppSidebar() {
 
   function renderRegularNavItem(item: NavItem, index: number) {
     const isDrag = dragIdx === index;
-    const isOver = dropIdx === index;
 
     return (
       <SidebarMenuItem
         key={item.to}
         ref={(el) => setItemRef(index, el)}
         onPointerDown={(e) => handlePointerDown(e, index)}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerCancel}
         className={cn(
           "group/nav-item transition-all duration-150 select-none",
           isDrag && "opacity-30",
         )}
         style={{ transform: isDrag ? "scale(0.95)" : "" }}
       >
-        {isOver && (
+        {dropIdx === index && (
           <div className="absolute -top-0.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
         )}
         {dropIdx === orderedItems.length && index === orderedItems.length - 1 && (
@@ -263,23 +300,19 @@ export function AppSidebar() {
 
   function renderClientsNavItem(item: NavItem, index: number) {
     const isDrag = dragIdx === index;
-    const isOver = dropIdx === index;
 
     return (
       <SidebarMenuItem
         key={item.to}
         ref={(el) => setItemRef(index, el)}
         onPointerDown={(e) => handlePointerDown(e, index)}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerCancel}
         className={cn(
           "group/nav-item transition-all duration-150 select-none",
           isDrag && "opacity-30",
         )}
         style={{ transform: isDrag ? "scale(0.95)" : "" }}
       >
-        {isOver && (
+        {dropIdx === index && (
           <div className="absolute -top-0.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
         )}
         {dropIdx === orderedItems.length && index === orderedItems.length - 1 && (
@@ -388,7 +421,7 @@ export function AppSidebar() {
 
       {floatingItem && createPortal(
         <div
-          className="fixed pointer-events-none z-[9999] flex items-center gap-2 px-3 py-2 rounded-lg bg-card border border-border shadow-2xl text-sm font-semibold text-foreground select-none"
+          className="fixed pointer-events-none z-[99999] flex items-center gap-2 px-3 py-2 rounded-lg bg-card border border-border shadow-2xl text-sm font-semibold text-foreground select-none"
           style={{ left: 80, top: floatingPos.y - 20 }}
         >
           <floatingItem.icon className="h-4 w-4" />
@@ -397,7 +430,11 @@ export function AppSidebar() {
         document.body,
       )}
 
-      <SidebarContent>
+      <SidebarContent
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+      >
         <SidebarGroup>
           <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
