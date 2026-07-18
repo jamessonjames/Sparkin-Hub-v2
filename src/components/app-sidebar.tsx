@@ -13,14 +13,12 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
   SidebarHeader,
   useSidebar,
 } from "@/components/ui/sidebar";
-import {
-  Collapsible,
-  CollapsibleTrigger,
-  CollapsibleContent,
-} from "@/components/ui/collapsible";
 import { listClients } from "@/lib/clients.functions";
 import { saveSidebarOrder } from "@/lib/users.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -129,6 +127,7 @@ export function AppSidebar() {
 
   function handlePointerDown(e: React.PointerEvent, index: number) {
     if (collapsed) return;
+    if ((e.target as HTMLElement).closest('[data-sidebar="menu-sub"], .sidebar-action-btn')) return;
     const li = (e.target as HTMLElement).closest('[data-sidebar="menu-item"]') as HTMLElement;
     if (!li) return;
 
@@ -209,6 +208,151 @@ export function AppSidebar() {
 
   const floatingItem = dragIdx !== null && orderedItems[dragIdx];
 
+  function renderNavItem(item: NavItem, index: number) {
+    if (item.to === "/clients") {
+      return renderClientsNavItem(item, index);
+    }
+    return renderRegularNavItem(item, index);
+  }
+
+  function renderRegularNavItem(item: NavItem, index: number) {
+    const isDrag = dragIdx === index;
+    const isOver = dropIdx === index;
+
+    return (
+      <SidebarMenuItem
+        key={item.to}
+        ref={(el) => setItemRef(index, el)}
+        onPointerDown={(e) => handlePointerDown(e, index)}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        className={cn(
+          "group/nav-item transition-all duration-150 select-none",
+          isDrag && "opacity-30",
+        )}
+        style={{ transform: isDrag ? "scale(0.95)" : "" }}
+      >
+        {isOver && (
+          <div className="absolute -top-0.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
+        )}
+        {dropIdx === orderedItems.length && index === orderedItems.length - 1 && (
+          <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
+        )}
+        <div className="relative flex items-center">
+          <div className={cn(
+            "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
+            collapsed && "hidden",
+          )}>
+            <GripVertical className="h-3 w-3" />
+          </div>
+          <SidebarMenuButton
+            asChild
+            isActive={isActive(item.to, item.exact)}
+            className={cn(!collapsed && "pl-7")}
+          >
+            <Link to={item.to} className="flex items-center gap-2 select-none">
+              <item.icon className="h-4 w-4" />
+              {!collapsed && <span>{item.title}</span>}
+            </Link>
+          </SidebarMenuButton>
+        </div>
+      </SidebarMenuItem>
+    );
+  }
+
+  function renderClientsNavItem(item: NavItem, index: number) {
+    const isDrag = dragIdx === index;
+    const isOver = dropIdx === index;
+
+    return (
+      <SidebarMenuItem
+        key={item.to}
+        ref={(el) => setItemRef(index, el)}
+        onPointerDown={(e) => handlePointerDown(e, index)}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        className={cn(
+          "group/nav-item transition-all duration-150 select-none",
+          isDrag && "opacity-30",
+        )}
+        style={{ transform: isDrag ? "scale(0.95)" : "" }}
+      >
+        {isOver && (
+          <div className="absolute -top-0.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
+        )}
+        {dropIdx === orderedItems.length && index === orderedItems.length - 1 && (
+          <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
+        )}
+        <div>
+          <div className="relative flex items-center">
+            <div className={cn(
+              "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
+              collapsed && "hidden",
+            )}>
+              <GripVertical className="h-3 w-3" />
+            </div>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive("/clients", false)}
+              className={cn(!collapsed && "pl-7", "flex-1")}
+            >
+              <Link to="/clients" className="flex items-center gap-2 select-none">
+                <Users className="h-4 w-4" />
+                {!collapsed && <span>Clientes</span>}
+              </Link>
+            </SidebarMenuButton>
+            {!collapsed && isAdminOrOwner && (
+              <div className="flex items-center gap-0.5 pr-1">
+                <button
+                  type="button"
+                  onClick={() => setClientsOpen(!clientsOpen)}
+                  className="sidebar-action-btn p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors"
+                >
+                  {clientsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                </button>
+                <Link
+                  to="/clients/new"
+                  className="sidebar-action-btn p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            )}
+          </div>
+          {!collapsed && clientsOpen && isAdminOrOwner && (
+            <SidebarMenuSub>
+              {(clients ?? []).slice(0, 20).map((c) => (
+                <SidebarMenuSubItem key={c.id}>
+                  <SidebarMenuSubButton asChild isActive={pathname === `/clients/${c.id}`}>
+                    <Link
+                      to="/clients/$id"
+                      params={{ id: c.id }}
+                      className="flex items-center gap-2"
+                    >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: c.color || "var(--primary)" }}
+                      />
+                      <span className="truncate">{c.name}</span>
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              ))}
+              {(clients?.length ?? 0) === 0 && (
+                <div className="px-6 py-1 text-xs text-muted-foreground">
+                  Nenhum cliente ainda.
+                </div>
+              )}
+            </SidebarMenuSub>
+          )}
+        </div>
+      </SidebarMenuItem>
+    );
+  }
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -258,122 +402,10 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {orderedItems.map((item, index) => {
-                const isDrag = dragIdx === index;
-                const isBeforeDrop = dropIdx !== null && dropIdx <= index && index <= (dragIdx ?? -1)
-                  ? dragIdx !== null && dragIdx < index
-                  : dropIdx !== null && dropIdx <= index;
-                const isAfterDrop = dropIdx !== null && !isBeforeDrop;
-
-                return (
-                  <SidebarMenuItem
-                    key={item.to}
-                    ref={(el) => setItemRef(index, el)}
-                    onPointerDown={(e) => handlePointerDown(e, index)}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerUp}
-                    onPointerCancel={handlePointerCancel}
-                    className={cn(
-                      "group/nav-item transition-all duration-150 select-none",
-                      isDrag && "opacity-30",
-                    )}
-                    style={{
-                      transform: isDrag ? "scale(0.95)" : "",
-                    }}
-                  >
-                    {dropIdx === index && (
-                      <div className="absolute -top-0.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
-                    )}
-                    {dropIdx === orderedItems.length && index === orderedItems.length - 1 && (
-                      <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
-                    )}
-                    <div className="relative flex items-center">
-                      <div
-                        className={cn(
-                          "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
-                          collapsed && "hidden",
-                        )}
-                      >
-                        <GripVertical className="h-3 w-3" />
-                      </div>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive(item.to, item.exact)}
-                        className={cn(!collapsed && "pl-7")}
-                      >
-                        <Link to={item.to} className="flex items-center gap-2 select-none">
-                          <item.icon className="h-4 w-4" />
-                          {!collapsed && <span>{item.title}</span>}
-                        </Link>
-                      </SidebarMenuButton>
-                    </div>
-                  </SidebarMenuItem>
-                );
-              })}
+              {orderedItems.map((item, index) => renderNavItem(item, index))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {isAdminOrOwner && (
-          <Collapsible open={clientsOpen} onOpenChange={setClientsOpen}>
-            <SidebarGroup>
-              <CollapsibleTrigger asChild>
-                <SidebarGroupLabel className="flex items-center justify-between cursor-pointer select-none hover:bg-zinc-800/40 rounded-md px-2 py-1 transition-colors">
-                  <div className="flex items-center gap-1.5">
-                    {clientsOpen ? (
-                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                    )}
-                    <span>Clientes</span>
-                  </div>
-                  {!collapsed && clientsOpen && (
-                    <Link
-                      to="/clients/new"
-                      className="text-muted-foreground hover:text-foreground"
-                      aria-label="Novo cliente"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </Link>
-                  )}
-                </SidebarGroupLabel>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {(clients ?? []).slice(0, 20).map((c) => (
-                      <SidebarMenuItem key={c.id}>
-                        <SidebarMenuButton
-                          asChild
-                          isActive={pathname === `/clients/${c.id}`}
-                          size="sm"
-                        >
-                          <Link
-                            to="/clients/$id"
-                            params={{ id: c.id }}
-                            className="flex items-center gap-2"
-                          >
-                            <span
-                              className="h-1.5 w-1.5 rounded-full shrink-0"
-                              style={{ backgroundColor: c.color || "var(--primary)" }}
-                            />
-                            {!collapsed && <span className="truncate">{c.name}</span>}
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                    {(clients?.length ?? 0) === 0 && !collapsed && (
-                      <div className="px-2 py-1 text-xs text-muted-foreground">
-                        Nenhum cliente ainda.
-                      </div>
-                    )}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </CollapsibleContent>
-            </SidebarGroup>
-          </Collapsible>
-        )}
       </SidebarContent>
     </Sidebar>
   );
