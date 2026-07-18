@@ -35,6 +35,18 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Agenda", to: "/agenda", icon: CalendarDays },
 ];
 
+function applyOrder(order: string[], items: NavItem[]): NavItem[] {
+  const ordered: NavItem[] = [];
+  for (const to of order) {
+    const item = items.find((i) => i.to === to);
+    if (item) ordered.push(item);
+  }
+  for (const item of items) {
+    if (!ordered.some((o) => o.to === item.to)) ordered.push(item);
+  }
+  return ordered;
+}
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -89,23 +101,34 @@ export function AppSidebar() {
     (item) => isAdminOrOwner || (item.to !== "/finance" && item.to !== "/clients" && item.to !== "/crm"),
   );
 
-  const [orderedItems, setOrderedItems] = useState<NavItem[]>([]);
+  const [orderedItems, setOrderedItems] = useState<NavItem[]>(() => {
+    const stored = localStorage.getItem("CF_SidebarOrder");
+    if (stored) {
+      try {
+        const parsed: string[] = JSON.parse(stored);
+        if (parsed.length > 0) return applyOrder(parsed, filteredItems);
+      } catch {}
+    }
+    return filteredItems;
+  });
 
   useEffect(() => {
     if (sidebarOrder && sidebarOrder.length > 0) {
-      const ordered: NavItem[] = [];
-      for (const to of sidebarOrder) {
-        const item = filteredItems.find((i) => i.to === to);
-        if (item) ordered.push(item);
-      }
-      for (const item of filteredItems) {
-        if (!ordered.some((o) => o.to === item.to)) {
-          ordered.push(item);
-        }
-      }
-      setOrderedItems(ordered);
+      setOrderedItems(applyOrder(sidebarOrder, filteredItems));
+      localStorage.setItem("CF_SidebarOrder", JSON.stringify(sidebarOrder));
     } else {
-      setOrderedItems(filteredItems);
+      const stored = localStorage.getItem("CF_SidebarOrder");
+      if (stored) {
+        try {
+          const parsed: string[] = JSON.parse(stored);
+          if (parsed.length > 0) setOrderedItems(applyOrder(parsed, filteredItems));
+          else setOrderedItems(filteredItems);
+        } catch {
+          setOrderedItems(filteredItems);
+        }
+      } else {
+        setOrderedItems(filteredItems);
+      }
     }
   }, [sidebarOrder, currentUserRole]);
 
@@ -218,8 +241,11 @@ export function AppSidebar() {
           updated.splice(to, 0, moved);
           setOrderedItems(updated);
           const newOrder = updated.map((item) => item.to);
+          localStorage.setItem("CF_SidebarOrder", JSON.stringify(newOrder));
           setSidebarOrder(newOrder);
-          saveOrderFn({ data: { order: newOrder } }).catch(() => {});
+          saveOrderFn({ data: { order: newOrder } }).catch((err) => {
+            console.error("Failed to save sidebar order to DB:", err);
+          });
         }
 
         setDragIdx(null);
