@@ -195,48 +195,48 @@ export function AppSidebar() {
                 const isDragging = dragFrom === index;
 
                 return (
-                  <div key={item.to} className="relative">
-                    {isOver && (
-                      <div className="h-1 rounded-full bg-primary/40 mx-2 my-0.5 transition-all duration-150" />
+                  <SidebarMenuItem
+                    key={item.to}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onDragEnd={handleDragEnd}
+                    className={cn(
+                      "group/nav-item transition-all duration-150",
+                      isDragging && "opacity-40",
                     )}
-                    <SidebarMenuItem className="group/nav-item">
+                  >
+                    <div className="relative flex items-center">
+                      {isOver && (
+                        <div className="absolute -top-1 left-2 right-2 h-1 rounded-full bg-primary/40 z-10" />
+                      )}
                       <div
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onDragOver={(e) => handleDragOver(e, index)}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                        onDragEnd={handleDragEnd}
-                        className={cn("transition-all duration-150", isDragging && "opacity-40")}
+                        className={cn(
+                          "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
+                          collapsed && "hidden",
+                        )}
                       >
-                        <div className="relative flex items-center">
-                          <div
-                            className={cn(
-                              "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
-                              collapsed && "hidden",
-                            )}
-                          >
-                            <GripVertical className="h-3 w-3" />
-                          </div>
-                          <SidebarMenuButton
-                            asChild
-                            isActive={isActive(item.to, item.exact)}
-                            className={cn(!collapsed && "pl-7")}
-                          >
-                            <Link
-                              to={item.to}
-                              className="flex items-center gap-2 select-none"
-                              draggable={false}
-                              onDragStart={(e) => { e.preventDefault(); }}
-                            >
-                              <item.icon className="h-4 w-4" />
-                              {!collapsed && <span>{item.title}</span>}
-                            </Link>
-                          </SidebarMenuButton>
-                        </div>
+                        <GripVertical className="h-3 w-3" />
                       </div>
-                    </SidebarMenuItem>
-                  </div>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive(item.to, item.exact)}
+                        className={cn(!collapsed && "pl-7")}
+                      >
+                        <Link
+                          to={item.to}
+                          className="flex items-center gap-2 select-none"
+                          draggable={false}
+                          onDragStart={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          {!collapsed && <span>{item.title}</span>}
+                        </Link>
+                      </SidebarMenuButton>
+                    </div>
+                  </SidebarMenuItem>
                 );
               })}
             </SidebarMenu>
