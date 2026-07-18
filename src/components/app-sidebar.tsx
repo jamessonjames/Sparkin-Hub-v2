@@ -317,6 +317,7 @@ export function AppSidebar() {
           </div>
           <SidebarMenuButton
             asChild
+            size="sm"
             isActive={isActive(item.to, item.exact)}
             className={cn(!collapsed && "pl-7")}
           >
@@ -360,6 +361,7 @@ export function AppSidebar() {
             </div>
             <SidebarMenuButton
               asChild
+              size="sm"
               isActive={isActive("/clients", false)}
               className={cn(!collapsed && "pl-7", "flex-1")}
             >
@@ -388,7 +390,7 @@ export function AppSidebar() {
             )}
           </div>
           {!collapsed && clientsOpen && isAdminOrOwner && (
-            <SidebarMenuSub className="gap-0.5">
+            <SidebarMenuSub className="gap-[1px] pl-4">
               {(clients ?? []).slice(0, 20).map((c) => (
                 <SidebarMenuSubItem key={c.id}>
                   <SidebarMenuSubButton asChild size="sm" isActive={pathname === `/clients/${c.id}`}>
