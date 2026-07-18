@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS sidebar_order TEXT[] DEFAULT NULL;

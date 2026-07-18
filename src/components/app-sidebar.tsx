@@ -1,6 +1,6 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Users, ListChecks, Plus, UserCircle, CalendarDays, Settings, DollarSign, TrendingUp } from "lucide-react";
-import { useState, useEffect } from "react";
+import { LayoutDashboard, Users, ListChecks, Plus, CalendarDays, Settings, DollarSign, TrendingUp, GripVertical, ChevronDown, ChevronRight } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -13,17 +13,21 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
-  SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
 import { listClients } from "@/lib/clients.functions";
+import { saveSidebarOrder } from "@/lib/users.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/contexts/user-context";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type NavItem = { title: string; to: string; icon: typeof LayoutDashboard; exact?: boolean };
-const NAV_ITEMS: NavItem[] = [
+const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Dashboard", to: "/", icon: LayoutDashboard, exact: true },
   { title: "Clientes", to: "/clients", icon: Users },
   { title: "Funil Comercial", to: "/crm", icon: TrendingUp },
@@ -37,9 +41,10 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
-  const { currentUserRole } = useUserContext();
+  const { currentUserRole, sidebarOrder, setSidebarOrder } = useUserContext();
   const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
   const listFn = useServerFn(listClients);
+  const saveOrderFn = useServerFn(saveSidebarOrder);
   const { data: clients } = useQuery({
     queryKey: ["clients"],
     queryFn: () => listFn(),
@@ -69,6 +74,75 @@ export function AppSidebar() {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   }
+
+  const [clientsOpen, setClientsOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("CF_ClientsSectionOpen") !== "false";
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("CF_ClientsSectionOpen", String(clientsOpen));
+  }, [clientsOpen]);
+
+  const filteredItems = DEFAULT_NAV_ITEMS.filter(
+    (item) => isAdminOrOwner || (item.to !== "/finance" && item.to !== "/clients" && item.to !== "/crm"),
+  );
+
+  const [orderedItems, setOrderedItems] = useState<NavItem[]>([]);
+
+  useEffect(() => {
+    if (sidebarOrder && sidebarOrder.length > 0) {
+      const ordered: NavItem[] = [];
+      for (const to of sidebarOrder) {
+        const item = filteredItems.find((i) => i.to === to);
+        if (item) ordered.push(item);
+      }
+      for (const item of filteredItems) {
+        if (!ordered.some((o) => o.to === item.to)) {
+          ordered.push(item);
+        }
+      }
+      setOrderedItems(ordered);
+    } else {
+      setOrderedItems(filteredItems);
+    }
+  }, [sidebarOrder, currentUserRole]);
+
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
+
+  const handleDragStart = useCallback((index: number) => {
+    dragItem.current = index;
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    dragOverItem.current = index;
+  }, []);
+
+  const handleDrop = useCallback(async () => {
+    const from = dragItem.current;
+    const to = dragOverItem.current;
+    dragItem.current = null;
+    dragOverItem.current = null;
+    if (from === null || to === null || from === to) return;
+
+    const updated = [...orderedItems];
+    const [moved] = updated.splice(from, 1);
+    updated.splice(to, 0, moved);
+    setOrderedItems(updated);
+
+    const newOrder = updated.map((item) => item.to);
+    setSidebarOrder(newOrder);
+    try {
+      await saveOrderFn({ data: { order: newOrder } });
+    } catch {
+      // Revert on failure
+      setSidebarOrder(sidebarOrder);
+    }
+  }, [orderedItems, saveOrderFn, setSidebarOrder, sidebarOrder]);
 
   return (
     <Sidebar collapsible="icon">
@@ -108,14 +182,43 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.filter(item => isAdminOrOwner || (item.to !== "/finance" && item.to !== "/clients" && item.to !== "/crm")).map((item) => (
-                <SidebarMenuItem key={item.to}>
-                  <SidebarMenuButton asChild isActive={isActive(item.to, item.exact)}>
-                    <Link to={item.to} className="flex items-center gap-2">
-                      <item.icon className="h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </Link>
-                  </SidebarMenuButton>
+              {orderedItems.map((item, index) => (
+                <SidebarMenuItem
+                  key={item.to}
+                  draggable
+                  onDragStart={() => handleDragStart(index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDrop={handleDrop}
+                  onDragEnd={() => {
+                    dragItem.current = null;
+                    dragOverItem.current = null;
+                  }}
+                  className={cn(
+                    "group/nav-item transition-all duration-150",
+                    dragOverItem.current === index && "pt-6",
+                  )}
+                >
+                  <div className="relative flex items-center">
+                    <div
+                      className={cn(
+                        "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
+                        collapsed && "hidden",
+                      )}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <GripVertical className="h-3 w-3" />
+                    </div>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(item.to, item.exact)}
+                      className={cn(!collapsed && "pl-7")}
+                    >
+                      <Link to={item.to} className="flex items-center gap-2">
+                        <item.icon className="h-4 w-4" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </div>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
@@ -123,54 +226,66 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {isAdminOrOwner && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="flex items-center justify-between">
-              <span>Clientes</span>
-              {!collapsed && (
-                <Link
-                  to="/clients/new"
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label="Novo cliente"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </Link>
-              )}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {(clients ?? []).slice(0, 20).map((c) => (
-                  <SidebarMenuItem key={c.id}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname === `/clients/${c.id}`}
-                      size="sm"
-                    >
-                      <Link
-                        to="/clients/$id"
-                        params={{ id: c.id }}
-                        className="flex items-center gap-2"
-                      >
-                        <span
-                          className="h-1.5 w-1.5 rounded-full shrink-0"
-                          style={{ backgroundColor: c.color || "var(--primary)" }}
-                        />
-                        {!collapsed && <span className="truncate">{c.name}</span>}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-                {(clients?.length ?? 0) === 0 && !collapsed && (
-                  <div className="px-2 py-1 text-xs text-muted-foreground">
-                    Nenhum cliente ainda.
+          <Collapsible open={clientsOpen} onOpenChange={setClientsOpen}>
+            <SidebarGroup>
+              <CollapsibleTrigger asChild>
+                <SidebarGroupLabel className="flex items-center justify-between cursor-pointer select-none hover:bg-zinc-800/40 rounded-md px-2 py-1 transition-colors">
+                  <div className="flex items-center gap-1.5">
+                    {clientsOpen ? (
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                    <span>Clientes</span>
                   </div>
-                )}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+                  {!collapsed && clientsOpen && (
+                    <Link
+                      to="/clients/new"
+                      className="text-muted-foreground hover:text-foreground"
+                      aria-label="Novo cliente"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Link>
+                  )}
+                </SidebarGroupLabel>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {(clients ?? []).slice(0, 20).map((c) => (
+                      <SidebarMenuItem key={c.id}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={pathname === `/clients/${c.id}`}
+                          size="sm"
+                        >
+                          <Link
+                            to="/clients/$id"
+                            params={{ id: c.id }}
+                            className="flex items-center gap-2"
+                          >
+                            <span
+                              className="h-1.5 w-1.5 rounded-full shrink-0"
+                              style={{ backgroundColor: c.color || "var(--primary)" }}
+                            />
+                            {!collapsed && <span className="truncate">{c.name}</span>}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                    {(clients?.length ?? 0) === 0 && !collapsed && (
+                      <div className="px-2 py-1 text-xs text-muted-foreground">
+                        Nenhum cliente ainda.
+                      </div>
+                    )}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
         )}
       </SidebarContent>
-
-
     </Sidebar>
   );
 }

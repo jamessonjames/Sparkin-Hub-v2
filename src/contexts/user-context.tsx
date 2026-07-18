@@ -12,6 +12,7 @@ interface Profile {
   theme?: string;
   highlight_color?: string;
   custom_hex?: string;
+  sidebar_order?: string[] | null;
 }
 
 interface UserContextValue {
@@ -22,6 +23,8 @@ interface UserContextValue {
   profiles: Profile[];
   loading: boolean;
   refreshProfiles: () => Promise<void>;
+  sidebarOrder: string[] | null;
+  setSidebarOrder: (order: string[] | null) => void;
 }
 
 const UserContext = createContext<UserContextValue>({
@@ -32,6 +35,8 @@ const UserContext = createContext<UserContextValue>({
   profiles: [],
   loading: true,
   refreshProfiles: async () => {},
+  sidebarOrder: null,
+  setSidebarOrder: () => {},
 });
 
 export function UserProvider({ children }: { children: ReactNode }) {
@@ -40,12 +45,28 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sidebarOrder, setSidebarOrder] = useState<string[] | null>(null);
   const listProfilesFn = useServerFn(listProfiles);
 
   const refreshProfiles = async () => {
       try {
         const profilesData = await listProfilesFn();
-        setProfiles(profilesData.map((p: any) => ({ id: p.id, name: p.name, email: p.email, theme: p.theme, highlight_color: p.highlight_color, custom_hex: p.custom_hex })));
+        setProfiles(profilesData.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          email: p.email,
+          theme: p.theme,
+          highlight_color: p.highlight_color,
+          custom_hex: p.custom_hex,
+          sidebar_order: p.sidebar_order,
+        })));
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const currentProfile = profilesData.find((p: any) => p.id === user.id);
+          if (currentProfile?.sidebar_order) {
+            setSidebarOrder(currentProfile.sidebar_order);
+          }
+        }
       } catch {
         const { data: profilesData } = await supabase
           .from("profiles")
@@ -73,6 +94,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const role = (roleData?.role as AppRole) ?? null;
       setCurrentUserRole(role);
 
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("sidebar_order")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (profileData?.sidebar_order) {
+        setSidebarOrder(profileData.sidebar_order as string[]);
+      }
+
       await refreshProfiles();
 
       setLoading(false);
@@ -90,6 +120,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         profiles,
         loading,
         refreshProfiles,
+        sidebarOrder,
+        setSidebarOrder,
       }}
     >
       {children}
