@@ -21,6 +21,37 @@ const upsertSchema = z.object({
 export const listClients = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const { data: roleRow } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+      
+    const role = roleRow?.role ?? "collaborator";
+
+    if (role === "collaborator") {
+      const { data: assignedDemands, error: demandError } = await context.supabase
+        .from("demands")
+        .select("client_id")
+        .eq("assignee_user_id", context.userId)
+        .is("deleted_at", null);
+        
+      if (demandError) throw new Error(demandError.message);
+      
+      const clientIds = Array.from(new Set((assignedDemands ?? []).map(d => d.client_id)));
+      if (clientIds.length === 0) return [];
+      
+      const { data, error } = await context.supabase
+        .from("clients")
+        .select("id, name, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, slug, updated_at")
+        .in("id", clientIds)
+        .is("deleted_at", null)
+        .order("name", { ascending: true });
+        
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    }
+
     const { data, error } = await context.supabase
       .from("clients")
       .select("id, name, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, slug, updated_at")
@@ -34,6 +65,28 @@ export const getClient = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { id: string }) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
+    const { data: roleRow } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+      
+    const role = roleRow?.role ?? "collaborator";
+    
+    if (role === "collaborator") {
+      const { data: assignedDemands, error: countError } = await context.supabase
+        .from("demands")
+        .select("id")
+        .eq("client_id", data.id)
+        .eq("assignee_user_id", context.userId)
+        .is("deleted_at", null);
+        
+      if (countError) throw new Error(countError.message);
+      if (!assignedDemands || assignedDemands.length === 0) {
+        throw new Error("Você não tem acesso a este cliente.");
+      }
+    }
+
     const { data: client, error } = await context.supabase
       .from("clients")
       .select("*")

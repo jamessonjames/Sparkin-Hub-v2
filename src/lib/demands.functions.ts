@@ -41,13 +41,27 @@ const upsertSchema = z.object({
 export const listDemands = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    // Select '*' to dynamically ignore columns that do not exist yet (like estimated_hours)
-    const { data, error } = await context.supabase
+    const { data: roleRow } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+      
+    const role = roleRow?.role ?? "collaborator";
+
+    let query = context.supabase
       .from("demands")
       .select("*, clients(id, name), demand_comments(id)")
-      .is("deleted_at", null)
+      .is("deleted_at", null);
+
+    if (role === "collaborator") {
+      query = query.eq("assignee_user_id", context.userId);
+    }
+
+    const { data, error } = await query
       .order("sort_order", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false });
+
     if (error) throw new Error(error.message);
     
     // Map status_id to status if custom and add comments_count

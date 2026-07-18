@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState, useRef, useEffect } from "react";
 import { listDemands, batchUpdateDueDates, updateDemand } from "@/lib/demands.functions";
+import { listProfiles } from "@/lib/users.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff } from "lucide-react";
 import { STATUS_LABELS } from "@/lib/demand-labels";

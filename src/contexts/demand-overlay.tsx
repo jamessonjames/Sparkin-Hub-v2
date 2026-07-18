@@ -7,8 +7,15 @@ interface DemandOverlayState {
   defaultClientId?: string;
   defaultStatus?: string;
   defaultClientEditionId?: string;
+  defaultAssigneeId?: string;
   open: (id: string, clients?: { id: string; name: string }[]) => void;
-  openNew: (clients: { id: string; name: string }[], defaultClientId?: string, defaultStatus?: string, defaultClientEditionId?: string) => void;
+  openNew: (
+    clients: { id: string; name: string }[],
+    defaultClientId?: string,
+    defaultStatus?: string,
+    defaultClientEditionId?: string,
+    defaultAssigneeId?: string
+  ) => void;
   close: () => void;
   minimize: () => void;
   restore: () => void;
@@ -23,6 +30,7 @@ export function DemandOverlayProvider({ children }: { children: ReactNode }) {
   const [defaultClientId, setDefaultClientId] = useState<string | undefined>(undefined);
   const [defaultStatus, setDefaultStatus] = useState<string | undefined>(undefined);
   const [defaultClientEditionId, setDefaultClientEditionId] = useState<string | undefined>(undefined);
+  const [defaultAssigneeId, setDefaultAssigneeId] = useState<string | undefined>(undefined);
 
   function open(id: string, cls?: { id: string; name: string }[]) {
     setDemandId(id);
@@ -30,16 +38,24 @@ export function DemandOverlayProvider({ children }: { children: ReactNode }) {
     setDefaultClientId(undefined);
     setDefaultStatus(undefined);
     setDefaultClientEditionId(undefined);
+    setDefaultAssigneeId(undefined);
     if (cls) setClients(cls);
   }
 
-  function openNew(cls: { id: string; name: string }[], defaultClientId?: string, defaultStatus?: string, defaultClientEditionId?: string) {
+  function openNew(
+    cls: { id: string; name: string }[],
+    defaultClientId?: string,
+    defaultStatus?: string,
+    defaultClientEditionId?: string,
+    defaultAssigneeId?: string
+  ) {
     setDemandId("new");
     setMinimized(false);
     setClients(cls);
     setDefaultClientId(defaultClientId || cls[0]?.id);
     setDefaultStatus(defaultStatus || "nao_iniciado");
     setDefaultClientEditionId(defaultClientEditionId);
+    setDefaultAssigneeId(defaultAssigneeId);
   }
 
   function close() {
@@ -48,6 +64,7 @@ export function DemandOverlayProvider({ children }: { children: ReactNode }) {
     setDefaultClientId(undefined);
     setDefaultStatus(undefined);
     setDefaultClientEditionId(undefined);
+    setDefaultAssigneeId(undefined);
   }
 
   function minimize() {
@@ -67,6 +84,7 @@ export function DemandOverlayProvider({ children }: { children: ReactNode }) {
         defaultClientId,
         defaultStatus,
         defaultClientEditionId,
+        defaultAssigneeId,
         open,
         openNew,
         close,

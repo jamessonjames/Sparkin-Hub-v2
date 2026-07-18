@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -118,6 +119,28 @@ const CATEGORIES_EXPENSE = [
 
 function FinancePage() {
   const queryClient = useQueryClient();
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [loadingRole, setLoadingRole] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) {
+        supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.user.id)
+          .maybeSingle()
+          .then(({ data: roleData }) => {
+            if (roleData) {
+              setCurrentUserRole(roleData.role);
+            }
+            setLoadingRole(false);
+          });
+      } else {
+        setLoadingRole(false);
+      }
+    });
+  }, []);
 
   // Period State (Current month and year)
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth() + 1);
@@ -277,6 +300,21 @@ function FinancePage() {
       }
     },
   });
+
+  if (loadingRole) {
+    return <div className="p-12 text-center text-muted-foreground text-sm font-sans animate-pulse">Carregando permissões...</div>;
+  }
+
+  if (currentUserRole === "collaborator") {
+    return (
+      <div className="p-12 text-center space-y-4 max-w-xl mx-auto mt-12 bg-card border border-border rounded-xl">
+        <h2 className="text-xl font-bold text-foreground font-display">Acesso Restrito</h2>
+        <p className="text-sm text-muted-foreground">
+          Colaboradores não têm acesso às informações e lançamentos do painel financeiro do sistema.
+        </p>
+      </div>
+    );
+  }
 
   // Navigation handlers
   const handlePrevMonth = () => {

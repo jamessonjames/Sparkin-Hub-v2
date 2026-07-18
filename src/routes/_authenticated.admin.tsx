@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listUsersWithRoles, updateUserRole } from "@/lib/users.functions";
+import { listUsersWithRoles, updateUserRole, createUserWithRole, updateUserAdmin, deleteUserAdmin } from "@/lib/users.functions";
 import { uploadToGDrive, getGoogleDriveStatus, disconnectGoogleDrive, exchangeGoogleCode } from "@/lib/gdrive.functions";
 import { getPricingSettings, savePricingSettings } from "@/lib/pricing.functions";
 import { applyThemeAndHighlight, HIGHLIGHT_COLORS, type HighlightColor } from "@/utils/theme";
@@ -58,6 +58,9 @@ function AdminPage() {
   const qc = useQueryClient();
   const listUsersFn = useServerFn(listUsersWithRoles);
   const updateRoleFn = useServerFn(updateUserRole);
+  const createUserFn = useServerFn(createUserWithRole);
+  const updateUserFn = useServerFn(updateUserAdmin);
+  const deleteUserFn = useServerFn(deleteUserAdmin);
 
   // Logged-in user state
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -359,25 +362,7 @@ function AdminPage() {
 
   async function handleRoleChange(userId: string, newRole: "owner" | "admin" | "collaborator") {
     try {
-      const { data, error } = await supabase.functions.invoke("admin-users", {
-        body: {
-          action: "updateUserRole",
-          user_id: userId,
-          role: newRole,
-        },
-      });
-
-      if (error) {
-        let msg = error.message;
-        try {
-          if (error.context && typeof error.context.json === "function") {
-            const body = await error.context.json();
-            if (body && body.error) msg = body.error;
-          }
-        } catch (_) {}
-        throw new Error(msg);
-      }
-
+      await updateRoleFn({ data: { userId, role: newRole } });
       toast.success("Nível de acesso atualizado com sucesso!");
       qc.invalidateQueries({ queryKey: ["users-with-roles"] });
     } catch (e) {
@@ -398,26 +383,14 @@ function AdminPage() {
 
     setCreatingUser(true);
     try {
-      const { data, error } = await supabase.functions.invoke("admin-users", {
-        body: {
-          action: "createUser",
+      await createUserFn({
+        data: {
           email: newEmail,
           password: newPassword,
           name: newName,
           role: newRole,
         },
       });
-
-      if (error) {
-        let msg = error.message;
-        try {
-          if (error.context && typeof error.context.json === "function") {
-            const body = await error.context.json();
-            if (body && body.error) msg = body.error;
-          }
-        } catch (_) {}
-        throw new Error(msg);
-      }
 
       toast.success("Usuário criado com sucesso!");
       setOpenCreate(false);
@@ -443,26 +416,14 @@ function AdminPage() {
 
     setUpdatingUser(true);
     try {
-      const { data, error } = await supabase.functions.invoke("admin-users", {
-        body: {
-          action: "updateUser",
-          user_id: editingUser.id,
+      await updateUserFn({
+        data: {
+          userId: editingUser.id,
           name: editName,
           email: editEmail,
           password: editPassword ? editPassword : undefined,
         },
       });
-
-      if (error) {
-        let msg = error.message;
-        try {
-          if (error.context && typeof error.context.json === "function") {
-            const body = await error.context.json();
-            if (body && body.error) msg = body.error;
-          }
-        } catch (_) {}
-        throw new Error(msg);
-      }
 
       toast.success("Informações do usuário atualizadas com sucesso!");
       setOpenEdit(false);
@@ -484,23 +445,11 @@ function AdminPage() {
     }
 
     try {
-      const { data, error } = await supabase.functions.invoke("admin-users", {
-        body: {
-          action: "deleteUser",
-          user_id: userId,
+      await deleteUserFn({
+        data: {
+          userId,
         },
       });
-
-      if (error) {
-        let msg = error.message;
-        try {
-          if (error.context && typeof error.context.json === "function") {
-            const body = await error.context.json();
-            if (body && body.error) msg = body.error;
-          }
-        } catch (_) {}
-        throw new Error(msg);
-      }
 
       toast.success("Usuário excluído com sucesso!");
       qc.invalidateQueries({ queryKey: ["users-with-roles"] });
@@ -522,15 +471,19 @@ function AdminPage() {
           <TabsTrigger value="branding" className="text-xs gap-1.5">
             <Palette className="h-3.5 w-3.5" /> Marca & Tema
           </TabsTrigger>
-          <TabsTrigger value="access" className="text-xs gap-1.5">
-            <Users className="h-3.5 w-3.5" /> Controle de Acesso
-          </TabsTrigger>
-          <TabsTrigger value="integrations" className="text-xs gap-1.5">
-            <LinkIcon className="h-3.5 w-3.5" /> Integrações
-          </TabsTrigger>
-          <TabsTrigger value="pricing" className="text-xs gap-1.5">
-            <DollarSign className="h-3.5 w-3.5" /> Precificação & Tarifas
-          </TabsTrigger>
+          {currentUserRole !== "collaborator" && (
+            <>
+              <TabsTrigger value="access" className="text-xs gap-1.5">
+                <Users className="h-3.5 w-3.5" /> Controle de Acesso
+              </TabsTrigger>
+              <TabsTrigger value="integrations" className="text-xs gap-1.5">
+                <LinkIcon className="h-3.5 w-3.5" /> Integrações
+              </TabsTrigger>
+              <TabsTrigger value="pricing" className="text-xs gap-1.5">
+                <DollarSign className="h-3.5 w-3.5" /> Precificação & Tarifas
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         {/* ── SEÇÃO: MARCA & TEMA ── */}
@@ -542,45 +495,49 @@ function AdminPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSaveBranding} className="space-y-5 max-w-xl">
-                <div className="space-y-1">
-                  <Label htmlFor="sysname" className="text-xs text-muted-foreground font-semibold">Nome do Sistema</Label>
-                  <Input
-                    id="sysname"
-                    value={systemName}
-                    onChange={(e) => setSystemName(e.target.value)}
-                    className="bg-surface-2 border-border text-foreground text-sm h-9"
-                  />
-                </div>
+                {currentUserRole !== "collaborator" && (
+                  <>
+                    <div className="space-y-1">
+                      <Label htmlFor="sysname" className="text-xs text-muted-foreground font-semibold">Nome do Sistema</Label>
+                      <Input
+                        id="sysname"
+                        value={systemName}
+                        onChange={(e) => setSystemName(e.target.value)}
+                        className="bg-surface-2 border-border text-foreground text-sm h-9"
+                      />
+                    </div>
 
-                <div className="space-y-1">
-                  <Label htmlFor="favicon" className="text-xs text-muted-foreground font-semibold font-sans">URL do Favicon (.ico / .png)</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="favicon"
-                      placeholder="https://exemplo.com/favicon.png"
-                      value={faviconUrl}
-                      onChange={(e) => setFaviconUrl(e.target.value)}
-                      className="bg-surface-2 border-border text-foreground text-sm h-9 flex-1"
-                    />
-                    <input
-                      type="file"
-                      ref={faviconInputRef}
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleFaviconUpload}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={uploadingFavicon}
-                      onClick={() => faviconInputRef.current?.click()}
-                      className="border-border gap-1.5 text-xs text-foreground hover:bg-surface-2 h-9 cursor-pointer"
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      {uploadingFavicon ? "Subindo..." : "Subir"}
-                    </Button>
-                  </div>
-                </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="favicon" className="text-xs text-muted-foreground font-semibold font-sans">URL do Favicon (.ico / .png)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="favicon"
+                          placeholder="https://exemplo.com/favicon.png"
+                          value={faviconUrl}
+                          onChange={(e) => setFaviconUrl(e.target.value)}
+                          className="bg-surface-2 border-border text-foreground text-sm h-9 flex-1"
+                        />
+                        <input
+                          type="file"
+                          ref={faviconInputRef}
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleFaviconUpload}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={uploadingFavicon}
+                          onClick={() => faviconInputRef.current?.click()}
+                          className="border-border gap-1.5 text-xs text-foreground hover:bg-surface-2 h-9 cursor-pointer"
+                        >
+                          <Upload className="h-3.5 w-3.5" />
+                          {uploadingFavicon ? "Subindo..." : "Subir"}
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground font-semibold">Tema Padrão</Label>
@@ -719,11 +676,13 @@ function AdminPage() {
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-border">
-                  <Button type="submit" className="gap-2 px-6 text-xs h-9 btn-primary">
-                    <Save className="h-4 w-4" /> Salvar Nome & Favicon
-                  </Button>
-                </div>
+                {currentUserRole !== "collaborator" && (
+                  <div className="pt-2 border-t border-border">
+                    <Button type="submit" className="gap-2 px-6 text-xs h-9 btn-primary">
+                      <Save className="h-4 w-4" /> Salvar Nome & Favicon
+                    </Button>
+                  </div>
+                )}
               </form>
             </CardContent>
           </Card>
