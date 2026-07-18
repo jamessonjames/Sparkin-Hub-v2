@@ -1,6 +1,6 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { LayoutDashboard, Users, ListChecks, Plus, CalendarDays, Settings, DollarSign, TrendingUp, GripVertical, ChevronDown, ChevronRight } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -114,6 +114,15 @@ export function AppSidebar() {
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   function handleDragStart(e: React.DragEvent, index: number) {
+    const ghost = document.createElement("div");
+    ghost.textContent = orderedItems[index].title;
+    ghost.style.cssText =
+      "position:fixed;top:-1000px;left:-1000px;padding:8px 16px;border-radius:8px;background:#18181b;color:#fff;font-size:14px;border:1px solid #27272a;z-index:99999;font-family:Inter,sans-serif;white-space:nowrap;";
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 0, 0);
+    setTimeout(() => document.body.removeChild(ghost), 0);
+
+    e.dataTransfer.clearData();
     e.dataTransfer.setData("text/plain", String(index));
     e.dataTransfer.effectAllowed = "move";
     setDragFrom(index);
@@ -122,7 +131,9 @@ export function AppSidebar() {
   function handleDragOver(e: React.DragEvent, index: number) {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    setDragOverIdx(index);
+    if (dragOverIdx !== index) {
+      setDragOverIdx(index);
+    }
   }
 
   function handleDragLeave() {
@@ -210,7 +221,7 @@ export function AppSidebar() {
                   >
                     <div className="relative flex items-center">
                       {isOver && (
-                        <div className="absolute -top-1 left-2 right-2 h-1 rounded-full bg-primary/40 z-10" />
+                        <div className="absolute -top-1.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
                       )}
                       <div
                         className={cn(
@@ -225,12 +236,7 @@ export function AppSidebar() {
                         isActive={isActive(item.to, item.exact)}
                         className={cn(!collapsed && "pl-7")}
                       >
-                        <Link
-                          to={item.to}
-                          className="flex items-center gap-2 select-none"
-                          draggable={false}
-                          onDragStart={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                        >
+                        <Link to={item.to} className="flex items-center gap-2 select-none">
                           <item.icon className="h-4 w-4" />
                           {!collapsed && <span>{item.title}</span>}
                         </Link>
