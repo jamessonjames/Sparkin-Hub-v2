@@ -242,6 +242,24 @@ export function DemandDetailDialog({
     ? portalBillingModel === "credits"
     : selectedClient?.billing_model === "credits";
 
+  const headerInfoText = useMemo(() => {
+    if (isNew) return "";
+    
+    const parts: string[] = [];
+    if (portalMode) {
+      if (portalClientName) parts.push(portalClientName);
+    } else if (selectedClient) {
+      parts.push(selectedClient.name);
+      if (selectedClient.billing_model === "seasonal" && clientEditionId) {
+        const ed = clientEditions.find((e: any) => e.id === clientEditionId);
+        if (ed) {
+          parts.push(ed.name);
+        }
+      }
+    }
+    return parts.join(" • ");
+  }, [isNew, portalMode, portalClientName, selectedClient, clientEditionId, clientEditions]);
+
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentBody, setEditingCommentBody] = useState("");
 
@@ -678,22 +696,27 @@ export function DemandDetailDialog({
           <div className="flex-1 flex items-center justify-center text-muted-foreground">Carregando...</div>
         ) : (
           <>
-            {/* ── TOP BAR ── */}
-            <div className="flex items-center gap-4 px-5 py-2.5 border-b border-border shrink-0 flex-wrap bg-card/85 w-full">
-              <div className="flex-1 min-w-[200px]">
-                {fieldsEditable ? (
-                  <Input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="text-base font-bold bg-transparent border-transparent hover:border-input focus:border-primary/65 text-foreground h-8 transition-colors p-0.5 px-2 rounded w-full max-w-xl focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/60 placeholder:italic"
-                    placeholder={isNew ? "Título da nova demanda..." : "Título da demanda..."}
-                  />
-                ) : (
-                  <h2 className="text-base font-bold text-foreground px-2 py-0.5 leading-snug line-clamp-1">
-                    {title}
-                  </h2>
-                )}
-              </div>
+             {/* ── TOP BAR ── */}
+             <div className="flex items-center gap-4 px-5 py-2 border-b border-border shrink-0 flex-wrap bg-card/85 w-full">
+               <div className="flex-1 min-w-[200px] flex flex-col justify-center">
+                 {headerInfoText && (
+                   <span className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider px-2 mb-0.5">
+                     {headerInfoText}
+                   </span>
+                 )}
+                 {fieldsEditable ? (
+                   <Input
+                     value={title}
+                     onChange={(e) => setTitle(e.target.value)}
+                     className="text-base font-bold bg-transparent border-transparent hover:border-input focus:border-primary/65 text-foreground h-8 transition-colors p-0.5 px-2 rounded w-full max-w-xl focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/60 placeholder:italic"
+                     placeholder={isNew ? "Título da nova demanda..." : "Título da demanda..."}
+                   />
+                 ) : (
+                   <h2 className="text-base font-bold text-foreground px-2 py-0.5 leading-snug line-clamp-1">
+                     {title}
+                   </h2>
+                 )}
+               </div>
 
               <div className="ml-auto flex items-center gap-1.5">
                 {!isNew && (
@@ -736,8 +759,8 @@ export function DemandDetailDialog({
                 {/* Meta fields row — flex-wrap so chips stay naturally sized (left-aligned) */}
                 <div className="flex flex-wrap gap-x-6 gap-y-3 bg-muted/20 p-4 rounded-xl border border-border/80 shrink-0">
 
-                  {/* Client — admin only */}
-                  {!portalMode && (
+                  {/* Client — admin only, visible only on creation if there are multiple clients to choose from */}
+                  {!portalMode && isNew && clients.length > 1 && (
                     <div className="flex flex-col gap-1">
                       <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Cliente</label>
                       <Select value={clientId} onValueChange={setClientId}>
@@ -873,8 +896,8 @@ export function DemandDetailDialog({
                     </div>
                   )}
                   
-                  {/* Edition Select — visible if seasonal billing enabled */}
-                  {!portalMode && selectedClient?.billing_model === "seasonal" && (
+                  {/* Edition Select — visible only on creation if seasonal billing enabled */}
+                  {!portalMode && isNew && selectedClient?.billing_model === "seasonal" && (
                     <div className="flex flex-col gap-1">
                       <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Edição</label>
                       <Select value={clientEditionId} onValueChange={setClientEditionId}>
