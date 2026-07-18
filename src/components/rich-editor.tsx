@@ -114,7 +114,15 @@ export function RichEditor({
     content: content || "",
     editable: !readOnly,
     onUpdate: ({ editor }) => {
-      if (!readOnly) onChange(editor.getHTML());
+      if (!readOnly) {
+        if (!isChatInput && editor.state.doc.childCount === 1) {
+          const firstChild = editor.state.doc.firstChild;
+          if (firstChild && firstChild.type.name === "paragraph" && firstChild.textContent.length > 0) {
+            editor.commands.setNode("heading", { level: 1 });
+          }
+        }
+        onChange(editor.getHTML());
+      }
     },
     editorProps: {
       attributes: {

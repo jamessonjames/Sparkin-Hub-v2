@@ -297,6 +297,141 @@ export function DemandDetailDialog({
     }
   }, [isNew, clientEditions, defaultClientEditionId, clientEditionId]);
 
+  // Debounced auto-save for description
+  useEffect(() => {
+    if (isNew) return;
+
+    const dbDesc = portalMode 
+      ? (initialDemandData?.description || "") 
+      : (demand?.description || "");
+
+    if (description === dbDesc) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        if (portalMode) {
+          await updatePortalFn({
+            data: {
+              slug: portalSlug!,
+              id,
+              title: title.trim(),
+              description: description || null,
+              status,
+              priority,
+              due_date: dueDate || null,
+            },
+          });
+          onPortalDemandUpdated?.({
+            id,
+            title: title.trim(),
+            status,
+            priority,
+            due_date: dueDate || null,
+            description: description || null,
+          });
+        } else {
+          let finalDueDate = null;
+          if (dueDate) {
+            const origDatePart = demand?.due_date ? demand.due_date.slice(0, 10) : "";
+            if (dueDate === origDatePart && demand?.due_date) {
+              finalDueDate = demand.due_date;
+            } else {
+              const origTimePart = demand?.due_date && demand.due_date.includes("T")
+                ? demand.due_date.split("T")[1]
+                : "12:00:00";
+              finalDueDate = `${dueDate}T${origTimePart}`;
+            }
+          }
+
+          await updateFn({
+            data: {
+              id,
+              client_id: clientId,
+              title,
+              description: description,
+              status,
+              priority,
+              due_date: finalDueDate,
+              estimated_credits: estimatedCredits,
+              estimated_hours: estimatedHours,
+              internal_notes: demand?.internal_notes,
+              assignee_user_id: assigneeId || null,
+              client_edition_id: clientEditionId || null,
+              price: price ?? null,
+            },
+          });
+        }
+        qc.invalidateQueries({ queryKey: ["demand", id] });
+        qc.invalidateQueries({ queryKey: ["demands"] });
+        toast.success("Descrição salva automaticamente!");
+      } catch (e) {
+        toast.error("Erro ao salvar descrição automaticamente");
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [description, isNew, portalMode, demand?.description, initialDemandData?.description, clientId, title, status, priority, dueDate, estimatedCredits, estimatedHours, assigneeId, clientEditionId, price]);
+
+  async function handleClose() {
+    const dbDesc = portalMode 
+      ? (initialDemandData?.description || "") 
+      : (demand?.description || "");
+      
+    if (!isNew && description !== dbDesc && title.trim()) {
+      try {
+        if (portalMode) {
+          await updatePortalFn({
+            data: {
+              slug: portalSlug!,
+              id,
+              title: title.trim(),
+              description: description || null,
+              status,
+              priority,
+              due_date: dueDate || null,
+            },
+          });
+        } else {
+          let finalDueDate = null;
+          if (dueDate) {
+            const origDatePart = demand?.due_date ? demand.due_date.slice(0, 10) : "";
+            if (dueDate === origDatePart && demand?.due_date) {
+              finalDueDate = demand.due_date;
+            } else {
+              const origTimePart = demand?.due_date && demand.due_date.includes("T")
+                ? demand.due_date.split("T")[1]
+                : "12:00:00";
+              finalDueDate = `${dueDate}T${origTimePart}`;
+            }
+          }
+
+          await updateFn({
+            data: {
+              id,
+              client_id: clientId,
+              title,
+              description: description,
+              status,
+              priority,
+              due_date: finalDueDate,
+              estimated_credits: estimatedCredits,
+              estimated_hours: estimatedHours,
+              internal_notes: demand?.internal_notes,
+              assignee_user_id: assigneeId || null,
+              client_edition_id: clientEditionId || null,
+              price: price ?? null,
+            },
+          });
+        }
+        qc.invalidateQueries({ queryKey: ["demand", id] });
+        qc.invalidateQueries({ queryKey: ["demands"] });
+      } catch (e) {
+        console.error("Erro ao salvar descrição ao fechar:", e);
+      }
+    }
+    onClose();
+  }
+
   // ── Dirty check ──
   const isDirty = isNew
     ? title.trim() !== ""
@@ -529,7 +664,14 @@ export function DemandDetailDialog({
   const isOverdue = dueDate && dueDate < today;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleClose();
+        }
+      }}
+    >
       <div className="relative w-full max-w-[95vw] lg:max-w-5xl xl:max-w-6xl h-[90vh] bg-card border border-border rounded-2xl flex flex-col overflow-hidden shadow-2xl my-auto mx-auto animate-in fade-in zoom-in duration-200">
 
         {(!isNew && !portalMode && isDemandLoading) ? (
@@ -575,7 +717,7 @@ export function DemandDetailDialog({
                   </button>
                 )}
                 <button
-                  onClick={onClose}
+                  onClick={handleClose}
                   title="Fechar"
                   className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
                   aria-label="Fechar"
@@ -921,8 +1063,8 @@ export function DemandDetailDialog({
                 </span>
               </div>
               <div className="flex gap-2">
-                <Button variant="ghost" onClick={onClose} className="h-9 px-4 text-xs">
-                  Cancelar
+                <Button variant="ghost" onClick={handleClose} className="h-9 px-4 text-xs">
+                  {isNew ? "Cancelar" : "Fechar"}
                 </Button>
                 <Button
                   onClick={handleSave}
