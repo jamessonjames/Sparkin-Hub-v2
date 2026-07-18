@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/sidebar";
 import { listClients } from "@/lib/clients.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserContext } from "@/contexts/user-context";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +36,8 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
+  const { currentUserRole } = useUserContext();
+  const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
   const listFn = useServerFn(listClients);
   const { data: clients } = useQuery({
     queryKey: ["clients"],
@@ -104,7 +107,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.map((item) => (
+              {NAV_ITEMS.filter(item => isAdminOrOwner || (item.to !== "/finance" && item.to !== "/clients")).map((item) => (
                 <SidebarMenuItem key={item.to}>
                   <SidebarMenuButton asChild isActive={isActive(item.to, item.exact)}>
                     <Link to={item.to} className="flex items-center gap-2">
@@ -118,47 +121,49 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="flex items-center justify-between">
-            <span>Clientes</span>
-            {!collapsed && (
-              <Link
-                to="/clients/new"
-                className="text-muted-foreground hover:text-foreground"
-                aria-label="Novo cliente"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </Link>
-            )}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {(clients ?? []).slice(0, 20).map((c) => (
-                <SidebarMenuItem key={c.id}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === `/clients/${c.id}`}
-                    size="sm"
-                  >
-                    <Link
-                      to="/clients/$id"
-                      params={{ id: c.id }}
-                      className="flex items-center gap-2"
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full bg-primary/60 shrink-0" />
-                      {!collapsed && <span className="truncate">{c.name}</span>}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-              {(clients?.length ?? 0) === 0 && !collapsed && (
-                <div className="px-2 py-1 text-xs text-muted-foreground">
-                  Nenhum cliente ainda.
-                </div>
+        {isAdminOrOwner && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="flex items-center justify-between">
+              <span>Clientes</span>
+              {!collapsed && (
+                <Link
+                  to="/clients/new"
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label="Novo cliente"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Link>
               )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {(clients ?? []).slice(0, 20).map((c) => (
+                  <SidebarMenuItem key={c.id}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === `/clients/${c.id}`}
+                      size="sm"
+                    >
+                      <Link
+                        to="/clients/$id"
+                        params={{ id: c.id }}
+                        className="flex items-center gap-2"
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary/60 shrink-0" />
+                        {!collapsed && <span className="truncate">{c.name}</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+                {(clients?.length ?? 0) === 0 && !collapsed && (
+                  <div className="px-2 py-1 text-xs text-muted-foreground">
+                    Nenhum cliente ainda.
+                  </div>
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
 
