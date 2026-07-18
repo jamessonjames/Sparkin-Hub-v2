@@ -388,10 +388,10 @@ export function AppSidebar() {
             )}
           </div>
           {!collapsed && clientsOpen && isAdminOrOwner && (
-            <SidebarMenuSub>
+            <SidebarMenuSub className="gap-0.5">
               {(clients ?? []).slice(0, 20).map((c) => (
                 <SidebarMenuSubItem key={c.id}>
-                  <SidebarMenuSubButton asChild isActive={pathname === `/clients/${c.id}`}>
+                  <SidebarMenuSubButton asChild size="sm" isActive={pathname === `/clients/${c.id}`}>
                     <Link
                       to="/clients/$id"
                       params={{ id: c.id }}
@@ -470,7 +470,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="gap-1.5">
+            <SidebarMenu className="gap-2">
               {orderedItems.map((item, index) => renderNavItem(item, index))}
             </SidebarMenu>
           </SidebarGroupContent>
