@@ -208,12 +208,9 @@ export function AppSidebar() {
                 return (
                   <SidebarMenuItem
                     key={item.to}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, index)}
                     onDragOver={(e) => handleDragOver(e, index)}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
-                    onDragEnd={handleDragEnd}
                     className={cn(
                       "group/nav-item transition-all duration-150",
                       isDragging && "opacity-40",
@@ -224,6 +221,9 @@ export function AppSidebar() {
                         <div className="absolute -top-1.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
                       )}
                       <div
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragEnd={handleDragEnd}
                         className={cn(
                           "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
                           collapsed && "hidden",
