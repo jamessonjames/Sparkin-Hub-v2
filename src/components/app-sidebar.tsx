@@ -199,38 +199,41 @@ export function AppSidebar() {
                     {isOver && (
                       <div className="h-1 rounded-full bg-primary/40 mx-2 my-0.5 transition-all duration-150" />
                     )}
-                    <SidebarMenuItem
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, index)}
-                      onDragOver={(e) => handleDragOver(e, index)}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      onDragEnd={handleDragEnd}
-                      className={cn(
-                        "group/nav-item transition-all duration-150",
-                        isDragging && "opacity-40",
-                      )}
-                    >
-                      <div className="relative flex items-center">
-                        <div
-                          className={cn(
-                            "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
-                            collapsed && "hidden",
-                          )}
-                          onMouseDown={(e) => e.stopPropagation()}
-                        >
-                          <GripVertical className="h-3 w-3" />
+                    <SidebarMenuItem className="group/nav-item">
+                      <div
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragOver={(e) => handleDragOver(e, index)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onDragEnd={handleDragEnd}
+                        className={cn("transition-all duration-150", isDragging && "opacity-40")}
+                      >
+                        <div className="relative flex items-center">
+                          <div
+                            className={cn(
+                              "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
+                              collapsed && "hidden",
+                            )}
+                          >
+                            <GripVertical className="h-3 w-3" />
+                          </div>
+                          <SidebarMenuButton
+                            asChild
+                            isActive={isActive(item.to, item.exact)}
+                            className={cn(!collapsed && "pl-7")}
+                          >
+                            <Link
+                              to={item.to}
+                              className="flex items-center gap-2 select-none"
+                              draggable={false}
+                              onDragStart={(e) => { e.preventDefault(); }}
+                            >
+                              <item.icon className="h-4 w-4" />
+                              {!collapsed && <span>{item.title}</span>}
+                            </Link>
+                          </SidebarMenuButton>
                         </div>
-                        <SidebarMenuButton
-                          asChild
-                          isActive={isActive(item.to, item.exact)}
-                          className={cn(!collapsed && "pl-7")}
-                        >
-                          <Link to={item.to} className="flex items-center gap-2" draggable={false}>
-                            <item.icon className="h-4 w-4" />
-                            {!collapsed && <span>{item.title}</span>}
-                          </Link>
-                        </SidebarMenuButton>
                       </div>
                     </SidebarMenuItem>
                   </div>
