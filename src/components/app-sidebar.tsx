@@ -1,6 +1,6 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { LayoutDashboard, Users, ListChecks, Plus, CalendarDays, Settings, DollarSign, TrendingUp, GripVertical, ChevronDown, ChevronRight } from "lucide-react";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -110,23 +110,31 @@ export function AppSidebar() {
     }
   }, [sidebarOrder, currentUserRole]);
 
-  const dragItem = useRef<number | null>(null);
-  const dragOverItem = useRef<number | null>(null);
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
-  const handleDragStart = useCallback((index: number) => {
-    dragItem.current = index;
-  }, []);
+  function handleDragStart(e: React.DragEvent, index: number) {
+    e.dataTransfer.setData("text/plain", String(index));
+    e.dataTransfer.effectAllowed = "move";
+    setDragFrom(index);
+  }
 
-  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+  function handleDragOver(e: React.DragEvent, index: number) {
     e.preventDefault();
-    dragOverItem.current = index;
-  }, []);
+    e.dataTransfer.dropEffect = "move";
+    setDragOverIdx(index);
+  }
 
-  const handleDrop = useCallback(async () => {
-    const from = dragItem.current;
-    const to = dragOverItem.current;
-    dragItem.current = null;
-    dragOverItem.current = null;
+  function handleDragLeave() {
+    setDragOverIdx(null);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const from = dragFrom;
+    const to = dragOverIdx;
+    setDragFrom(null);
+    setDragOverIdx(null);
     if (from === null || to === null || from === to) return;
 
     const updated = [...orderedItems];
@@ -136,13 +144,13 @@ export function AppSidebar() {
 
     const newOrder = updated.map((item) => item.to);
     setSidebarOrder(newOrder);
-    try {
-      await saveOrderFn({ data: { order: newOrder } });
-    } catch {
-      // Revert on failure
-      setSidebarOrder(sidebarOrder);
-    }
-  }, [orderedItems, saveOrderFn, setSidebarOrder, sidebarOrder]);
+    saveOrderFn({ data: { order: newOrder } }).catch(() => {});
+  }
+
+  function handleDragEnd() {
+    setDragFrom(null);
+    setDragOverIdx(null);
+  }
 
   return (
     <Sidebar collapsible="icon">
@@ -182,45 +190,52 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {orderedItems.map((item, index) => (
-                <SidebarMenuItem
-                  key={item.to}
-                  draggable
-                  onDragStart={() => handleDragStart(index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDrop={handleDrop}
-                  onDragEnd={() => {
-                    dragItem.current = null;
-                    dragOverItem.current = null;
-                  }}
-                  className={cn(
-                    "group/nav-item transition-all duration-150",
-                    dragOverItem.current === index && "pt-6",
-                  )}
-                >
-                  <div className="relative flex items-center">
-                    <div
+              {orderedItems.map((item, index) => {
+                const isOver = dragOverIdx === index;
+                const isDragging = dragFrom === index;
+
+                return (
+                  <div key={item.to} className="relative">
+                    {isOver && (
+                      <div className="h-1 rounded-full bg-primary/40 mx-2 my-0.5 transition-all duration-150" />
+                    )}
+                    <SidebarMenuItem
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onDragEnd={handleDragEnd}
                       className={cn(
-                        "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
-                        collapsed && "hidden",
+                        "group/nav-item transition-all duration-150",
+                        isDragging && "opacity-40",
                       )}
-                      onMouseDown={(e) => e.stopPropagation()}
                     >
-                      <GripVertical className="h-3 w-3" />
-                    </div>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.to, item.exact)}
-                      className={cn(!collapsed && "pl-7")}
-                    >
-                      <Link to={item.to} className="flex items-center gap-2">
-                        <item.icon className="h-4 w-4" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </Link>
-                    </SidebarMenuButton>
+                      <div className="relative flex items-center">
+                        <div
+                          className={cn(
+                            "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
+                            collapsed && "hidden",
+                          )}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
+                          <GripVertical className="h-3 w-3" />
+                        </div>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive(item.to, item.exact)}
+                          className={cn(!collapsed && "pl-7")}
+                        >
+                          <Link to={item.to} className="flex items-center gap-2" draggable={false}>
+                            <item.icon className="h-4 w-4" />
+                            {!collapsed && <span>{item.title}</span>}
+                          </Link>
+                        </SidebarMenuButton>
+                      </div>
+                    </SidebarMenuItem>
                   </div>
-                </SidebarMenuItem>
-              ))}
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
