@@ -4,8 +4,9 @@ import { z } from "zod";
 
 export const listProfiles = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+  .handler(async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
       .from("profiles")
       .select("id, name, email, avatar_url")
       .order("name", { ascending: true });
@@ -16,6 +17,8 @@ export const listProfiles = createServerFn({ method: "GET" })
 export const listUsersWithRoles = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
     // Query profiles
     const { data: profiles, error: pe } = await context.supabase
       .from("profiles")
@@ -23,8 +26,8 @@ export const listUsersWithRoles = createServerFn({ method: "GET" })
       .order("name", { ascending: true });
     if (pe) throw new Error(pe.message);
 
-    // Query user roles separately to avoid Postgrest relationship error
-    const { data: roles, error: re } = await context.supabase
+    // Query user roles using admin client to bypass RLS
+    const { data: roles, error: re } = await supabaseAdmin
       .from("user_roles")
       .select("user_id, role");
     if (re) throw new Error(re.message);
@@ -47,21 +50,23 @@ export const updateUserRole = createServerFn({ method: "POST" })
       role: z.enum(["owner", "admin", "collaborator"]),
     }).parse(input)
   )
-  .handler(async ({ data, context }) => {
-    const { data: existing } = await context.supabase
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: existing } = await supabaseAdmin
       .from("user_roles")
       .select("id")
       .eq("user_id", data.userId)
       .maybeSingle();
 
     if (existing) {
-      const { error } = await context.supabase
+      const { error } = await supabaseAdmin
         .from("user_roles")
         .update({ role: data.role })
         .eq("user_id", data.userId);
       if (error) throw new Error(error.message);
     } else {
-      const { error } = await context.supabase
+      const { error } = await supabaseAdmin
         .from("user_roles")
         .insert({ user_id: data.userId, role: data.role });
       if (error) throw new Error(error.message);

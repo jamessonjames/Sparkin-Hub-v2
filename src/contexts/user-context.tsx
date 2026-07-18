@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { listProfiles } from "@/lib/users.functions";
 
 export type AppRole = "owner" | "admin" | "collaborator";
 
@@ -16,6 +18,7 @@ interface UserContextValue {
   setSelectedUserId: (id: string | null) => void;
   profiles: Profile[];
   loading: boolean;
+  refreshProfiles: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextValue>({
@@ -25,6 +28,7 @@ const UserContext = createContext<UserContextValue>({
   setSelectedUserId: () => {},
   profiles: [],
   loading: true,
+  refreshProfiles: async () => {},
 });
 
 export function UserProvider({ children }: { children: ReactNode }) {
@@ -33,6 +37,20 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const listProfilesFn = useServerFn(listProfiles);
+
+  const refreshProfiles = async () => {
+    try {
+      const profilesData = await listProfilesFn();
+      setProfiles(profilesData.map((p: any) => ({ id: p.id, name: p.name, email: p.email })));
+    } catch {
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, name, email")
+        .order("name", { ascending: true });
+      setProfiles(profilesData ?? []);
+    }
+  };
 
   useEffect(() => {
     async function load() {
@@ -52,16 +70,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const role = (roleData?.role as AppRole) ?? null;
       setCurrentUserRole(role);
 
-      const { data: profilesData } = await supabase
-        .from("profiles")
-        .select("id, name, email")
-        .order("name", { ascending: true });
-      setProfiles(profilesData ?? []);
+      await refreshProfiles();
 
       setLoading(false);
     }
     load();
-  }, []);
+  }, [listProfilesFn]);
 
   return (
     <UserContext.Provider
@@ -72,6 +86,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setSelectedUserId,
         profiles,
         loading,
+        refreshProfiles,
       }}
     >
       {children}

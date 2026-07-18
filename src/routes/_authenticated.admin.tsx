@@ -15,6 +15,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserContext } from "@/contexts/user-context";
 import { toast } from "sonner";
 import {
   Settings,
@@ -56,6 +57,7 @@ const ROLE_DESC: Record<string, string> = {
 
 function AdminPage() {
   const qc = useQueryClient();
+  const { refreshProfiles } = useUserContext();
   const listUsersFn = useServerFn(listUsersWithRoles);
   const updateRoleFn = useServerFn(updateUserRole);
   const createUserFn = useServerFn(createUserWithRole);
@@ -399,6 +401,7 @@ function AdminPage() {
       setNewPassword("");
       setNewRole("collaborator");
       qc.invalidateQueries({ queryKey: ["users-with-roles"] });
+      refreshProfiles();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao criar usuário");
     } finally {
@@ -453,6 +456,7 @@ function AdminPage() {
 
       toast.success("Usuário excluído com sucesso!");
       qc.invalidateQueries({ queryKey: ["users-with-roles"] });
+      refreshProfiles();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao excluir usuário");
     }
