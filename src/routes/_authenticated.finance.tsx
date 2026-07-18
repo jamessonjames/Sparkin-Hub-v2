@@ -572,7 +572,7 @@ function FinancePage() {
   };
 
   return (
-    <div className="p-6 max-w-[1400px] space-y-6 w-full">
+    <div className="p-6 space-y-6 w-full">
       {/* Top Header */}
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2 font-display">

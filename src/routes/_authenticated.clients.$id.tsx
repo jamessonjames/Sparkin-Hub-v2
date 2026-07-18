@@ -191,7 +191,7 @@ function ClientPage() {
 
   return (
     <div className="w-full flex flex-col h-full p-4 md:p-6 gap-4 overflow-hidden">
-      <div className="max-w-[1400px] w-full flex flex-col gap-4">
+      <div className="w-full flex flex-col gap-4">
         <button
           onClick={() => navigate({ to: "/clients" })}
           className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
@@ -258,7 +258,7 @@ function ClientPage() {
       </div>
 
       <Tabs defaultValue="demands" className="flex-1 flex flex-col min-h-0">
-        <div className="max-w-[1400px] w-full">
+        <div className="w-full">
           <TabsList>
             <TabsTrigger value="demands">
               Demandas ({filteredDemands.length})
@@ -273,7 +273,7 @@ function ClientPage() {
         </div>
 
         <TabsContent value="demands" className="mt-4 flex-1 flex flex-col min-h-0 gap-4">
-          <div className="max-w-[1400px] w-full flex flex-col gap-4 shrink-0">
+          <div className="w-full flex flex-col gap-4 shrink-0">
             <div className="flex justify-end">
               <Button
                 onClick={() =>
@@ -334,7 +334,7 @@ function ClientPage() {
         </TabsContent>
 
         <TabsContent value="overview" className="mt-4 overflow-y-auto pb-8">
-          <div className="max-w-[1400px] w-full">
+          <div className="w-full">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               <div className="lg:col-span-2">
                 <Card className="p-6">
@@ -370,13 +370,13 @@ function ClientPage() {
         </TabsContent>
 
         <TabsContent value="notes" className="mt-4 overflow-y-auto">
-          <div className="max-w-[1400px] w-full">
+          <div className="w-full">
             <ClientNotesPanel clientId={id} />
           </div>
         </TabsContent>
 
         <TabsContent value="reports" className="mt-4 overflow-y-auto pb-8">
-          <div className="max-w-[1400px] w-full">
+          <div className="w-full">
             <ClientReportsPanel
               clientId={id}
               billingModel={client.billing_model}
@@ -390,7 +390,7 @@ function ClientPage() {
         </TabsContent>
         {client.billing_model === "seasonal" && (
           <TabsContent value="editions" className="mt-4 overflow-y-auto pb-8">
-            <div className="max-w-[1400px] w-full">
+            <div className="w-full">
               <ClientEditionsPanel
                 clientId={client.id}
                 editions={clientEditions}

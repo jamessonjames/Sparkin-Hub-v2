@@ -27,7 +27,7 @@ function ClientsList() {
   );
 
   return (
-    <div className="max-w-[1400px] p-6 space-y-4 w-full">
+    <div className="p-6 space-y-4 w-full">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-2xl font-bold text-foreground">Clientes</h2>

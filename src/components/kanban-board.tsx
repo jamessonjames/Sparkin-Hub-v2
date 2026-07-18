@@ -471,7 +471,7 @@ export function KanbanBoard({
   return (
     <div className="flex flex-col flex-1 gap-3 min-h-0">
       {showSearch && (
-        <div className="max-w-[1400px] w-full shrink-0">
+        <div className="w-full shrink-0">
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <input

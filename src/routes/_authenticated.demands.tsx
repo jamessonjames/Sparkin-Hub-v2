@@ -65,7 +65,7 @@ function DemandsPage() {
 
   return (
     <div className="flex flex-col h-full p-4 md:p-6 gap-4">
-      <div className="max-w-[1400px] w-full flex items-center justify-between shrink-0">
+      <div className="w-full flex items-center justify-between shrink-0">
         <div>
           <h2 className="font-display text-2xl font-bold text-foreground">Demandas</h2>
           <p className="text-sm text-muted-foreground">Arraste os cards entre as colunas para mover ou reordenar.</p>
