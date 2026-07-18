@@ -12,6 +12,7 @@ export function DemandOverlayRenderer() {
     clients,
     defaultClientId,
     defaultStatus,
+    defaultClientEditionId,
     close,
     minimize,
     restore,
@@ -50,6 +51,7 @@ export function DemandOverlayRenderer() {
       clients={resolvedClients}
       defaultClientId={defaultClientId}
       defaultStatus={defaultStatus}
+      defaultClientEditionId={defaultClientEditionId}
     />
   );
 }

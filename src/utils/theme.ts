@@ -68,7 +68,17 @@ export function applyThemeAndHighlight() {
 
   // 2. Custom System Name/Title
   if (savedName) {
-    document.title = `${savedName} Hub`;
+    if (document.title.includes("Creative Flow")) {
+      document.title = document.title.replace(/Creative Flow/g, savedName);
+    }
+    if (document.title.includes("Sparkin Hub") && savedName !== "Sparkin Hub") {
+      document.title = document.title.replace(/Sparkin Hub/g, savedName);
+    }
+    
+    const appleTitle = document.querySelector("meta[name='apple-mobile-web-app-title']");
+    if (appleTitle) {
+      appleTitle.setAttribute("content", savedName);
+    }
   }
 
   // 3. Custom branding favicon

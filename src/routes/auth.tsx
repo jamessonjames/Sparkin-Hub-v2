@@ -1,5 +1,5 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -22,6 +22,15 @@ function AuthPage() {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  const [systemName, setSystemName] = useState("Creative Flow");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
+      setSystemName(savedName);
+    }
+  }, []);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -60,7 +69,7 @@ function AuthPage() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-background">
       <div className="w-full max-w-md surface-card p-8">
         <div className="mb-6 text-center">
-          <div className="font-display text-2xl font-bold text-foreground">Creative Flow Hub</div>
+          <div className="font-display text-2xl font-bold text-foreground">{systemName} Hub</div>
           <p className="text-sm text-muted-foreground mt-2">
             {mode === "signin" && "Entre com sua conta"}
             {mode === "signup" && "Criar conta do proprietário (1º acesso)"}

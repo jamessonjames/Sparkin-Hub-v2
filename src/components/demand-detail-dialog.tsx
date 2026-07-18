@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -12,7 +12,8 @@ import {
 } from "@/lib/demands.functions";
 import { listComments, addComment, deleteComment, updateComment } from "@/lib/comments.functions";
 import { listProfiles } from "@/lib/users.functions";
-import { listClients } from "@/lib/clients.functions";
+import { listClients, listClientEditions } from "@/lib/clients.functions";
+import { getPricingSettings } from "@/lib/pricing.functions";
 import {
   getPortalDemandComments,
   addPortalComment,
@@ -69,6 +70,7 @@ export function DemandDetailDialog({
   clients,
   defaultClientId,
   defaultStatus,
+  defaultClientEditionId,
   // Portal-mode props
   portalMode = false,
   portalSlug,
@@ -84,6 +86,7 @@ export function DemandDetailDialog({
   clients: { id: string; name: string }[];
   defaultClientId?: string;
   defaultStatus?: string;
+  defaultClientEditionId?: string;
   portalMode?: boolean;
   portalSlug?: string;
   portalClientName?: string;
@@ -152,6 +155,14 @@ export function DemandDetailDialog({
     enabled: !portalMode,
   });
 
+  // Load pricing settings for auto-fill
+  const getPricingSettingsFn = useServerFn(getPricingSettings);
+  const { data: pricingConfig } = useQuery({
+    queryKey: ["pricing-settings"],
+    queryFn: () => getPricingSettingsFn(),
+    enabled: !portalMode,
+  });
+
   // ── Local form state ──
   const [clientId, setClientId] = useState("");
   const [title, setTitle] = useState("");
@@ -165,9 +176,68 @@ export function DemandDetailDialog({
   const [showComments, setShowComments] = useState(true);
   const [estimatedHours, setEstimatedHours] = useState<number>(1.0);
   const [estimatedCredits, setEstimatedCredits] = useState<number>(0);
+  const [clientEditionId, setClientEditionId] = useState("");
+  const [price, setPrice] = useState<number | null>(null);
+  
+  // Flag to track if the user manually edited the price field
+  const [isPriceManuallyEdited, setIsPriceManuallyEdited] = useState(false);
 
-  // Derived from clientId state (must be after useState declarations)
+  // Reset manually edited flag when switching/loading demands
+  useEffect(() => {
+    setIsPriceManuallyEdited(false);
+  }, [demand?.id]);
+
+  // Recalculate price based on hours and client pricing settings
+  useEffect(() => {
+    if (portalMode || !pricingConfig || isPriceManuallyEdited) return;
+
+    const selectedClient = fullClients.find((c) => c.id === clientId);
+    if (!selectedClient) return;
+
+    const isOneOff = selectedClient.billing_model === "fixed" && selectedClient.fixed_type === "one_off";
+    const isSeasonal = selectedClient.billing_model === "seasonal";
+
+    if (isOneOff || isSeasonal) {
+      const baseRate = pricingConfig.base_hourly_rate ?? 80;
+      const tiers = pricingConfig.tiers || [];
+      
+      // Separate tiers by type (default to up_to if type is not set)
+      const upToTiers = tiers.filter(t => t.type === "up_to" || !t.type)
+        .sort((a, b) => a.hours_limit - b.hours_limit);
+        
+      const aboveTiers = tiers.filter(t => t.type === "above")
+        .sort((a, b) => b.hours_limit - a.hours_limit);
+
+      let rate = baseRate;
+
+      // 1. Try to find match in "up_to" tiers
+      const matchingUpTo = upToTiers.find((t) => estimatedHours <= t.hours_limit);
+      if (matchingUpTo) {
+        rate = matchingUpTo.hourly_rate;
+      } else {
+        // 2. Try to find match in "above" tiers
+        const matchingAbove = aboveTiers.find((t) => estimatedHours > t.hours_limit);
+        if (matchingAbove) {
+          rate = matchingAbove.hourly_rate;
+        }
+      }
+
+      setPrice(estimatedHours * rate);
+    }
+  }, [estimatedHours, clientId, pricingConfig, isPriceManuallyEdited, portalMode, fullClients]);
+
+  // Admin client editions query
+  const listClientEditionsFn = useServerFn(listClientEditions);
+  const { data: clientEditions = [] } = useQuery({
+    queryKey: ["client-editions", clientId],
+    queryFn: () => listClientEditionsFn({ data: { client_id: clientId } }),
+    enabled: !!clientId && !portalMode,
+  });
+
   const selectedClient = !portalMode ? fullClients.find((c) => c.id === clientId) : null;
+  const clientName = portalMode ? (portalClientName || "Desconhecido") : (selectedClient?.name || "Desconhecido");
+  const demandTitle = title.trim() || "Nova Demanda";
+  const gDrivePath = useMemo(() => ["Clients", clientName, "Demands", demandTitle], [clientName, demandTitle]);
   const isCreditBillingEnabled = portalMode
     ? portalBillingModel === "credits"
     : selectedClient?.billing_model === "credits";
@@ -187,6 +257,12 @@ export function DemandDetailDialog({
       setAssigneeId("");
       setEstimatedHours(1.0);
       setEstimatedCredits(0);
+      setPrice(null);
+      if (defaultClientEditionId) {
+        setClientEditionId(defaultClientEditionId);
+      } else {
+        setClientEditionId("");
+      }
     } else if (portalMode && initialDemandData) {
       setTitle(initialDemandData.title);
       setDescription(initialDemandData.description || "");
@@ -204,8 +280,22 @@ export function DemandDetailDialog({
       setAssigneeId(demand.assignee_user_id || "");
       setEstimatedHours(demand.estimated_hours ? Number(demand.estimated_hours) : 1.0);
       setEstimatedCredits(demand.estimated_credits ? Number(demand.estimated_credits) : 0);
+      setClientEditionId(demand.client_edition_id || "");
+      setPrice(demand.price ? Number(demand.price) : null);
     }
-  }, [demand, isNew, defaultClientId, defaultStatus, clients, portalMode, initialDemandData]);
+  }, [demand, isNew, defaultClientId, defaultStatus, defaultClientEditionId, clients, portalMode, initialDemandData]);
+
+  // Set default client edition when editions list is loaded
+  useEffect(() => {
+    if (isNew && !clientEditionId && clientEditions.length > 0) {
+      if (defaultClientEditionId) {
+        setClientEditionId(defaultClientEditionId);
+      } else {
+        const activeEdition = clientEditions.find((e: any) => e.is_active);
+        setClientEditionId(activeEdition?.id || clientEditions[0]?.id || "");
+      }
+    }
+  }, [isNew, clientEditions, defaultClientEditionId, clientEditionId]);
 
   // ── Dirty check ──
   const isDirty = isNew
@@ -228,7 +318,9 @@ export function DemandDetailDialog({
           dueDate !== (demand.due_date ? demand.due_date.slice(0, 10) : "") ||
           assigneeId !== (demand.assignee_user_id || "") ||
           estimatedHours !== (demand.estimated_hours ? Number(demand.estimated_hours) : 1.0) ||
-          estimatedCredits !== (demand.estimated_credits ? Number(demand.estimated_credits) : 0)
+          estimatedCredits !== (demand.estimated_credits ? Number(demand.estimated_credits) : 0) ||
+          clientEditionId !== (demand.client_edition_id || "") ||
+          price !== (demand.price ? Number(demand.price) : null)
         );
 
   // ── Save ──
@@ -323,6 +415,8 @@ export function DemandDetailDialog({
             estimated_credits: estimatedCredits,
             estimated_hours: estimatedHours,
             assignee_user_id: assigneeId || null,
+            client_edition_id: clientEditionId || null,
+            price: price ?? null,
           },
         });
         toast.success("Demanda criada com sucesso!");
@@ -342,6 +436,8 @@ export function DemandDetailDialog({
             estimated_hours: estimatedHours,
             internal_notes: demand?.internal_notes,
             assignee_user_id: assigneeId || null,
+            client_edition_id: clientEditionId || null,
+            price: price ?? null,
           },
         });
         toast.success("Alterações salvas!");
@@ -592,7 +688,7 @@ export function DemandDetailDialog({
                           <SelectItem value="none" className="text-xs text-muted-foreground italic">Sem responsável</SelectItem>
                           {profiles.map((p) => (
                             <SelectItem key={p.id} value={p.id} className="text-xs">
-                              {p.name} ({p.email})
+                              {p.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -634,6 +730,46 @@ export function DemandDetailDialog({
                       )}
                     </div>
                   )}
+                  
+                  {/* Edition Select — visible if seasonal billing enabled */}
+                  {!portalMode && selectedClient?.billing_model === "seasonal" && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Edição</label>
+                      <Select value={clientEditionId} onValueChange={setClientEditionId}>
+                        <SelectTrigger className="h-8 text-xs bg-background border-input text-foreground w-auto min-w-[120px]">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {clientEditions.map((ed: any) => (
+                            <SelectItem key={ed.id} value={ed.id} className="text-xs">
+                              {ed.name} {ed.is_active ? "(Vigente)" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Price Input — visible if seasonal or one_off billing enabled */}
+                  {!portalMode && selectedClient && (
+                    (selectedClient.billing_model === "seasonal") || 
+                    (selectedClient.billing_model === "fixed" && selectedClient.fixed_type === "one_off")
+                  ) && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Valor (R$)</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={price ?? ""}
+                        onChange={(e) => {
+                          setPrice(e.target.value ? parseFloat(e.target.value) : null);
+                          setIsPriceManuallyEdited(true);
+                        }}
+                        className="h-8 text-xs bg-background border-input text-foreground w-24"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Description label */}
@@ -649,6 +785,7 @@ export function DemandDetailDialog({
                     borderless={false}
                     readOnly={!descriptionEditable}
                     placeholder="Descreva a demanda em detalhes..."
+                    gDrivePath={gDrivePath}
                   />
                 </div>
               </div>
@@ -759,6 +896,7 @@ export function DemandDetailDialog({
                       isChatInput={true}
                       onSubmitChat={handleAddComment}
                       placeholder="Escrever comentário..."
+                      gDrivePath={gDrivePath}
                     />
                   </div>
                 </div>

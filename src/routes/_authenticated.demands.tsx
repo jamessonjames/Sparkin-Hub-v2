@@ -65,7 +65,7 @@ function DemandsPage() {
 
   return (
     <div className="flex flex-col h-full p-4 md:p-6 gap-4">
-      <div className="flex items-center justify-between shrink-0">
+      <div className="max-w-[1400px] w-full flex items-center justify-between shrink-0">
         <div>
           <h2 className="font-display text-2xl font-bold text-foreground">Demandas</h2>
           <p className="text-sm text-muted-foreground">Arraste os cards entre as colunas para mover ou reordenar.</p>
@@ -92,6 +92,8 @@ function DemandsPage() {
             due_date: d.due_date,
             clients: d.clients ?? null,
             sort_order: (d as any).sort_order ?? null,
+            assignee_user_id: d.assignee_user_id ?? null,
+            comments_count: (d as any).comments_count ?? 0,
           }))}
           onMove={handleMove}
           onOpen={(id) => overlay.open(id, resolvedClients)}

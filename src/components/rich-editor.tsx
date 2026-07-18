@@ -12,7 +12,10 @@ import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TableCell } from "@tiptap/extension-table-cell";
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { uploadToGDrive } from "@/lib/gdrive.functions";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   Bold,
@@ -31,6 +34,7 @@ import {
   Rows3,
   Columns3,
   Trash,
+  Loader2,
 } from "lucide-react";
 
 interface RichEditorProps {
@@ -42,6 +46,7 @@ interface RichEditorProps {
   borderless?: boolean;
   readOnly?: boolean;
   enableTables?: boolean;
+  gDrivePath?: string[];
 }
 
 function ToolbarBtn({
@@ -84,6 +89,7 @@ export function RichEditor({
   borderless = false,
   readOnly = false,
   enableTables = false,
+  gDrivePath = [],
 }: RichEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -130,16 +136,45 @@ export function RichEditor({
     editor.commands.setContent(content || "");
   }
 
+  const [uploading, setUploading] = useState(false);
+  const uploadFn = useServerFn(uploadToGDrive);
+
   const insertImage = useCallback(
-    (file: File) => {
+    async (file: File) => {
+      setUploading(true);
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const src = e.target?.result as string;
-        editor?.chain().focus().setImage({ src }).run();
+      reader.onload = async (e) => {
+        const fullBase64 = e.target?.result as string;
+        const base64 = fullBase64.split(",")[1];
+        try {
+          const response = await uploadFn({
+            data: {
+              fileBase64: base64,
+              fileName: file.name,
+              mimeType: file.type,
+              pathParts: gDrivePath,
+            },
+          });
+
+          if (response.success && response.url) {
+            editor?.chain().focus().setImage({ src: response.url }).run();
+            toast.success("Imagem enviada para o Google Drive com sucesso!");
+          } else {
+            // Fallback
+            editor?.chain().focus().setImage({ src: fullBase64 }).run();
+            toast.warning("Hospedagem Google Drive indisponível. Salvo em base64.");
+          }
+        } catch (error) {
+          console.error("Upload error, using fallback:", error);
+          editor?.chain().focus().setImage({ src: fullBase64 }).run();
+          toast.warning("Falha ao subir para o Google Drive. Usando base64.");
+        } finally {
+          setUploading(false);
+        }
       };
       reader.readAsDataURL(file);
     },
-    [editor],
+    [editor, uploadFn, gDrivePath]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -471,8 +506,15 @@ export function RichEditor({
           "flex items-center gap-1.5 py-1.5 border-b border-border bg-muted/40 justify-end shrink-0",
           borderless ? "px-6" : "px-3"
         )}>
+          {uploading && (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground mr-auto animate-pulse">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              Enviando para o Google Drive...
+            </span>
+          )}
           <button
             type="button"
+            disabled={uploading}
             title="Inserir imagem"
             onClick={() => fileRef.current?.click()}
             className="text-muted-foreground hover:text-foreground hover:bg-accent/65 p-1 rounded transition-colors cursor-pointer"

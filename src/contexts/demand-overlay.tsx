@@ -6,8 +6,9 @@ interface DemandOverlayState {
   clients: { id: string; name: string }[];
   defaultClientId?: string;
   defaultStatus?: string;
+  defaultClientEditionId?: string;
   open: (id: string, clients?: { id: string; name: string }[]) => void;
-  openNew: (clients: { id: string; name: string }[], defaultClientId?: string, defaultStatus?: string) => void;
+  openNew: (clients: { id: string; name: string }[], defaultClientId?: string, defaultStatus?: string, defaultClientEditionId?: string) => void;
   close: () => void;
   minimize: () => void;
   restore: () => void;
@@ -21,21 +22,24 @@ export function DemandOverlayProvider({ children }: { children: ReactNode }) {
   const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
   const [defaultClientId, setDefaultClientId] = useState<string | undefined>(undefined);
   const [defaultStatus, setDefaultStatus] = useState<string | undefined>(undefined);
+  const [defaultClientEditionId, setDefaultClientEditionId] = useState<string | undefined>(undefined);
 
   function open(id: string, cls?: { id: string; name: string }[]) {
     setDemandId(id);
     setMinimized(false);
     setDefaultClientId(undefined);
     setDefaultStatus(undefined);
+    setDefaultClientEditionId(undefined);
     if (cls) setClients(cls);
   }
 
-  function openNew(cls: { id: string; name: string }[], defaultClientId?: string, defaultStatus?: string) {
+  function openNew(cls: { id: string; name: string }[], defaultClientId?: string, defaultStatus?: string, defaultClientEditionId?: string) {
     setDemandId("new");
     setMinimized(false);
     setClients(cls);
     setDefaultClientId(defaultClientId || cls[0]?.id);
     setDefaultStatus(defaultStatus || "nao_iniciado");
+    setDefaultClientEditionId(defaultClientEditionId);
   }
 
   function close() {
@@ -43,6 +47,7 @@ export function DemandOverlayProvider({ children }: { children: ReactNode }) {
     setMinimized(false);
     setDefaultClientId(undefined);
     setDefaultStatus(undefined);
+    setDefaultClientEditionId(undefined);
   }
 
   function minimize() {
@@ -61,6 +66,7 @@ export function DemandOverlayProvider({ children }: { children: ReactNode }) {
         clients,
         defaultClientId,
         defaultStatus,
+        defaultClientEditionId,
         open,
         openNew,
         close,

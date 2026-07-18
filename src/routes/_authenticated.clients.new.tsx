@@ -33,7 +33,7 @@ function NewClient() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-4">
+    <div className="max-w-3xl p-6 space-y-4">
       <div>
         <h2 className="font-display text-2xl font-bold text-foreground">Novo cliente</h2>
         <p className="text-sm text-muted-foreground">Cadastre os dados principais.</p>

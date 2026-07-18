@@ -34,6 +34,8 @@ const upsertSchema = z.object({
   estimated_hours: z.number().optional().nullable(),
   internal_notes: z.string().optional().nullable(),
   assignee_user_id: z.string().uuid().optional().nullable(),
+  client_edition_id: z.string().uuid().optional().nullable(),
+  price: z.number().optional().nullable(),
 });
 
 export const listDemands = createServerFn({ method: "GET" })
@@ -42,16 +44,17 @@ export const listDemands = createServerFn({ method: "GET" })
     // Select '*' to dynamically ignore columns that do not exist yet (like estimated_hours)
     const { data, error } = await context.supabase
       .from("demands")
-      .select("*, clients(id, name)")
+      .select("*, clients(id, name), demand_comments(id)")
       .is("deleted_at", null)
       .order("sort_order", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     
-    // Map status_id to status if custom
+    // Map status_id to status if custom and add comments_count
     const mapped = (data ?? []).map((d) => ({
       ...d,
       status: d.status_id || d.status,
+      comments_count: d.demand_comments ? d.demand_comments.length : 0,
     }));
     return mapped;
   });
@@ -94,6 +97,8 @@ export const createDemand = createServerFn({ method: "POST" })
       internal_notes: data.internal_notes || null,
       assignee_user_id: data.assignee_user_id || null,
       created_by_user_id: context.userId,
+      client_edition_id: data.client_edition_id || null,
+      price: data.price ?? null,
     };
 
     // Gracefully handle database schema transition where estimated_hours might not exist yet
@@ -150,6 +155,8 @@ export const updateDemand = createServerFn({ method: "POST" })
       estimated_credits: rest.estimated_credits ?? undefined,
       internal_notes: rest.internal_notes || null,
       assignee_user_id: rest.assignee_user_id || null,
+      client_edition_id: rest.client_edition_id || null,
+      price: rest.price ?? null,
     };
 
     // Gracefully handle database schema transition where estimated_hours might not exist yet

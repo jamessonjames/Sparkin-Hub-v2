@@ -31,7 +31,7 @@ function Dashboard() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
+    <div className="max-w-[1400px] p-6 space-y-6 w-full">
       <div>
         <h2 className="font-display text-2xl font-bold text-foreground">Dashboard</h2>
         <p className="text-sm text-muted-foreground">Visão geral do seu fluxo criativo.</p>

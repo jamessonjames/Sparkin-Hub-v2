@@ -516,7 +516,7 @@ function AgendaPage() {
       onDragCancel={() => setActiveDragId(null)}
       collisionDetection={customCollisionDetection}
     >
-      <div className="flex flex-col h-[calc(100vh-60px)] bg-background text-foreground overflow-hidden relative">
+      <div className="max-w-[1400px] w-full flex flex-col h-[calc(100vh-60px)] bg-background text-foreground overflow-hidden relative">
         
         {/* ── TOOLBAR ── */}
         <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border shrink-0 bg-muted/10 flex-wrap">

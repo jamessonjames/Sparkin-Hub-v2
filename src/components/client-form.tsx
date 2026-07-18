@@ -12,7 +12,7 @@ export type ClientFormValues = {
   contact_name?: string | null;
   email?: string | null;
   phone?: string | null;
-  billing_model: "fixed" | "credits";
+  billing_model: "fixed" | "credits" | "seasonal";
   fixed_type?: "monthly" | "one_off" | null;
   monthly_value?: number | null;
   commercial_notes?: string | null;
@@ -81,52 +81,58 @@ export function ClientForm({
         <div>
           <Label>Modelo de cobrança</Label>
           <Select
-            value={v.billing_model}
-            onValueChange={(val) => setV({ ...v, billing_model: val as "fixed" | "credits" })}
+            value={
+              v.billing_model === "credits"
+                ? "credits"
+                : v.billing_model === "seasonal"
+                  ? "seasonal"
+                  : v.fixed_type === "one_off"
+                    ? "one_off"
+                    : "fixed_monthly"
+            }
+            onValueChange={(val) => {
+              if (val === "credits") {
+                setV({ ...v, billing_model: "credits", fixed_type: null });
+              } else if (val === "seasonal") {
+                setV({ ...v, billing_model: "seasonal", fixed_type: null, monthly_value: null });
+              } else if (val === "one_off") {
+                setV({ ...v, billing_model: "fixed", fixed_type: "one_off" });
+              } else {
+                setV({ ...v, billing_model: "fixed", fixed_type: "monthly" });
+              }
+            }}
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="fixed">Fixo</SelectItem>
-              <SelectItem value="credits">Créditos</SelectItem>
+              <SelectItem value="fixed_monthly">Pagamento Mensal Fixo</SelectItem>
+              <SelectItem value="credits">Mensal com Créditos</SelectItem>
+              <SelectItem value="one_off">Pagamento por Projeto</SelectItem>
+              <SelectItem value="seasonal">Por Temporada (Eventos)</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        {v.billing_model === "fixed" && (
+        {(v.billing_model === "fixed" || v.billing_model === "credits") && (
           <div>
-            <Label>Tipo</Label>
-            <Select
-              value={v.fixed_type ?? "monthly"}
-              onValueChange={(val) => setV({ ...v, fixed_type: val as "monthly" | "one_off" })}
-            >
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="monthly">Mensal</SelectItem>
-                <SelectItem value="one_off">Pontual</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>
+              {v.billing_model === "credits"
+                ? "Valor Mínimo / Retentor Mensal (R$)"
+                : v.fixed_type === "one_off"
+                  ? "Valor por Projeto (R$)"
+                  : "Valor mensal (R$)"}
+            </Label>
+            <Input
+              type="number"
+              step="0.01"
+              value={v.monthly_value ?? ""}
+              onChange={(e) =>
+                setV({ ...v, monthly_value: e.target.value ? Number(e.target.value) : null })
+              }
+              placeholder={v.billing_model === "credits" ? "Opcional (ex: 1200)" : ""}
+            />
           </div>
         )}
-        <div>
-          <Label>Valor mensal (R$)</Label>
-          <Input
-            type="number"
-            step="0.01"
-            value={v.monthly_value ?? ""}
-            onChange={(e) =>
-              setV({ ...v, monthly_value: e.target.value ? Number(e.target.value) : null })
-            }
-          />
-        </div>
       </div>
 
-      <div>
-        <Label>Notas comerciais</Label>
-        <Textarea
-          rows={3}
-          value={v.commercial_notes ?? ""}
-          onChange={(e) => setV({ ...v, commercial_notes: e.target.value })}
-        />
-      </div>
       <div>
         <Label>Notas internas</Label>
         <Textarea

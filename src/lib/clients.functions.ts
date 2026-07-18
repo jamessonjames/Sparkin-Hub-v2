@@ -9,7 +9,7 @@ const upsertSchema = z.object({
   contact_name: z.string().optional().nullable(),
   email: z.string().email().optional().or(z.literal("")).nullable(),
   phone: z.string().optional().nullable(),
-  billing_model: z.enum(["fixed", "credits"]).default("fixed"),
+  billing_model: z.enum(["fixed", "credits", "seasonal"]).default("fixed"),
   fixed_type: z.enum(["monthly", "one_off"]).optional().nullable(),
   monthly_value: z.number().optional().nullable(),
   commercial_notes: z.string().optional().nullable(),
@@ -23,7 +23,7 @@ export const listClients = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("clients")
-      .select("id, name, contact_name, email, phone, billing_model, credits_enabled, access_active, slug, updated_at")
+      .select("id, name, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, slug, updated_at")
       .is("deleted_at", null)
       .order("name", { ascending: true });
     if (error) throw new Error(error.message);
@@ -129,3 +129,97 @@ export const setClientCreditsEnabled = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const listClientEditions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { client_id: string }) => z.object({ client_id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: editions, error } = await context.supabase
+      .from("client_editions")
+      .select("*")
+      .eq("client_id", data.client_id)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return editions ?? [];
+  });
+
+export const createClientEdition = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      client_id: z.string().uuid(),
+      name: z.string().min(1),
+      is_active: z.boolean().default(false),
+      billing_month: z.number().min(1).max(12).optional().nullable(),
+      billing_year: z.number().optional().nullable(),
+      price: z.number().nonnegative().optional().nullable(),
+    }).parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    if (data.is_active) {
+      await context.supabase
+        .from("client_editions")
+        .update({ is_active: false })
+        .eq("client_id", data.client_id);
+    }
+    const { data: row, error } = await context.supabase
+      .from("client_editions")
+      .insert({
+        client_id: data.client_id,
+        name: data.name,
+        is_active: data.is_active,
+        billing_month: data.billing_month || null,
+        billing_year: data.billing_year || null,
+        price: data.price || null,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
+export const updateClientEdition = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      id: z.string().uuid(),
+      client_id: z.string().uuid(),
+      name: z.string().min(1),
+      is_active: z.boolean(),
+      billing_month: z.number().min(1).max(12).optional().nullable(),
+      billing_year: z.number().optional().nullable(),
+      price: z.number().nonnegative().optional().nullable(),
+    }).parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    if (data.is_active) {
+      await context.supabase
+        .from("client_editions")
+        .update({ is_active: false })
+        .eq("client_id", data.client_id);
+    }
+    const { error } = await context.supabase
+      .from("client_editions")
+      .update({
+        name: data.name,
+        is_active: data.is_active,
+        billing_month: data.billing_month || null,
+        billing_year: data.billing_year || null,
+        price: data.price || null,
+      })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteClientEdition = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("client_editions")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

@@ -9,6 +9,7 @@ import {
   toggleNotePin,
   NOTE_TYPES,
 } from "@/lib/notes.functions";
+import { getClient } from "@/lib/clients.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,6 +125,16 @@ export function ClientNotesPanel({ clientId }: { clientId: string }) {
     queryKey: ["notes", clientId],
     queryFn: () => listFn({ data: { client_id: clientId } }),
   });
+
+  const getClientFn = useServerFn(getClient);
+  const { data: client } = useQuery({
+    queryKey: ["client", clientId],
+    queryFn: () => getClientFn({ data: { id: clientId } }),
+    enabled: !!clientId,
+  });
+
+  const clientName = client?.name || "Desconhecido";
+  const gDrivePath = useMemo(() => ["Clients", clientName, "Notes"], [clientName]);
 
   const [view, setView] = useState<"grid" | "list">("grid");
   const [search, setSearch] = useState("");
@@ -310,6 +321,7 @@ export function ClientNotesPanel({ clientId }: { clientId: string }) {
       <NoteEditorDialog
         open={editing !== null}
         note={editing}
+        gDrivePath={gDrivePath}
         onClose={() => {
           setEditing(null);
           setIsCreating(false);
@@ -476,11 +488,13 @@ function NoteEditorDialog({
   note,
   onClose,
   onSave,
+  gDrivePath,
 }: {
   open: boolean;
   note: Note | null;
   onClose: () => void;
   onSave: (v: { title: string; content: string; note_type: NoteType }) => Promise<void>;
+  gDrivePath?: string[];
 }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -538,6 +552,7 @@ function NoteEditorDialog({
             onChange={setContent}
             placeholder="Comece a escrever... Selecione texto para formatar."
             enableTables
+            gDrivePath={gDrivePath}
           />
         </div>
 

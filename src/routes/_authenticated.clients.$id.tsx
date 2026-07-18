@@ -8,6 +8,10 @@ import {
   updateClient,
   deleteClient,
   setClientCreditsEnabled,
+  listClientEditions,
+  createClientEdition,
+  updateClientEdition,
+  deleteClientEdition,
 } from "@/lib/clients.functions";
 import {
   listDemands,
@@ -106,6 +110,28 @@ function ClientPage() {
   });
   const clientDemands = allDemands.filter((d) => d.client_id === id);
 
+  const editionsFn = useServerFn(listClientEditions);
+  const { data: clientEditions = [], refetch: refetchEditions } = useQuery({
+    queryKey: ["client-editions", id],
+    queryFn: () => editionsFn({ data: { client_id: id } }),
+    enabled: !!id,
+  });
+
+  const [selectedEditionId, setSelectedEditionId] = useState<string>("all");
+
+  useEffect(() => {
+    if (client?.billing_model === "seasonal" && clientEditions.length > 0 && selectedEditionId === "all") {
+      const activeEdition = clientEditions.find((e: any) => e.is_active);
+      setSelectedEditionId(activeEdition?.id || clientEditions[0]?.id || "all");
+    }
+  }, [client, clientEditions, selectedEditionId]);
+
+  const filteredDemands = useMemo(() => {
+    if (client?.billing_model !== "seasonal") return clientDemands;
+    if (selectedEditionId === "all") return clientDemands;
+    return clientDemands.filter((d) => d.client_edition_id === selectedEditionId);
+  }, [clientDemands, client, selectedEditionId]);
+
   const [saving, setSaving] = useState(false);
   const overlay = useDemandOverlay();
 
@@ -164,135 +190,216 @@ function ClientPage() {
   if (!client) return <div className="p-6 text-muted-foreground">Carregando...</div>;
 
   return (
-    <div className="flex flex-col h-full p-4 md:p-6 gap-4 overflow-hidden">
-      <button
-        onClick={() => navigate({ to: "/clients" })}
-        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-      >
-        <ArrowLeft className="h-3 w-3" /> Voltar
-      </button>
+    <div className="w-full flex flex-col h-full p-4 md:p-6 gap-4 overflow-hidden">
+      <div className="max-w-[1400px] w-full flex flex-col gap-4">
+        <button
+          onClick={() => navigate({ to: "/clients" })}
+          className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+        >
+          <ArrowLeft className="h-3 w-3" /> Voltar
+        </button>
 
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-bold text-foreground">{client.name}</h2>
-          <div className="flex items-center gap-2 mt-1">
-            <Badge variant={client.access_active ? "default" : "secondary"}>
-              {client.access_active ? "Ativo" : "Inativo"}
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              {client.billing_model === "credits" ? "Créditos" : "Fixo"}
-            </span>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-2xl font-bold text-foreground">{client.name}</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge variant={client.access_active ? "default" : "secondary"}>
+                {client.access_active ? "Ativo" : "Inativo"}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                {client.billing_model === "credits"
+                  ? "Créditos"
+                  : client.billing_model === "seasonal"
+                    ? "Temporada"
+                    : client.fixed_type === "one_off"
+                      ? "Por Projeto"
+                      : "Mensal Fixo"}
+              </span>
+            </div>
+
+            {client.billing_model === "seasonal" && (
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs text-muted-foreground font-semibold">Edição:</span>
+                <Select value={selectedEditionId} onValueChange={setSelectedEditionId}>
+                  <SelectTrigger className="h-8 text-xs bg-background border-border text-foreground w-auto min-w-[150px]">
+                    <SelectValue placeholder="Selecione a edição..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as Edições</SelectItem>
+                    {clientEditions.map((ed: any) => (
+                      <SelectItem key={ed.id} value={ed.id} className="text-xs">
+                        {ed.name} {ed.is_active ? " (Vigente)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {client.slug && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const url = `${window.location.origin}/portal/${client.slug}`;
-                navigator.clipboard.writeText(url);
-                toast.success("Link do portal copiado!");
-              }}
-            >
-              Copiar link do portal
+          <div className="flex items-center gap-2">
+            {client.slug && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const url = `${window.location.origin}/portal/${client.slug}`;
+                  navigator.clipboard.writeText(url);
+                  toast.success("Link do portal copiado!");
+                }}
+              >
+                Copiar link do portal
+              </Button>
+            )}
+            <Button variant="destructive" size="sm" onClick={handleDelete}>
+              <Trash2 className="h-4 w-4 mr-1" /> Excluir
             </Button>
-          )}
-          <Button variant="destructive" size="sm" onClick={handleDelete}>
-            <Trash2 className="h-4 w-4 mr-1" /> Excluir
-          </Button>
+          </div>
         </div>
       </div>
 
       <Tabs defaultValue="demands" className="flex-1 flex flex-col min-h-0">
-        <TabsList>
-          <TabsTrigger value="demands">
-            Demandas ({clientDemands.length})
-          </TabsTrigger>
-          <TabsTrigger value="overview">Visão geral</TabsTrigger>
-          <TabsTrigger value="notes">Notas</TabsTrigger>
-          <TabsTrigger value="reports">Relatórios</TabsTrigger>
-        </TabsList>
+        <div className="max-w-[1400px] w-full">
+          <TabsList>
+            <TabsTrigger value="demands">
+              Demandas ({filteredDemands.length})
+            </TabsTrigger>
+            {client.billing_model === "seasonal" && (
+              <TabsTrigger value="editions">Edições</TabsTrigger>
+            )}
+            <TabsTrigger value="overview">Visão geral</TabsTrigger>
+            <TabsTrigger value="notes">Notas</TabsTrigger>
+            <TabsTrigger value="reports">Relatórios</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="demands" className="mt-4 flex-1 flex flex-col min-h-0 gap-4">
-          <div className="flex justify-end">
-            <Button
-              onClick={() => overlay.openNew([{ id: client.id, name: client.name }], client.id)}
-              size="sm"
-            >
-              <Plus className="h-4 w-4 mr-1" /> Nova demanda
-            </Button>
+          <div className="max-w-[1400px] w-full flex flex-col gap-4 shrink-0">
+            <div className="flex justify-end">
+              <Button
+                onClick={() =>
+                  overlay.openNew(
+                    [{ id: client.id, name: client.name }],
+                    client.id,
+                    "nao_iniciado",
+                    selectedEditionId === "all" ? undefined : selectedEditionId
+                  )
+                }
+                size="sm"
+              >
+                <Plus className="h-4 w-4 mr-1" /> Nova demanda
+              </Button>
+            </div>
+
+            {client.billing_model === "credits" && (
+              <ClientCreditProgressInline
+                clientId={client.id}
+                demands={clientDemands}
+              />
+            )}
           </div>
 
-          {client.billing_model === "credits" && (
-            <ClientCreditProgressInline
-              clientId={client.id}
-              demands={clientDemands}
+          {client.billing_model === "seasonal" && clientEditions.length === 0 ? (
+            <div className="text-center py-12 border border-dashed border-border rounded-lg bg-muted/10">
+              <p className="text-sm text-muted-foreground italic">
+                Este cliente por temporada ainda não possui edições cadastradas.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Vá para a aba de "Edições" para criar a primeira edição do evento.
+              </p>
+            </div>
+          ) : (
+            <KanbanBoard
+              demands={filteredDemands.map((d) => ({
+                id: d.id,
+                title: d.title,
+                status: d.status,
+                priority: d.priority,
+                due_date: d.due_date,
+                clients: d.clients ?? null,
+                assignee_user_id: d.assignee_user_id ?? null,
+                comments_count: (d as any).comments_count ?? 0,
+              }))}
+              onMove={handleMove}
+              onOpen={(demandId) => overlay.open(demandId, [{ id: client.id, name: client.name }])}
+              onAdd={(status) =>
+                overlay.openNew(
+                  [{ id: client.id, name: client.name }],
+                  client.id,
+                  status,
+                  selectedEditionId === "all" ? undefined : selectedEditionId
+                )
+              }
             />
           )}
-
-          <KanbanBoard
-            demands={clientDemands.map((d) => ({
-              id: d.id,
-              title: d.title,
-              status: d.status,
-              priority: d.priority,
-              due_date: d.due_date,
-              clients: d.clients ?? null,
-            }))}
-            onMove={handleMove}
-            onOpen={(demandId) => overlay.open(demandId, [{ id: client.id, name: client.name }])}
-            onAdd={(status) => overlay.openNew([{ id: client.id, name: client.name }], client.id, status)}
-          />
         </TabsContent>
 
         <TabsContent value="overview" className="mt-4 overflow-y-auto pb-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            <div className="lg:col-span-2">
-              <Card className="p-6">
-                <ClientForm
-                  initial={{
-                    name: client.name,
-                    contact_name: client.contact_name,
-                    email: client.email,
-                    phone: client.phone,
-                    billing_model: client.billing_model,
-                    fixed_type: client.fixed_type,
-                    monthly_value: client.monthly_value,
-                    commercial_notes: client.commercial_notes,
-                    internal_notes: client.internal_notes,
-                    access_active: client.access_active,
-                  }}
-                  onSubmit={handleSave}
-                  submitting={saving}
-                />
-              </Card>
-            </div>
-            {client.billing_model === "credits" && (
-              <div className="lg:col-span-1">
-                <CreditTiersEditor
-                  clientId={client.id}
-                  showProgress={client.credits_enabled ?? false}
-                  onToggleProgress={handleToggleProgress}
-                />
+          <div className="max-w-[1400px] w-full">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              <div className="lg:col-span-2">
+                <Card className="p-6">
+                  <ClientForm
+                    initial={{
+                      name: client.name,
+                      contact_name: client.contact_name,
+                      email: client.email,
+                      phone: client.phone,
+                      billing_model: client.billing_model,
+                      fixed_type: client.fixed_type,
+                      monthly_value: client.monthly_value,
+                      commercial_notes: client.commercial_notes,
+                      internal_notes: client.internal_notes,
+                      access_active: client.access_active,
+                    }}
+                    onSubmit={handleSave}
+                    submitting={saving}
+                  />
+                </Card>
               </div>
-            )}
+              {client.billing_model === "credits" && (
+                <div className="lg:col-span-1">
+                  <CreditTiersEditor
+                    clientId={client.id}
+                    showProgress={client.credits_enabled ?? false}
+                    onToggleProgress={handleToggleProgress}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </TabsContent>
 
         <TabsContent value="notes" className="mt-4 overflow-y-auto">
-          <ClientNotesPanel clientId={id} />
+          <div className="max-w-[1400px] w-full">
+            <ClientNotesPanel clientId={id} />
+          </div>
         </TabsContent>
 
         <TabsContent value="reports" className="mt-4 overflow-y-auto pb-8">
-          <ClientReportsPanel
-            clientId={id}
-            billingModel={client.billing_model}
-            monthlyValue={client.monthly_value}
-            demands={clientDemands}
-            onOpenDemand={(demandId) => overlay.open(demandId, [{ id: client.id, name: client.name }])}
-          />
+          <div className="max-w-[1400px] w-full">
+            <ClientReportsPanel
+              clientId={id}
+              billingModel={client.billing_model}
+              fixedType={client.fixed_type}
+              monthlyValue={client.monthly_value}
+              demands={clientDemands}
+              clientEditions={clientEditions}
+              onOpenDemand={(demandId) => overlay.open(demandId, [{ id: client.id, name: client.name }])}
+            />
+          </div>
         </TabsContent>
+        {client.billing_model === "seasonal" && (
+          <TabsContent value="editions" className="mt-4 overflow-y-auto pb-8">
+            <div className="max-w-[1400px] w-full">
+              <ClientEditionsPanel
+                clientId={client.id}
+                editions={clientEditions}
+                demands={clientDemands}
+                onRefetch={refetchEditions}
+              />
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
@@ -506,19 +613,26 @@ function CreditTiersEditor({
 function ClientReportsPanel({
   clientId,
   billingModel,
+  fixedType,
   monthlyValue,
   demands,
+  clientEditions = [],
   onOpenDemand,
 }: {
   clientId: string;
   billingModel: string;
+  fixedType?: string | null;
   monthlyValue: number | null;
   demands: any[];
+  clientEditions?: any[];
   onOpenDemand: (id: string) => void;
 }) {
+  const isOneOff = billingModel === "fixed" && fixedType === "one_off";
   const getTiersFn = useServerFn(getClientCreditTiers);
 
-  const [period, setPeriod] = useState<"diario" | "semanal" | "mensal" | "anual" | "personalizado">("mensal");
+  const [period, setPeriod] = useState<"diario" | "semanal" | "mensal" | "anual" | "personalizado" | "edicao">(() =>
+    billingModel === "seasonal" ? "edicao" : "mensal"
+  );
   const [refDate, setRefDate] = useState(() => new Date());
 
   const [startDate, setStartDate] = useState(() => {
@@ -528,6 +642,18 @@ function ClientReportsPanel({
   const [endDate, setEndDate] = useState(() => {
     return new Date().toISOString().slice(0, 10);
   });
+
+  const [reportEditionId, setReportEditionId] = useState<string>(() => {
+    const active = clientEditions.find((e) => e.is_active);
+    return active?.id || clientEditions[0]?.id || "";
+  });
+
+  useEffect(() => {
+    if (billingModel === "seasonal" && clientEditions.length > 0 && !reportEditionId) {
+      const active = clientEditions.find((e) => e.is_active);
+      setReportEditionId(active?.id || clientEditions[0]?.id || "");
+    }
+  }, [billingModel, clientEditions, reportEditionId]);
 
   // Load client credit tiers
   const { data: creditConfig } = useQuery({
@@ -570,6 +696,20 @@ function ClientReportsPanel({
     });
   };
 
+  const periodOptions = useMemo(() => {
+    const base = [
+      { value: "diario", label: "Dia" },
+      { value: "semanal", label: "Semana" },
+      { value: "mensal", label: "Mês" },
+      { value: "anual", label: "Ano" },
+      { value: "personalizado", label: "Personalizado" }
+    ] as const;
+    if (billingModel === "seasonal") {
+      return [{ value: "edicao", label: "Por Edição" }, ...base];
+    }
+    return base;
+  }, [billingModel]);
+
   const { actualStart, actualEnd, formattedPeriodLabel } = useMemo(() => {
     let start = "";
     let end = "";
@@ -606,6 +746,9 @@ function ClientReportsPanel({
       start = `${refDate.getFullYear()}-01-01`;
       end = `${refDate.getFullYear()}-12-31`;
       label = `Ano de ${refDate.getFullYear()}`;
+    } else if (period === "edicao") {
+      const ed = clientEditions.find((e) => e.id === reportEditionId);
+      label = ed ? `Edição: ${ed.name}` : "Selecione uma edição";
     } else {
       start = startDate;
       end = endDate;
@@ -613,23 +756,34 @@ function ClientReportsPanel({
     }
 
     return { actualStart: start, actualEnd: end, formattedPeriodLabel: label };
-  }, [period, refDate, startDate, endDate]);
+  }, [period, refDate, startDate, endDate, clientEditions, reportEditionId]);
 
-  // Filter demands by status === "concluido" and within date range (based on due_date)
-  const completedDemands = demands.filter((d) => {
-    if (d.status !== "concluido") return false;
-    if (!d.due_date) return false;
-    const dateStr = d.due_date.slice(0, 10);
-    return dateStr >= actualStart && dateStr <= actualEnd;
-  });
+  // Filter demands
+  const completedDemands = useMemo(() => {
+    if (period === "edicao") {
+      return demands.filter((d) => d.client_edition_id === reportEditionId);
+    }
+    return demands.filter((d) => {
+      if (d.status !== "concluido") return false;
+      if (!d.due_date) return false;
+      const dateStr = d.due_date.slice(0, 10);
+      return dateStr >= actualStart && dateStr <= actualEnd;
+    });
+  }, [demands, period, reportEditionId, actualStart, actualEnd]);
 
   // Calculations
   const totalCredits = completedDemands.reduce((sum, d) => sum + (d.estimated_credits || 0), 0);
   const totalHours = completedDemands.reduce((sum, d) => sum + (Number(d.estimated_hours) || 0), 0);
   
-  const totalPrice = billingModel === "credits"
-    ? calculateTiersPrice(totalCredits, creditTiers)
-    : monthlyValue ?? 0;
+  const totalPrice = useMemo(() => {
+    if (billingModel === "seasonal" || isOneOff) {
+      return completedDemands.reduce((sum, d) => sum + (Number(d.price) || 0), 0);
+    }
+    if (billingModel === "credits") {
+      return calculateTiersPrice(totalCredits, creditTiers);
+    }
+    return monthlyValue ?? 0;
+  }, [billingModel, isOneOff, completedDemands, totalCredits, creditTiers, monthlyValue]);
 
   // Credit progress calculations
   const sortedTiers = useMemo(() => {
@@ -673,16 +827,10 @@ function ClientReportsPanel({
         <div className="flex flex-wrap items-center gap-4">
           {/* Period Selector Tabs */}
           <div className="flex flex-wrap items-center gap-1.5 bg-muted/40 p-1 rounded-lg border border-border/60 w-fit">
-            {([
-              { value: "diario", label: "Dia" },
-              { value: "semanal", label: "Semana" },
-              { value: "mensal", label: "Mês" },
-              { value: "anual", label: "Ano" },
-              { value: "personalizado", label: "Personalizado" }
-            ] as const).map(({ value, label }) => (
+            {periodOptions.map(({ value, label }) => (
               <button
                 key={value}
-                onClick={() => setPeriod(value)}
+                onClick={() => setPeriod(value as any)}
                 className={cn(
                   "px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-all",
                   period === value
@@ -696,7 +844,7 @@ function ClientReportsPanel({
           </div>
 
           {/* Navigation Arrows & Current Label */}
-          {period !== "personalizado" && (
+          {period !== "personalizado" && period !== "edicao" && (
             <div className="flex items-center gap-1 bg-muted/20 border border-border/60 rounded-lg p-0.5">
               <Button
                 variant="ghost"
@@ -717,6 +865,23 @@ function ClientReportsPanel({
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
+            </div>
+          )}
+
+          {period === "edicao" && (
+            <div className="flex items-center gap-2">
+              <Select value={reportEditionId} onValueChange={setReportEditionId}>
+                <SelectTrigger className="h-8 text-xs bg-background border-border text-foreground w-auto min-w-[150px]">
+                  <SelectValue placeholder="Selecione a edição..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {clientEditions.map((ed: any) => (
+                    <SelectItem key={ed.id} value={ed.id} className="text-xs">
+                      {ed.name} {ed.is_active ? " (Vigente)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
         </div>
@@ -748,7 +913,9 @@ function ClientReportsPanel({
       {/* Summary Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-4 flex flex-col justify-between h-24">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Serviços Concluídos</span>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
+            {billingModel === "seasonal" ? "Total de Demandas" : "Serviços Concluídos"}
+          </span>
           <div className="flex items-baseline gap-1.5 mt-2">
             <span className="text-3xl font-display font-extrabold text-foreground">{completedDemands.length}</span>
             <span className="text-xs text-muted-foreground">demandas</span>
@@ -786,6 +953,21 @@ function ClientReportsPanel({
               </div>
             </Card>
           </>
+        ) : (billingModel === "seasonal" || isOneOff) ? (
+          <Card className="p-4 flex flex-col justify-between h-24 border-emerald-500/25 bg-emerald-500/[0.02]">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase tracking-wider font-bold">Total a Cobrar</span>
+              <span className="text-[9px] text-muted-foreground">
+                {billingModel === "seasonal" ? "Soma das demandas deste evento" : "Soma das demandas concluídas no período"}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-1 mt-2">
+              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">R$</span>
+              <span className="text-3xl font-display font-extrabold text-emerald-600 dark:text-emerald-400">
+                {totalPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </Card>
         ) : (
           <Card className="p-4 flex flex-col justify-between h-24 border-blue-500/25 bg-blue-500/[0.02]">
             <span className="text-[10px] text-blue-600 dark:text-blue-400 uppercase tracking-wider font-bold">Mensalidade Contratual</span>
@@ -811,6 +993,7 @@ function ClientReportsPanel({
                 <th className="p-3">Conclusão / Entrega</th>
                 <th className="p-3 text-center">Horas</th>
                 {billingModel === "credits" && <th className="p-3 text-center">Créditos</th>}
+                {(billingModel === "seasonal" || isOneOff) && <th className="p-3 text-right">Valor</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -825,7 +1008,14 @@ function ClientReportsPanel({
                     </button>
                   </td>
                   <td className="p-3 text-muted-foreground">
-                    {d.due_date ? new Date(d.due_date + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
+                    {d.due_date ? (() => {
+                      const pureDate = d.due_date.includes("T") ? d.due_date.split("T")[0] : d.due_date;
+                      const parts = pureDate.split("-");
+                      if (parts.length === 3) {
+                        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                      }
+                      return pureDate;
+                    })() : "—"}
                   </td>
                   <td className="p-3 text-center text-muted-foreground">
                     {d.estimated_hours ? `${Number(d.estimated_hours)}h` : "—"}
@@ -835,12 +1025,17 @@ function ClientReportsPanel({
                       {d.estimated_credits || 0}
                     </td>
                   )}
+                  {(billingModel === "seasonal" || isOneOff) && (
+                    <td className="p-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                      {d.price ? `R$ ${Number(d.price).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                    </td>
+                  )}
                 </tr>
               ))}
               {completedDemands.length === 0 && (
                 <tr>
                   <td
-                    colSpan={billingModel === "credits" ? 4 : 3}
+                    colSpan={billingModel === "credits" || billingModel === "seasonal" || isOneOff ? 4 : 3}
                     className="p-8 text-center text-muted-foreground/60 italic"
                   >
                     Nenhum serviço concluído no período selecionado.
@@ -852,5 +1047,390 @@ function ClientReportsPanel({
         </div>
       </Card>
     </div>
+  );
+}
+
+function ClientEditionsPanel({
+  clientId,
+  editions,
+  demands = [],
+  onRefetch,
+}: {
+  clientId: string;
+  editions: any[];
+  demands?: any[];
+  onRefetch: () => void;
+}) {
+  const createFn = useServerFn(createClientEdition);
+  const updateFn = useServerFn(updateClientEdition);
+  const deleteFn = useServerFn(deleteClientEdition);
+  const [name, setName] = useState("");
+  const [isActive, setIsActive] = useState(false);
+  const [billingMonth, setBillingMonth] = useState<string>("none");
+  const [billingYear, setBillingYear] = useState<string>(() => String(new Date().getFullYear()));
+  const [price, setPrice] = useState<string>("");
+  const [submitting, setSubmitting] = useState(false);
+
+  // Edit states
+  const [editingEdition, setEditingEdition] = useState<any | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editBillingMonth, setEditBillingMonth] = useState("none");
+  const [editBillingYear, setEditBillingYear] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+  const [editIsActive, setEditIsActive] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const MONTHS = [
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+  ];
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSubmitting(true);
+    try {
+      await createFn({
+        data: {
+          client_id: clientId,
+          name: name.trim(),
+          is_active: isActive,
+          billing_month: billingMonth === "none" ? null : Number(billingMonth),
+          billing_year: billingMonth === "none" ? null : Number(billingYear),
+          price: price ? Number(price) : null,
+        },
+      });
+      toast.success("Edição criada com sucesso!");
+      setName("");
+      setIsActive(false);
+      setBillingMonth("none");
+      setPrice("");
+      onRefetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao criar edição");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSetActive(edition: any) {
+    try {
+      await updateFn({
+        data: {
+          id: edition.id,
+          client_id: clientId,
+          name: edition.name,
+          is_active: true,
+          billing_month: edition.billing_month,
+          billing_year: edition.billing_year,
+          price: edition.price ? Number(edition.price) : null,
+        },
+      });
+      toast.success("Edição definida como vigente!");
+      onRefetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao atualizar");
+    }
+  }
+
+  function startEdit(ed: any) {
+    setEditingEdition(ed);
+    setEditName(ed.name);
+    setEditBillingMonth(ed.billing_month ? String(ed.billing_month) : "none");
+    setEditBillingYear(ed.billing_year ? String(ed.billing_year) : String(new Date().getFullYear()));
+    setEditPrice(ed.price ? String(ed.price) : "");
+    setEditIsActive(!!ed.is_active);
+    setIsEditDialogOpen(true);
+  }
+
+  async function handleEditSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingEdition || !editName.trim()) return;
+    setSubmitting(true);
+    try {
+      await updateFn({
+        data: {
+          id: editingEdition.id,
+          client_id: clientId,
+          name: editName.trim(),
+          is_active: editIsActive,
+          billing_month: editBillingMonth === "none" ? null : Number(editBillingMonth),
+          billing_year: editBillingMonth === "none" ? null : Number(editBillingYear),
+          price: editPrice ? Number(editPrice) : null,
+        },
+      });
+      toast.success("Edição atualizada com sucesso!");
+      setIsEditDialogOpen(false);
+      setEditingEdition(null);
+      onRefetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao atualizar");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDelete(editionId: string) {
+    if (!confirm("Excluir esta edição permanentemente? As demandas associadas serão desvinculadas.")) return;
+    try {
+      await deleteFn({ data: { id: editionId } });
+      toast.success("Edição excluída.");
+      onRefetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao excluir");
+    }
+  }
+
+  return (
+    <Card className="p-6 flex flex-col gap-6">
+      <div>
+        <h3 className="text-lg font-semibold font-display">Gerenciar Edições / Temporadas</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          Crie edições para organizar as demandas desse cliente por evento ou temporada.
+        </p>
+      </div>
+
+      <form onSubmit={handleAdd} className="flex flex-col gap-4 bg-muted/20 p-4 rounded-lg border border-border">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full text-xs">
+          <div className="flex flex-col gap-1.5 md:col-span-2">
+            <Label htmlFor="edition-name" className="text-xs font-semibold">Nome da Edição *</Label>
+            <Input
+              id="edition-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex: Edição de Julho 2026, Rock in Rio 2026"
+              className="h-9 bg-background border-border"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="edition-month" className="text-xs font-semibold">Mês do Faturamento</Label>
+            <Select value={billingMonth} onValueChange={setBillingMonth}>
+              <SelectTrigger id="edition-month" className="h-9 bg-background border-border text-xs">
+                <SelectValue placeholder="Mês" />
+              </SelectTrigger>
+              <SelectContent className="bg-zinc-950 border-zinc-800">
+                <SelectItem value="none">Nenhum (Sem fatura)</SelectItem>
+                {MONTHS.map((m, idx) => (
+                  <SelectItem key={idx} value={String(idx + 1)}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="edition-year" className="text-xs font-semibold">Ano do Faturamento</Label>
+            <Input
+              id="edition-year"
+              type="number"
+              value={billingYear}
+              onChange={(e) => setBillingYear(e.target.value)}
+              className="h-9 bg-background border-border text-xs"
+              disabled={billingMonth === "none"}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5 md:col-span-2">
+            <Label htmlFor="edition-price" className="text-xs font-semibold">Valor do Faturamento (R$)</Label>
+            <Input
+              id="edition-price"
+              type="number"
+              step="0.01"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="Vazio = Acumulado das demandas"
+              className="h-9 bg-background border-border text-xs"
+              disabled={billingMonth === "none"}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 h-9 md:col-span-2 md:mt-6">
+            <input
+              type="checkbox"
+              id="edition-active"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+              className="rounded border-border bg-background cursor-pointer"
+            />
+            <Label htmlFor="edition-active" className="text-xs font-semibold select-none cursor-pointer">
+              Definir como edição vigente
+            </Label>
+          </div>
+        </div>
+
+        <div className="flex justify-end border-t border-border/40 pt-3 mt-2">
+          <Button type="submit" disabled={submitting} size="sm">
+            {submitting ? "Criando..." : "Adicionar Edição"}
+          </Button>
+        </div>
+      </form>
+
+      <div className="flex flex-col gap-2">
+        <Label className="text-xs font-semibold">Edições Cadastradas</Label>
+        {editions.length === 0 ? (
+          <div className="text-sm text-muted-foreground italic py-8 text-center bg-muted/10 rounded border border-dashed border-border">
+            Nenhuma edição cadastrada para este cliente.
+          </div>
+        ) : (
+          <div className="border border-border rounded-md divide-y divide-border bg-background">
+            {editions.map((ed) => {
+              // Calculate accumulated value for this edition
+              const editionDemands = demands.filter((d) => d.client_edition_id === ed.id);
+              const accumulatedVal = editionDemands.reduce((sum, d) => sum + Number(d.price || 0), 0);
+
+              return (
+                <div key={ed.id} className="flex items-center justify-between p-3 text-sm">
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-foreground">{ed.name}</span>
+                      {ed.is_active && (
+                        <Badge variant="default" className="text-[10px] py-0 px-1.5 bg-emerald-700 text-emerald-100 border-none">
+                          Vigente
+                        </Badge>
+                      )}
+                    </div>
+                    {ed.billing_month && ed.billing_year && (
+                      <div className="text-[11px] text-muted-foreground font-sans mt-0.5">
+                        Faturamento:{" "}
+                        {ed.price && Number(ed.price) > 0 ? (
+                          <span className="text-emerald-400 font-semibold">
+                            R$ {Number(ed.price).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Fixo)
+                          </span>
+                        ) : (
+                          <span className="text-sky-400 font-semibold">
+                            R$ {accumulatedVal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Acumulado de {editionDemands.length} demandas)
+                          </span>
+                        )}
+                        {" "}em {MONTHS[ed.billing_month - 1]}/{ed.billing_year}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!ed.is_active && (
+                      <Button variant="outline" size="sm" className="h-7 px-2 py-0 text-xs" onClick={() => handleSetActive(ed)}>
+                        Tornar Vigente
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" className="h-7 px-2 py-0 text-xs border-zinc-700 hover:bg-zinc-800 text-zinc-300" onClick={() => startEdit(ed)}>
+                      Editar
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs text-red-500 hover:text-red-600" onClick={() => handleDelete(ed.id)}>
+                      Excluir
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {isEditDialogOpen && (
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="bg-zinc-950 border-zinc-800 text-foreground max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-semibold font-display">Editar Edição / Temporada</DialogTitle>
+            </DialogHeader>
+
+            <form onSubmit={handleEditSave} className="flex flex-col gap-4 mt-4 text-xs">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="edit-edition-name" className="text-xs font-semibold">Nome da Edição *</Label>
+                <Input
+                  id="edit-edition-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Ex: Edição 2026"
+                  className="h-9 bg-background border-border text-xs"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-edition-month" className="text-xs font-semibold">Mês do Faturamento</Label>
+                  <Select value={editBillingMonth} onValueChange={setEditBillingMonth}>
+                    <SelectTrigger id="edit-edition-month" className="h-9 bg-background border-border text-xs">
+                      <SelectValue placeholder="Mês" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-zinc-950 border-zinc-800">
+                      <SelectItem value="none">Nenhum (Sem fatura)</SelectItem>
+                      {MONTHS.map((m, idx) => (
+                        <SelectItem key={idx} value={String(idx + 1)}>
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-edition-year" className="text-xs font-semibold">Ano do Faturamento</Label>
+                  <Input
+                    id="edit-edition-year"
+                    type="number"
+                    value={editBillingYear}
+                    onChange={(e) => setEditBillingYear(e.target.value)}
+                    className="h-9 bg-background border-border text-xs"
+                    disabled={editBillingMonth === "none"}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="edit-edition-price" className="text-xs font-semibold">Valor do Faturamento (R$)</Label>
+                <Input
+                  id="edit-edition-price"
+                  type="number"
+                  step="0.01"
+                  value={editPrice}
+                  onChange={(e) => setEditPrice(e.target.value)}
+                  placeholder="Deixe vazio para o valor acumulado"
+                  className="h-9 bg-background border-border text-xs"
+                  disabled={editBillingMonth === "none"}
+                />
+                <span className="text-[10px] text-muted-foreground mt-0.5">
+                  Deixe vazio ou em 0,00 para calcular o total acumulado das demandas desta edição.
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 h-9">
+                <input
+                  type="checkbox"
+                  id="edit-edition-active"
+                  checked={editIsActive}
+                  onChange={(e) => setEditIsActive(e.target.checked)}
+                  className="rounded border-border bg-background cursor-pointer"
+                />
+                <Label htmlFor="edit-edition-active" className="text-xs font-semibold select-none cursor-pointer">
+                  Definir como edição vigente
+                </Label>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-border/40 pt-4 mt-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={submitting} size="sm">
+                  {submitting ? "Salvando..." : "Salvar Alterações"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+    </Card>
   );
 }

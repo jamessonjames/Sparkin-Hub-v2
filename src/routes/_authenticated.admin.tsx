@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listUsersWithRoles, updateUserRole } from "@/lib/users.functions";
+import { uploadToGDrive, getGoogleDriveStatus, disconnectGoogleDrive, exchangeGoogleCode } from "@/lib/gdrive.functions";
+import { getPricingSettings, savePricingSettings } from "@/lib/pricing.functions";
 import { applyThemeAndHighlight, HIGHLIGHT_COLORS, type HighlightColor } from "@/utils/theme";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -30,6 +33,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -72,6 +76,49 @@ function AdminPage() {
   const [highlightColor, setHighlightColor] = useState<HighlightColor>("roxo");
   const [customHex, setCustomHex] = useState("#4f46e5");
 
+  const faviconInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const uploadFn = useServerFn(uploadToGDrive);
+
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingFavicon(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = (event.target?.result as string).split(",")[1];
+      try {
+        const response = await uploadFn({
+          data: {
+            fileBase64: base64,
+            fileName: file.name,
+            mimeType: file.type,
+            pathParts: ["Branding"],
+          },
+        });
+
+        if (response.success && response.url) {
+          setFaviconUrl(response.url);
+          toast.success("Favicon carregado e hospedado no Google Drive!");
+        } else {
+          // Fallback if not configured
+          const fallbackUrl = event.target?.result as string; // use base64 direct URL
+          setFaviconUrl(fallbackUrl);
+          toast.warning("Hospedagem Google Drive indisponível. Favicon salvo localmente em base64.");
+        }
+      } catch (error: any) {
+        console.error("Favicon upload failed, using fallback:", error);
+        const fallbackUrl = event.target?.result as string;
+        setFaviconUrl(fallbackUrl);
+        toast.warning("Hospedagem falhou. Usando fallback local.");
+      } finally {
+        setUploadingFavicon(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   // User creation states
   const [openCreate, setOpenCreate] = useState(false);
   const [newName, setNewName] = useState("");
@@ -98,6 +145,106 @@ function AdminPage() {
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const [whatsappPhone, setWhatsappPhone] = useState("");
 
+  // Google Drive integration state
+  const [gDriveConnected, setGDriveConnected] = useState(false);
+  const [gDriveEmail, setGDriveEmail] = useState("");
+  const [loadingGDriveStatus, setLoadingGDriveStatus] = useState(true);
+
+  const getStatusFn = useServerFn(getGoogleDriveStatus);
+  const disconnectFn = useServerFn(disconnectGoogleDrive);
+  const exchangeCodeFn = useServerFn(exchangeGoogleCode);
+
+  // Pricing settings state
+  const [baseHourlyRate, setBaseHourlyRate] = useState<number>(80);
+  const [pricingTiers, setPricingTiers] = useState<{ type: "up_to" | "above"; hours_limit: number; hourly_rate: number }[]>([]);
+  const [savingPricing, setSavingPricing] = useState(false);
+
+  const getPricingFn = useServerFn(getPricingSettings);
+  const savePricingFn = useServerFn(savePricingSettings);
+
+  const handleAddTier = () => {
+    setPricingTiers([...pricingTiers, { type: "up_to", hours_limit: 1, hourly_rate: 80 }]);
+  };
+
+  const handleRemoveTier = (index: number) => {
+    setPricingTiers(pricingTiers.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateTier = (index: number, key: 'type' | 'hours_limit' | 'hourly_rate', val: any) => {
+    const updated = [...pricingTiers];
+    updated[index] = { ...updated[index], [key]: val } as any;
+    setPricingTiers(updated);
+  };
+
+  const handleSavePricing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingPricing(true);
+    try {
+      // Sort tiers by hours_limit before saving
+      const sortedTiers = [...pricingTiers]
+        .filter(t => t.hours_limit > 0 && t.hourly_rate >= 0)
+        .sort((a, b) => a.hours_limit - b.hours_limit);
+
+      const res = await savePricingFn({
+        data: {
+          base_hourly_rate: baseHourlyRate,
+          tiers: sortedTiers.map(t => ({
+            type: t.type || "up_to",
+            hours_limit: t.hours_limit,
+            hourly_rate: t.hourly_rate
+          }))
+        }
+      });
+      if (res.success) {
+        toast.success("Configurações de precificação salvas com sucesso!");
+        setPricingTiers(sortedTiers);
+      } else {
+        toast.error(res.error || "Erro ao salvar.");
+      }
+    } catch (error: any) {
+      toast.error(`Erro: ${error.message}`);
+    } finally {
+      setSavingPricing(false);
+    }
+  };
+
+  const handleConnectGDrive = () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      toast.error("VITE_GOOGLE_CLIENT_ID não configurado no arquivo .env");
+      return;
+    }
+    const redirectUri = window.location.origin + window.location.pathname;
+    const scope = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive";
+    const responseType = "code";
+    const accessType = "offline";
+    const prompt = "consent";
+
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+      redirectUri
+    )}&response_type=${responseType}&scope=${encodeURIComponent(
+      scope
+    )}&access_type=${accessType}&prompt=${prompt}`;
+
+    window.location.href = url;
+  };
+
+  const handleDisconnectGDrive = async () => {
+    if (!confirm("Tem certeza que deseja desconectar o Google Drive? Os novos uploads voltarão a ser salvos em base64 localmente.")) return;
+    try {
+      const res = await disconnectFn();
+      if (res.success) {
+        setGDriveConnected(false);
+        setGDriveEmail("");
+        toast.success("Google Drive desconectado.");
+      } else {
+        toast.error(`Falha ao desconectar: ${res.error}`);
+      }
+    } catch (e: any) {
+      toast.error(`Erro: ${e.message}`);
+    }
+  };
+
   // Load configuration from localstorage
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -120,6 +267,45 @@ function AdminPage() {
       setGoogleClientId(localStorage.getItem("CF_Int_GoogleClientId") || "");
       setWhatsappEnabled(localStorage.getItem("CF_Int_WhatsappEnabled") === "true");
       setWhatsappPhone(localStorage.getItem("CF_Int_WhatsappPhone") || "");
+
+      // Check Google Drive OAuth callback code in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get("code");
+      if (code) {
+        // Clear code parameter from URL to keep it clean
+        window.history.replaceState({}, document.title, window.location.pathname);
+        toast.loading("Conectando sua conta do Google Drive...");
+        exchangeCodeFn({ data: { code, redirectUri: window.location.origin + window.location.pathname } })
+          .then((res) => {
+            toast.dismiss();
+            if (res.success) {
+              setGDriveConnected(true);
+              setGDriveEmail(res.email);
+              toast.success(`Google Drive conectado com sucesso: ${res.email}`);
+            } else {
+              toast.error(`Falha ao conectar Google Drive: ${res.error}`);
+            }
+          })
+          .catch((err) => {
+            toast.dismiss();
+            toast.error(`Erro: ${err.message}`);
+          });
+      } else {
+        // Load connection status
+        getStatusFn()
+          .then((res) => {
+            setGDriveConnected(res.connected);
+            setGDriveEmail(res.email || "");
+            setLoadingGDriveStatus(false);
+          })
+          .catch(() => setLoadingGDriveStatus(false));
+      }
+
+      // Load pricing settings
+      getPricingFn().then((res) => {
+        setBaseHourlyRate(res.base_hourly_rate);
+        setPricingTiers(res.tiers || []);
+      });
 
       // Get logged-in user
       supabase.auth.getUser().then(({ data }) => {
@@ -155,6 +341,7 @@ function AdminPage() {
     localStorage.setItem("CF_SystemName", systemName);
     localStorage.setItem("CF_Favicon", faviconUrl);
     applyThemeAndHighlight();
+    window.dispatchEvent(new Event("systemBrandingChanged"));
     toast.success("Configurações de marca atualizadas!");
   }
 
@@ -324,7 +511,7 @@ function AdminPage() {
 
 
   return (
-    <div className="w-full p-4 md:p-6 space-y-6 pb-24 md:pb-6">
+    <div className="max-w-[1400px] w-full p-4 md:p-6 space-y-6 pb-24 md:pb-6">
       <div>
         <h2 className="font-display text-2xl font-bold text-foreground">Painel Administrativo</h2>
         <p className="text-sm text-muted-foreground">Configurações globais, controle de acessos e integrações do sistema.</p>
@@ -340,6 +527,9 @@ function AdminPage() {
           </TabsTrigger>
           <TabsTrigger value="integrations" className="text-xs gap-1.5">
             <LinkIcon className="h-3.5 w-3.5" /> Integrações
+          </TabsTrigger>
+          <TabsTrigger value="pricing" className="text-xs gap-1.5">
+            <DollarSign className="h-3.5 w-3.5" /> Precificação & Tarifas
           </TabsTrigger>
         </TabsList>
 
@@ -372,8 +562,22 @@ function AdminPage() {
                       onChange={(e) => setFaviconUrl(e.target.value)}
                       className="bg-surface-2 border-border text-foreground text-sm h-9 flex-1"
                     />
-                    <Button type="button" variant="outline" className="border-border gap-1.5 text-xs text-foreground hover:bg-surface-2 h-9">
-                      <Upload className="h-3.5 w-3.5" /> Subir
+                    <input
+                      type="file"
+                      ref={faviconInputRef}
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFaviconUpload}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={uploadingFavicon}
+                      onClick={() => faviconInputRef.current?.click()}
+                      className="border-border gap-1.5 text-xs text-foreground hover:bg-surface-2 h-9 cursor-pointer"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      {uploadingFavicon ? "Subindo..." : "Subir"}
                     </Button>
                   </div>
                 </div>
@@ -689,6 +893,46 @@ function AdminPage() {
                 </div>
               </div>
 
+              {/* Google Drive Integration */}
+              <div className="p-4 rounded-xl border border-border bg-surface-2/40 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
+                <div className="flex gap-3">
+                  <div className="h-10 w-10 bg-surface-2 rounded-lg flex items-center justify-center shrink-0 border border-border">
+                    <Upload className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      Google Drive
+                      {gDriveConnected && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
+                      {gDriveConnected 
+                        ? `Conectado à conta: ${gDriveEmail}. Todos os uploads serão organizados em pastas no seu Drive.`
+                        : "Hospede e organize todos os uploads do editor rico e favicons na sua própria conta do Google Drive automaticamente."}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  {gDriveConnected ? (
+                    <Button 
+                      type="button" 
+                      variant="destructive" 
+                      onClick={handleDisconnectGDrive}
+                      className="text-xs h-8 px-3 rounded-lg cursor-pointer"
+                    >
+                      Desconectar
+                    </Button>
+                  ) : (
+                    <Button 
+                      type="button" 
+                      onClick={handleConnectGDrive}
+                      className="text-xs h-8 px-4 bg-primary text-primary-foreground hover:bg-primary/95 rounded-lg cursor-pointer"
+                    >
+                      Conectar
+                    </Button>
+                  )}
+                </div>
+              </div>
+
               {/* Google Calendar Integration */}
               <div className="p-4 rounded-xl border border-border bg-surface-2/40 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
                 <div className="flex gap-3">
@@ -737,6 +981,114 @@ function AdminPage() {
                 </Button>
               </div>
 
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── SEÇÃO: PRECIFICAÇÃO & TARIFAS ── */}
+        <TabsContent value="pricing" className="mt-4">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Precificação & Tarifas</CardTitle>
+              <CardDescription className="text-xs">Configure o valor da hora base e faixas de desconto progressivas para cálculo automático de projetos pontuais/temporadas.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSavePricing} className="space-y-6 max-w-xl">
+                <div className="space-y-1">
+                  <Label htmlFor="base-rate" className="text-xs text-muted-foreground font-semibold">Valor da Hora Base (R$)</Label>
+                  <Input
+                    id="base-rate"
+                    type="number"
+                    min="0"
+                    value={baseHourlyRate}
+                    onChange={(e) => setBaseHourlyRate(parseFloat(e.target.value) || 0)}
+                    className="bg-surface-2 border-border text-foreground text-sm h-9 w-40"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground font-semibold">Faixas de Desconto Progressivas</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddTier}
+                      className="h-8 border-border text-xs gap-1.5 cursor-pointer text-foreground hover:bg-surface-2"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Adicionar Faixa
+                    </Button>
+                  </div>
+
+                  {pricingTiers.length === 0 ? (
+                    <div className="text-center py-6 border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                      Nenhuma faixa cadastrada. O valor padrão por hora sempre será o valor base.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {pricingTiers.map((tier, idx) => (
+                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-surface-2/20 border border-border p-3 rounded-xl">
+                          <div className="flex-1 flex items-center gap-2">
+                            <Select 
+                              value={tier.type || "up_to"} 
+                              onValueChange={(val) => handleUpdateTier(idx, 'type', val as any)}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-background border-input text-foreground w-28 shrink-0">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="up_to" className="text-xs">Até</SelectItem>
+                                <SelectItem value="above" className="text-xs">Acima de</SelectItem>
+                              </SelectContent>
+                            </Select>
+
+                            <Input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              value={tier.hours_limit}
+                              onChange={(e) => handleUpdateTier(idx, 'hours_limit', parseFloat(e.target.value) || 0)}
+                              className="bg-surface-2 border-border text-foreground text-xs h-8 w-20 text-center"
+                            />
+                            <span className="text-xs text-muted-foreground shrink-0 font-medium">horas</span>
+                          </div>
+                          
+                          <div className="flex-1 flex items-center gap-2 sm:justify-end">
+                            <span className="text-xs text-muted-foreground shrink-0">custa</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={tier.hourly_rate}
+                              onChange={(e) => handleUpdateTier(idx, 'hourly_rate', parseFloat(e.target.value) || 0)}
+                              className="bg-surface-2 border-border text-foreground text-xs h-8 w-24 text-center font-semibold"
+                            />
+                            <span className="text-xs text-muted-foreground shrink-0">/ hora</span>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveTier(idx)}
+                            className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 cursor-pointer shrink-0 sm:ml-2"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                    Nota: Ao preencher o tempo estimado de demandas avulsas ou por temporada, o sistema usará a faixa correspondente para calcular o valor sugerido de forma automática.
+                  </p>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <Button type="submit" disabled={savingPricing} className="gap-2 px-6 text-xs h-9 cursor-pointer">
+                    <Save className="h-4 w-4" /> {savingPricing ? "Salvando..." : "Salvar Configuração de Precificação"}
+                  </Button>
+                </div>
+              </form>
             </CardContent>
           </Card>
         </TabsContent>

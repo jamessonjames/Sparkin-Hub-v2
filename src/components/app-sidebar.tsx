@@ -1,5 +1,6 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Users, ListChecks, Plus, UserCircle, CalendarDays, Settings } from "lucide-react";
+import { LayoutDashboard, Users, ListChecks, Plus, UserCircle, CalendarDays, Settings, DollarSign } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -24,6 +25,7 @@ type NavItem = { title: string; to: string; icon: typeof LayoutDashboard; exact?
 const NAV_ITEMS: NavItem[] = [
   { title: "Dashboard", to: "/", icon: LayoutDashboard, exact: true },
   { title: "Clientes", to: "/clients", icon: Users },
+  { title: "Financeiro", to: "/finance", icon: DollarSign },
   { title: "Demandas", to: "/demands", icon: ListChecks },
   { title: "Agenda", to: "/agenda", icon: CalendarDays },
 ];
@@ -39,6 +41,23 @@ export function AppSidebar() {
     queryFn: () => listFn(),
   });
 
+  const [systemName, setSystemName] = useState("Creative Flow");
+  const [faviconUrl, setFaviconUrl] = useState("");
+
+  useEffect(() => {
+    const handleBrandingChange = () => {
+      const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
+      const savedFavicon = localStorage.getItem("CF_Favicon") || "";
+      setSystemName(savedName);
+      setFaviconUrl(savedFavicon);
+    };
+    handleBrandingChange();
+    window.addEventListener("systemBrandingChanged", handleBrandingChange);
+    return () => {
+      window.removeEventListener("systemBrandingChanged", handleBrandingChange);
+    };
+  }, []);
+
   const isActive = (path: string, exact?: boolean) =>
     exact ? pathname === path : pathname === path || pathname.startsWith(path + "/");
 
@@ -52,11 +71,17 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center justify-between px-2 py-1">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-md bg-primary/20 text-primary grid place-items-center font-display font-bold">
-              S
+            <div className="h-8 w-8 rounded-md overflow-hidden grid place-items-center font-display font-bold shrink-0">
+              {faviconUrl ? (
+                <img src={faviconUrl} alt="logo" className="h-full w-full object-contain" />
+              ) : (
+                <div className="h-full w-full bg-primary/20 text-primary grid place-items-center">
+                  {systemName.charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
             {!collapsed && (
-              <div className="font-display font-bold text-sm text-foreground">Creative Flow</div>
+              <div className="font-display font-bold text-sm text-foreground">{systemName}</div>
             )}
           </div>
           {!collapsed && (
