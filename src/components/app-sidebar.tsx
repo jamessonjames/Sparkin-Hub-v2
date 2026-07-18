@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Users, ListChecks, Plus, UserCircle, CalendarDays, Settings, DollarSign } from "lucide-react";
+import { LayoutDashboard, Users, ListChecks, Plus, UserCircle, CalendarDays, Settings, DollarSign, TrendingUp } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -26,6 +26,7 @@ type NavItem = { title: string; to: string; icon: typeof LayoutDashboard; exact?
 const NAV_ITEMS: NavItem[] = [
   { title: "Dashboard", to: "/", icon: LayoutDashboard, exact: true },
   { title: "Clientes", to: "/clients", icon: Users },
+  { title: "Funil Comercial", to: "/crm", icon: TrendingUp },
   { title: "Financeiro", to: "/finance", icon: DollarSign },
   { title: "Demandas", to: "/demands", icon: ListChecks },
   { title: "Agenda", to: "/agenda", icon: CalendarDays },
@@ -107,7 +108,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.filter(item => isAdminOrOwner || (item.to !== "/finance" && item.to !== "/clients")).map((item) => (
+              {NAV_ITEMS.filter(item => isAdminOrOwner || (item.to !== "/finance" && item.to !== "/clients" && item.to !== "/crm")).map((item) => (
                 <SidebarMenuItem key={item.to}>
                   <SidebarMenuButton asChild isActive={isActive(item.to, item.exact)}>
                     <Link to={item.to} className="flex items-center gap-2">
