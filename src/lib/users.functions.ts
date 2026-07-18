@@ -53,24 +53,19 @@ export const updateUserRole = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: existing } = await supabaseAdmin
+    // Delete any existing role for this user, then insert the new one.
+    // This avoids conflicts with the UNIQUE(user_id, role) constraint.
+    const { error: delError } = await supabaseAdmin
       .from("user_roles")
-      .select("id")
-      .eq("user_id", data.userId)
-      .maybeSingle();
+      .delete()
+      .eq("user_id", data.userId);
+    if (delError) throw new Error(delError.message);
 
-    if (existing) {
-      const { error } = await supabaseAdmin
-        .from("user_roles")
-        .update({ role: data.role })
-        .eq("user_id", data.userId);
-      if (error) throw new Error(error.message);
-    } else {
-      const { error } = await supabaseAdmin
-        .from("user_roles")
-        .insert({ user_id: data.userId, role: data.role });
-      if (error) throw new Error(error.message);
-    }
+    const { error: insError } = await supabaseAdmin
+      .from("user_roles")
+      .insert({ user_id: data.userId, role: data.role });
+    if (insError) throw new Error(insError.message);
+
     return { ok: true };
   });
 
@@ -87,41 +82,22 @@ export const createUserWithRole = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     
-    // Create the user in Auth
+    // Create the user in Auth — the DB trigger handle_new_user will automatically
+    // insert the profile and user_roles row, using the role from user_metadata.
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: data.email,
       password: data.password,
       email_confirm: true,
       user_metadata: {
         name: data.name,
+        role: data.role,
       }
     });
     
     if (authError) throw new Error(authError.message);
     if (!authUser.user) throw new Error("Não foi possível criar o usuário.");
 
-    const userId = authUser.user.id;
-
-    // Set role
-    const { error: roleError } = await supabaseAdmin
-      .from("user_roles")
-      .insert({ user_id: userId, role: data.role });
-      
-    if (roleError) {
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      throw new Error(roleError.message);
-    }
-
-    // Upsert profile
-    const { error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .upsert({ id: userId, name: data.name, email: data.email });
-      
-    if (profileError) {
-      console.warn("Could not upsert profile:", profileError.message);
-    }
-
-    return { ok: true, userId };
+    return { ok: true, userId: authUser.user.id };
   });
 
 export const updateUserAdmin = createServerFn({ method: "POST" })
