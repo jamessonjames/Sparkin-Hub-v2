@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -96,6 +96,7 @@ export function DemandDetailDialog({
   onPortalDemandUpdated?: (d: PortalInitialDemand) => void;
 }) {
   const isNew = id === "new";
+  const overlayClickRef = useRef(false);
 
   // ── Admin server functions (declared unconditionally — rules of hooks) ──
   const getFn = useServerFn(getDemand);
@@ -684,10 +685,14 @@ export function DemandDetailDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
+      onMouseDown={(e) => {
+        overlayClickRef.current = e.target === e.currentTarget;
+      }}
+      onMouseUp={(e) => {
+        if (e.target === e.currentTarget && overlayClickRef.current) {
           handleClose();
         }
+        overlayClickRef.current = false;
       }}
     >
       <div className="relative w-full max-w-[95vw] lg:max-w-5xl xl:max-w-6xl h-[90vh] bg-card border border-border rounded-2xl flex flex-col overflow-hidden shadow-2xl my-auto mx-auto animate-in fade-in zoom-in duration-200">
