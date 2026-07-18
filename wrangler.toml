@@ -1,7 +1,7 @@
 [vars]
 SUPABASE_URL = "https://qlsubkwxcteqvhkrdcqk.supabase.co"
 VITE_SUPABASE_URL = "https://qlsubkwxcteqvhkrdcqk.supabase.co"
-SUPABASE_ANON_KEY = "sb_publishable_eq9BopzDsOC73bN1K5M8eA_sBuv0NWwS9L2g84vBclA="
-VITE_SUPABASE_ANON_KEY = "sb_publishable_eq9BopzDsOC73bN1K5M8eA_sBuv0NWwS9L2g84vBclA="
 SUPABASE_PUBLISHABLE_KEY = "sb_publishable_eq9BopzDsOC73bN1K5M8eA_sBuv0NWwS9L2g84vBclA="
 VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_eq9BopzDsOC73bN1K5M8eA_sBuv0NWwS9L2g84vBclA="
+SUPABASE_ANON_KEY = "sb_publishable_eq9BopzDsOC73bN1K5M8eA_sBuv0NWwS9L2g84vBclA="
+VITE_SUPABASE_ANON_KEY = "sb_publishable_eq9BopzDsOC73bN1K5M8eA_sBuv0NWwS9L2g84vBclA="
