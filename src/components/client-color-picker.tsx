@@ -2,18 +2,18 @@ import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 export const CLIENT_COLORS = [
-  "#ef4444",
-  "#f97316",
-  "#eab308",
-  "#22c55e",
-  "#14b8a6",
-  "#3b82f6",
-  "#8b5cf6",
-  "#ec4899",
-  "#78716c",
-  "#a855f7",
-  "#06b6d4",
-  "#f43f5e",
+  "#E6194B",
+  "#3CB44B",
+  "#FFE119",
+  "#4363D8",
+  "#F58231",
+  "#911EB4",
+  "#42D4F4",
+  "#F032E6",
+  "#BFEF45",
+  "#FABED4",
+  "#469990",
+  "#9A6324",
 ];
 
 interface Props {
