@@ -1,6 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { LayoutDashboard, Users, ListChecks, Plus, CalendarDays, Settings, DollarSign, TrendingUp, GripVertical, ChevronDown, ChevronRight } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -110,58 +111,103 @@ export function AppSidebar() {
     }
   }, [sidebarOrder, currentUserRole]);
 
-  const [dragFrom, setDragFrom] = useState<number | null>(null);
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
+  const dragState = useRef<{
+    from: number;
+    startY: number;
+    pointerId: number;
+    isDragging: boolean;
+  } | null>(null);
 
-  function handleDragStart(e: React.DragEvent, index: number) {
-    const ghost = document.createElement("div");
-    ghost.textContent = orderedItems[index].title;
-    ghost.style.cssText =
-      "position:fixed;top:-1000px;left:-1000px;padding:8px 16px;border-radius:8px;background:#18181b;color:#fff;font-size:14px;border:1px solid #27272a;z-index:99999;font-family:Inter,sans-serif;white-space:nowrap;";
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 0, 0);
-    setTimeout(() => document.body.removeChild(ghost), 0);
+  const [dropIdx, setDropIdx] = useState<number | null>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [floatingPos, setFloatingPos] = useState({ y: 0 });
 
-    e.dataTransfer.clearData();
-    e.dataTransfer.setData("text/plain", String(index));
-    e.dataTransfer.effectAllowed = "move";
-    setDragFrom(index);
+  function setItemRef(index: number, el: HTMLLIElement | null) {
+    itemRefs.current[index] = el;
   }
 
-  function handleDragOver(e: React.DragEvent, index: number) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    if (dragOverIdx !== index) {
-      setDragOverIdx(index);
+  function handlePointerDown(e: React.PointerEvent, index: number) {
+    if (collapsed) return;
+    const li = (e.target as HTMLElement).closest('[data-sidebar="menu-item"]') as HTMLElement;
+    if (!li) return;
+
+    li.setPointerCapture(e.pointerId);
+    dragState.current = {
+      from: index,
+      startY: e.clientY,
+      pointerId: e.pointerId,
+      isDragging: false,
+    };
+    setDragIdx(index);
+    setFloatingPos({ y: e.clientY });
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    const state = dragState.current;
+    if (!state) return;
+
+    const dy = Math.abs(e.clientY - state.startY);
+    if (!state.isDragging && dy > 6) {
+      state.isDragging = true;
+      e.preventDefault();
     }
-  }
+    if (!state.isDragging) return;
 
-  function handleDragLeave() {
-    setDragOverIdx(null);
-  }
-
-  function handleDrop(e: React.DragEvent) {
     e.preventDefault();
-    const from = dragFrom;
-    const to = dragOverIdx;
-    setDragFrom(null);
-    setDragOverIdx(null);
-    if (from === null || to === null || from === to) return;
 
-    const updated = [...orderedItems];
-    const [moved] = updated.splice(from, 1);
-    updated.splice(to, 0, moved);
-    setOrderedItems(updated);
+    setFloatingPos({ y: e.clientY });
 
-    const newOrder = updated.map((item) => item.to);
-    setSidebarOrder(newOrder);
-    saveOrderFn({ data: { order: newOrder } }).catch(() => {});
+    const items = itemRefs.current;
+    let found: number | null = null;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item) {
+        const rect = item.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        if (e.clientY <= mid) {
+          found = i;
+          break;
+        }
+      }
+    }
+    if (found === null && items.length > 0) {
+      const last = items[items.length - 1];
+      if (last && e.clientY > last.getBoundingClientRect().bottom) {
+        found = items.length;
+      }
+    }
+    setDropIdx(found);
   }
 
-  function handleDragEnd() {
-    setDragFrom(null);
-    setDragOverIdx(null);
+  function handlePointerUp(_e: React.PointerEvent) {
+    const state = dragState.current;
+    if (!state) return;
+
+    dragState.current = null;
+
+    if (state.isDragging && dropIdx !== null && state.from !== dropIdx) {
+      const to = dropIdx >= state.from ? dropIdx : dropIdx;
+      const updated = [...orderedItems];
+      const [moved] = updated.splice(state.from, 1);
+      updated.splice(to, 0, moved);
+      setOrderedItems(updated);
+      const newOrder = updated.map((item) => item.to);
+      setSidebarOrder(newOrder);
+      saveOrderFn({ data: { order: newOrder } }).catch(() => {});
+    }
+
+    setDragIdx(null);
+    setDropIdx(null);
   }
+
+  function handlePointerCancel() {
+    dragState.current = null;
+    setDragIdx(null);
+    setDropIdx(null);
+  }
+
+  const floatingItem = dragIdx !== null && orderedItems[dragIdx];
 
   return (
     <Sidebar collapsible="icon">
@@ -196,34 +242,53 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
+      {floatingItem && createPortal(
+        <div
+          className="fixed pointer-events-none z-[9999] flex items-center gap-2 px-3 py-2 rounded-lg bg-card border border-border shadow-2xl text-sm font-semibold text-foreground select-none"
+          style={{ left: 80, top: floatingPos.y - 20 }}
+        >
+          <floatingItem.icon className="h-4 w-4" />
+          <span>{floatingItem.title}</span>
+        </div>,
+        document.body,
+      )}
+
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {orderedItems.map((item, index) => {
-                const isOver = dragOverIdx === index;
-                const isDragging = dragFrom === index;
+                const isDrag = dragIdx === index;
+                const isBeforeDrop = dropIdx !== null && dropIdx <= index && index <= (dragIdx ?? -1)
+                  ? dragIdx !== null && dragIdx < index
+                  : dropIdx !== null && dropIdx <= index;
+                const isAfterDrop = dropIdx !== null && !isBeforeDrop;
 
                 return (
                   <SidebarMenuItem
                     key={item.to}
-                    onDragOver={(e) => handleDragOver(e, index)}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
+                    ref={(el) => setItemRef(index, el)}
+                    onPointerDown={(e) => handlePointerDown(e, index)}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerCancel}
                     className={cn(
-                      "group/nav-item transition-all duration-150",
-                      isDragging && "opacity-40",
+                      "group/nav-item transition-all duration-150 select-none",
+                      isDrag && "opacity-30",
                     )}
+                    style={{
+                      transform: isDrag ? "scale(0.95)" : "",
+                    }}
                   >
+                    {dropIdx === index && (
+                      <div className="absolute -top-0.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
+                    )}
+                    {dropIdx === orderedItems.length && index === orderedItems.length - 1 && (
+                      <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
+                    )}
                     <div className="relative flex items-center">
-                      {isOver && (
-                        <div className="absolute -top-1.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
-                      )}
                       <div
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onDragEnd={handleDragEnd}
                         className={cn(
                           "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
                           collapsed && "hidden",
