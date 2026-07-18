@@ -8,7 +8,7 @@ export const listProfiles = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("profiles")
-      .select("id, name, email, avatar_url")
+      .select("id, name, email, avatar_url, theme, highlight_color, custom_hex")
       .order("name", { ascending: true });
     if (error) throw new Error(error.message);
     return data ?? [];
@@ -136,6 +136,45 @@ export const updateUserAdmin = createServerFn({ method: "POST" })
     if (profileError) throw new Error(profileError.message);
 
     return { ok: true };
+  });
+
+export const saveUserPreferences = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      theme: z.enum(["dark", "light"]).optional(),
+      highlight_color: z.string().optional(),
+      custom_hex: z.string().optional(),
+    }).parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    const updates: Record<string, string> = {};
+    if (data.theme) updates.theme = data.theme;
+    if (data.highlight_color) updates.highlight_color = data.highlight_color;
+    if (data.custom_hex) updates.custom_hex = data.custom_hex;
+
+    const { error } = await context.supabase
+      .from("profiles")
+      .update(updates)
+      .eq("id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const getUserPreferences = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from("profiles")
+      .select("theme, highlight_color, custom_hex")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return {
+      theme: data?.theme ?? "dark",
+      highlight_color: data?.highlight_color ?? "roxo",
+      custom_hex: data?.custom_hex ?? "#4f46e5",
+    };
   });
 
 export const deleteUserAdmin = createServerFn({ method: "POST" })

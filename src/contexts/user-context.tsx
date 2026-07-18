@@ -9,6 +9,9 @@ interface Profile {
   id: string;
   name: string | null;
   email: string | null;
+  theme?: string;
+  highlight_color?: string;
+  custom_hex?: string;
 }
 
 interface UserContextValue {
@@ -40,16 +43,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const listProfilesFn = useServerFn(listProfiles);
 
   const refreshProfiles = async () => {
-    try {
-      const profilesData = await listProfilesFn();
-      setProfiles(profilesData.map((p: any) => ({ id: p.id, name: p.name, email: p.email })));
-    } catch {
-      const { data: profilesData } = await supabase
-        .from("profiles")
-        .select("id, name, email")
-        .order("name", { ascending: true });
-      setProfiles(profilesData ?? []);
-    }
+      try {
+        const profilesData = await listProfilesFn();
+        setProfiles(profilesData.map((p: any) => ({ id: p.id, name: p.name, email: p.email, theme: p.theme, highlight_color: p.highlight_color, custom_hex: p.custom_hex })));
+      } catch {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, name, email")
+          .order("name", { ascending: true });
+        setProfiles(profilesData.map((p: any) => ({ id: p.id, name: p.name, email: p.email })) ?? []);
+      }
   };
 
   useEffect(() => {

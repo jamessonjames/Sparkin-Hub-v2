@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listUsersWithRoles, updateUserRole, createUserWithRole, updateUserAdmin, deleteUserAdmin } from "@/lib/users.functions";
+import { listUsersWithRoles, updateUserRole, createUserWithRole, updateUserAdmin, deleteUserAdmin, saveUserPreferences, getUserPreferences } from "@/lib/users.functions";
 import { uploadToGDrive, getGoogleDriveStatus, disconnectGoogleDrive, exchangeGoogleCode } from "@/lib/gdrive.functions";
 import { getPricingSettings, savePricingSettings } from "@/lib/pricing.functions";
 import { applyThemeAndHighlight, HIGHLIGHT_COLORS, type HighlightColor } from "@/utils/theme";
@@ -57,12 +57,15 @@ const ROLE_DESC: Record<string, string> = {
 
 function AdminPage() {
   const qc = useQueryClient();
-  const { refreshProfiles } = useUserContext();
+  const { refreshProfiles, currentUserRole: contextRole } = useUserContext();
   const listUsersFn = useServerFn(listUsersWithRoles);
   const updateRoleFn = useServerFn(updateUserRole);
   const createUserFn = useServerFn(createUserWithRole);
   const updateUserFn = useServerFn(updateUserAdmin);
   const deleteUserFn = useServerFn(deleteUserAdmin);
+  const savePrefsFn = useServerFn(saveUserPreferences);
+  const getPrefsFn = useServerFn(getUserPreferences);
+  const isOwner = contextRole === "owner";
 
   // Logged-in user state
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -250,19 +253,35 @@ function AdminPage() {
     }
   };
 
-  // Load configuration from localstorage
+  // Load configuration from localstorage and user preferences from DB
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
-      const savedTheme = (localStorage.getItem("CF_Theme") as "light" | "dark") || "dark";
       const savedFavicon = localStorage.getItem("CF_Favicon") || "";
-      const savedColor = (localStorage.getItem("CF_HighlightColor") || "roxo") as HighlightColor;
-      const savedHex = localStorage.getItem("CF_CustomHex") || "#4f46e5";
+
+      // Load theme/color from DB first; fall back to localStorage
+      getPrefsFn().then((prefs) => {
+        const savedTheme = (prefs.theme as "light" | "dark") || (localStorage.getItem("CF_Theme") as "light" | "dark") || "dark";
+        const savedColor = (prefs.highlight_color as HighlightColor) || (localStorage.getItem("CF_HighlightColor") || "roxo") as HighlightColor;
+        const savedHex = prefs.custom_hex || localStorage.getItem("CF_CustomHex") || "#4f46e5";
+        setTheme(savedTheme);
+        setHighlightColor(savedColor);
+        setCustomHex(savedHex);
+        localStorage.setItem("CF_Theme", savedTheme);
+        localStorage.setItem("CF_HighlightColor", savedColor);
+        localStorage.setItem("CF_CustomHex", savedHex);
+        applyThemeAndHighlight();
+      }).catch(() => {
+        const savedTheme = (localStorage.getItem("CF_Theme") as "light" | "dark") || "dark";
+        const savedColor = (localStorage.getItem("CF_HighlightColor") || "roxo") as HighlightColor;
+        const savedHex = localStorage.getItem("CF_CustomHex") || "#4f46e5";
+        setTheme(savedTheme);
+        setHighlightColor(savedColor);
+        setCustomHex(savedHex);
+      });
+
       setSystemName(savedName);
-      setTheme(savedTheme);
       setFaviconUrl(savedFavicon);
-      setHighlightColor(savedColor);
-      setCustomHex(savedHex);
 
       setNotionEnabled(localStorage.getItem("CF_Int_NotionEnabled") === "true");
       setNotionToken(localStorage.getItem("CF_Int_NotionToken") || "");
@@ -325,12 +344,14 @@ function AdminPage() {
     setTheme(newTheme);
     localStorage.setItem("CF_Theme", newTheme);
     applyThemeAndHighlight();
+    savePrefsFn({ data: { theme: newTheme } }).catch(() => {});
   };
 
   const updateColorInstantly = (newColor: HighlightColor) => {
     setHighlightColor(newColor);
     localStorage.setItem("CF_HighlightColor", newColor);
     applyThemeAndHighlight();
+    savePrefsFn({ data: { highlight_color: newColor } }).catch(() => {});
   };
 
   const updateCustomHexInstantly = (newHex: string) => {
@@ -339,6 +360,7 @@ function AdminPage() {
     localStorage.setItem("CF_HighlightColor", "custom");
     setHighlightColor("custom");
     applyThemeAndHighlight();
+    savePrefsFn({ data: { highlight_color: "custom", custom_hex: newHex } }).catch(() => {});
   };
 
   async function handleSaveBranding(e: React.FormEvent) {
@@ -499,7 +521,7 @@ function AdminPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSaveBranding} className="space-y-5 max-w-xl">
-                {currentUserRole !== "collaborator" && (
+                {isOwner && (
                   <>
                     <div className="space-y-1">
                       <Label htmlFor="sysname" className="text-xs text-muted-foreground font-semibold">Nome do Sistema</Label>
@@ -680,7 +702,7 @@ function AdminPage() {
                   </div>
                 </div>
 
-                {currentUserRole !== "collaborator" && (
+                {isOwner && (
                   <div className="pt-2 border-t border-border">
                     <Button type="submit" className="gap-2 px-6 text-xs h-9 btn-primary">
                       <Save className="h-4 w-4" /> Salvar Nome & Favicon

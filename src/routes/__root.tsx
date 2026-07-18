@@ -13,6 +13,8 @@ import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { getUserPreferences } from "@/lib/users.functions";
 
 function NotFoundComponent() {
   return (
@@ -120,15 +122,39 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
-import { applyThemeAndHighlight } from "@/utils/theme";
+import { applyThemeAndHighlight, HIGHLIGHT_COLORS } from "@/utils/theme";
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+  const getPrefsFn = useServerFn(getUserPreferences);
 
   useEffect(() => {
-    // Apply branding, theme, and highlight color settings on mount
+    // Apply global branding from localStorage (system name, favicon)
     applyThemeAndHighlight();
+
+    // Load per-user theme/color preferences from DB and override
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data?.user) return;
+      getPrefsFn().then((prefs) => {
+        document.documentElement.classList.toggle("light", prefs.theme === "light");
+        const color = prefs.highlight_color ?? "roxo";
+        const hex = prefs.custom_hex ?? "#4f46e5";
+        let primary, primaryFg, accent, accentFg, gradient;
+        if (color === "custom") {
+          primary = hex; primaryFg = "#ffffff"; accent = hex; accentFg = "#ffffff";
+        } else {
+          const p = HIGHLIGHT_COLORS[color];
+          if (p) { primary = p.primary; primaryFg = p.primaryForeground; accent = p.accent; accentFg = p.accentForeground; gradient = p.gradient; }
+        }
+        if (primary) document.documentElement.style.setProperty("--primary", primary);
+        if (primaryFg) document.documentElement.style.setProperty("--primary-foreground", primaryFg);
+        if (accent) document.documentElement.style.setProperty("--accent", accent);
+        if (accentFg) document.documentElement.style.setProperty("--accent-foreground", accentFg);
+        if (gradient) document.documentElement.style.setProperty("--primary-gradient", gradient);
+        else document.documentElement.style.removeProperty("--primary-gradient");
+      }).catch(() => {});
+    });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
@@ -136,7 +162,7 @@ function RootComponent() {
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });
     return () => sub.subscription.unsubscribe();
-  }, [router, queryClient]);
+  }, [router, queryClient, getPrefsFn]);
 
   return (
     <QueryClientProvider client={queryClient}>
