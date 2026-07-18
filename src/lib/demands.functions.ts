@@ -40,7 +40,12 @@ const upsertSchema = z.object({
 
 export const listDemands = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((input: unknown) =>
+    z.object({
+      assigneeUserId: z.string().uuid().optional(),
+    }).optional().parse(input ?? {})
+  )
+  .handler(async ({ data, context }) => {
     const { data: roleRow } = await context.supabase
       .from("user_roles")
       .select("role")
@@ -56,16 +61,18 @@ export const listDemands = createServerFn({ method: "GET" })
 
     if (role === "collaborator") {
       query = query.eq("assignee_user_id", context.userId);
+    } else if (data?.assigneeUserId) {
+      query = query.eq("assignee_user_id", data.assigneeUserId);
     }
 
-    const { data, error } = await query
+    const { data: result, error } = await query
       .order("sort_order", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false });
 
     if (error) throw new Error(error.message);
     
     // Map status_id to status if custom and add comments_count
-    const mapped = (data ?? []).map((d) => ({
+    const mapped = (result ?? []).map((d) => ({
       ...d,
       status: d.status_id || d.status,
       comments_count: d.demand_comments ? d.demand_comments.length : 0,

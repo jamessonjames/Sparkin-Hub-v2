@@ -23,6 +23,7 @@ import { KanbanBoard } from "@/components/kanban-board";
 import { DemandForm, type DemandFormValues } from "@/components/demand-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
+import { useUserContext } from "@/contexts/user-context";
 import { ClientNotesPanel } from "@/components/client-notes-panel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -99,14 +100,16 @@ function ClientPage() {
   const demandsFn = useServerFn(listDemands);
   const moveFn = useServerFn(moveDemandStatus);
   const createFn = useServerFn(createDemand);
+  const { currentUserRole, selectedUserId, setSelectedUserId, profiles, currentUser } = useUserContext();
+  const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
 
   const { data: client } = useQuery({
     queryKey: ["client", id],
     queryFn: () => getFn({ data: { id } }),
   });
   const { data: allDemands = [] } = useQuery({
-    queryKey: ["demands"],
-    queryFn: () => demandsFn(),
+    queryKey: ["demands", selectedUserId],
+    queryFn: () => demandsFn({ data: isAdminOrOwner && selectedUserId ? { assigneeUserId: selectedUserId } : {} }),
   });
   const clientDemands = allDemands.filter((d) => d.client_id === id);
 
@@ -274,14 +277,38 @@ function ClientPage() {
 
         <TabsContent value="demands" className="mt-4 flex-1 flex flex-col min-h-0 gap-4">
           <div className="w-full flex flex-col gap-4 shrink-0">
-            <div className="flex justify-end">
+            <div className="flex justify-end items-center gap-3">
+              {isAdminOrOwner && profiles.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase">Usuário:</span>
+                  <Select
+                    value={selectedUserId ?? currentUser?.id ?? ""}
+                    onValueChange={(val) => setSelectedUserId(val === currentUser?.id ? null : val)}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-background border-border text-foreground w-auto min-w-[140px]">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={currentUser?.id ?? ""} className="text-xs font-semibold">
+                        {profiles.find(p => p.id === currentUser?.id)?.name ?? "Meu perfil"} (Eu)
+                      </SelectItem>
+                      {profiles.filter(p => p.id !== currentUser?.id).map((p) => (
+                        <SelectItem key={p.id} value={p.id} className="text-xs">
+                          {p.name ?? p.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <Button
                 onClick={() =>
                   overlay.openNew(
                     [{ id: client.id, name: client.name }],
                     client.id,
                     "nao_iniciado",
-                    selectedEditionId === "all" ? undefined : selectedEditionId
+                    selectedEditionId === "all" ? undefined : selectedEditionId,
+                    isAdminOrOwner && selectedUserId ? selectedUserId : undefined
                   )
                 }
                 size="sm"
@@ -326,7 +353,8 @@ function ClientPage() {
                   [{ id: client.id, name: client.name }],
                   client.id,
                   status,
-                  selectedEditionId === "all" ? undefined : selectedEditionId
+                  selectedEditionId === "all" ? undefined : selectedEditionId,
+                  isAdminOrOwner && selectedUserId ? selectedUserId : undefined
                 )
               }
             />

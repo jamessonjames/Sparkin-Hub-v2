@@ -6,6 +6,8 @@ import { listDemands, batchUpdateDueDates, updateDemand } from "@/lib/demands.fu
 import { listProfiles } from "@/lib/users.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
+import { useUserContext } from "@/contexts/user-context";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff } from "lucide-react";
 import { STATUS_LABELS } from "@/lib/demand-labels";
 import { cn } from "@/lib/utils";
@@ -187,10 +189,12 @@ function AgendaPage() {
   const overlay = useDemandOverlay();
   const qc = useQueryClient();
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const { currentUserRole, selectedUserId, setSelectedUserId, profiles, currentUser } = useUserContext();
+  const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
 
   const { data: demands = [] } = useQuery({
-    queryKey: ["demands"],
-    queryFn: () => listFn(),
+    queryKey: ["demands", selectedUserId],
+    queryFn: () => listFn({ data: isAdminOrOwner && selectedUserId ? { assigneeUserId: selectedUserId } : {} }),
   });
 
   // Config State
@@ -542,6 +546,31 @@ function AgendaPage() {
 
           <h2 className="text-sm md:text-base font-bold text-foreground capitalize">{headerLabel}</h2>
 
+          {/* User selector for admin/owner */}
+          {isAdminOrOwner && profiles.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground font-semibold uppercase">Usuário:</span>
+              <Select
+                value={selectedUserId ?? currentUser?.id ?? ""}
+                onValueChange={(val) => setSelectedUserId(val === currentUser?.id ? null : val)}
+              >
+                <SelectTrigger className="h-8 text-xs bg-background border-border text-foreground w-auto min-w-[140px]">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={currentUser?.id ?? ""} className="text-xs font-semibold">
+                    {profiles.find(p => p.id === currentUser?.id)?.name ?? "Meu perfil"} (Eu)
+                  </SelectItem>
+                  {profiles.filter(p => p.id !== currentUser?.id).map((p) => (
+                    <SelectItem key={p.id} value={p.id} className="text-xs">
+                      {p.name ?? p.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* View Mode Selector */}
           <div className="ml-auto flex items-center bg-muted/30 p-0.5 rounded-lg border border-border">
             {(["day", "week", "month"] as const).map((mode) => (
@@ -608,7 +637,7 @@ function AgendaPage() {
                 return (
                   <div
                     key={key}
-                    onClick={() => overlay.openNew(clientsForOverlay, iso, "nao_iniciado")}
+                    onClick={() => overlay.openNew(clientsForOverlay, iso, "nao_iniciado", undefined, isAdminOrOwner && selectedUserId ? selectedUserId : undefined)}
                     className={cn(
                       "border-r border-b border-border/40 p-1 flex flex-col justify-start gap-1 overflow-hidden cursor-pointer hover:bg-muted/40 transition-colors",
                       isToday && "bg-primary/5"

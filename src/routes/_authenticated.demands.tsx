@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
+import { useUserContext } from "@/contexts/user-context";
 
 export const Route = createFileRoute("/_authenticated/demands")({
   head: () => ({ meta: [{ title: "Demandas — Creative Flow Hub" }] }),
@@ -27,8 +28,13 @@ function DemandsPage() {
   const reorderFn = useServerFn(updateDemandsOrder);
   const qc = useQueryClient();
   const overlay = useDemandOverlay();
+  const { currentUserRole, selectedUserId } = useUserContext();
+  const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
 
-  const { data: demands = [] } = useQuery({ queryKey: ["demands"], queryFn: () => listFn() });
+  const { data: demands = [] } = useQuery({
+    queryKey: ["demands", selectedUserId],
+    queryFn: () => listFn({ data: isAdminOrOwner && selectedUserId ? { assigneeUserId: selectedUserId } : {} }),
+  });
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn() });
 
   async function handleMove(id: string, status: DemandStatus) {
@@ -71,7 +77,7 @@ function DemandsPage() {
           <p className="text-sm text-muted-foreground">Arraste os cards entre as colunas para mover ou reordenar.</p>
         </div>
         <Button
-          onClick={() => overlay.openNew(resolvedClients)}
+          onClick={() => overlay.openNew(resolvedClients, undefined, undefined, undefined, isAdminOrOwner && selectedUserId ? selectedUserId : undefined)}
           disabled={clients.length === 0}
         >
           <Plus className="h-4 w-4 mr-1" /> Nova demanda
@@ -97,7 +103,7 @@ function DemandsPage() {
           }))}
           onMove={handleMove}
           onOpen={(id) => overlay.open(id, resolvedClients)}
-          onAdd={(status) => overlay.openNew(resolvedClients, undefined, status)}
+          onAdd={(status) => overlay.openNew(resolvedClients, undefined, status, undefined, isAdminOrOwner && selectedUserId ? selectedUserId : undefined)}
           onReorder={handleReorder}
           showSearch={true}
         />

@@ -71,6 +71,7 @@ export function DemandDetailDialog({
   defaultClientId,
   defaultStatus,
   defaultClientEditionId,
+  defaultAssigneeId,
   // Portal-mode props
   portalMode = false,
   portalSlug,
@@ -87,6 +88,7 @@ export function DemandDetailDialog({
   defaultClientId?: string;
   defaultStatus?: string;
   defaultClientEditionId?: string;
+  defaultAssigneeId?: string;
   portalMode?: boolean;
   portalSlug?: string;
   portalClientName?: string;
@@ -273,7 +275,7 @@ export function DemandDetailDialog({
       setStatus((defaultStatus as DemandStatus) || "nao_iniciado");
       setPriority("medium");
       setDueDate("");
-      setAssigneeId("");
+      setAssigneeId(defaultAssigneeId || "");
       setEstimatedHours(1.0);
       setEstimatedCredits(0);
       setPrice(null);
@@ -302,7 +304,7 @@ export function DemandDetailDialog({
       setClientEditionId(demand.client_edition_id || "");
       setPrice(demand.price ? Number(demand.price) : null);
     }
-  }, [demand, isNew, defaultClientId, defaultStatus, defaultClientEditionId, clients, portalMode, initialDemandData]);
+  }, [demand, isNew, defaultClientId, defaultStatus, defaultClientEditionId, defaultAssigneeId, clients, portalMode, initialDemandData]);
 
   // Set default client edition when editions list is loaded
   useEffect(() => {

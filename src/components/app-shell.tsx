@@ -4,6 +4,7 @@ import { AppSidebar } from "./app-sidebar";
 import { BottomNav } from "./bottom-nav";
 import { DemandOverlayProvider } from "@/contexts/demand-overlay";
 import { DemandOverlayRenderer } from "@/components/demand-overlay-renderer";
+import { UserProvider } from "@/contexts/user-context";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, UserCircle, ChevronDown } from "lucide-react";
@@ -55,6 +56,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   }
 
   return (
+    <UserProvider>
     <DemandOverlayProvider>
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-background">
@@ -123,5 +125,6 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
         <DemandOverlayRenderer />
       </SidebarProvider>
     </DemandOverlayProvider>
+    </UserProvider>
   );
 }
