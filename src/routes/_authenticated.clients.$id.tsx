@@ -107,6 +107,11 @@ function ClientPage() {
     queryKey: ["client", id],
     queryFn: () => getFn({ data: { id } }),
   });
+  const { data: parentClient } = useQuery({
+    queryKey: ["client", client?.parent_id],
+    queryFn: () => getFn({ data: { id: client!.parent_id! } }),
+    enabled: !!client?.parent_id,
+  });
   const { data: allDemands = [] } = useQuery({
     queryKey: ["demands", selectedUserId],
     queryFn: () => demandsFn({ data: isAdminOrOwner && selectedUserId ? { assigneeUserId: selectedUserId } : {} }),
@@ -205,23 +210,29 @@ function ClientPage() {
 
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-display text-2xl font-bold text-foreground">{client.name}</h2>
+            <h2 className="font-display text-2xl font-bold text-foreground">
+              {client.is_project && parentClient
+                ? <>{parentClient.name} <span className="text-muted-foreground/50 mx-1">&gt;</span> {client.name}</>
+                : client.name}
+            </h2>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant={client.access_active ? "default" : "secondary"}>
                 {client.access_active ? "Ativo" : "Inativo"}
               </Badge>
-              <span className="text-xs text-muted-foreground">
-                {client.billing_model === "credits"
-                  ? "Créditos"
-                  : client.billing_model === "seasonal"
-                    ? "Temporada"
-                    : client.fixed_type === "one_off"
-                      ? "Por Projeto"
-                      : "Mensal Fixo"}
-              </span>
+              {!client.is_project && (
+                <span className="text-xs text-muted-foreground">
+                  {client.billing_model === "credits"
+                    ? "Créditos"
+                    : client.billing_model === "seasonal"
+                      ? "Temporada"
+                      : client.fixed_type === "one_off"
+                        ? "Por Projeto"
+                        : "Mensal Fixo"}
+                </span>
+              )}
             </div>
 
-            {client.billing_model === "seasonal" && (
+            {!client.is_project && client.billing_model === "seasonal" && (
               <div className="flex items-center gap-2 mt-2">
                 <span className="text-xs text-muted-foreground font-semibold">Edição:</span>
                 <Select value={selectedEditionId} onValueChange={setSelectedEditionId}>
@@ -272,7 +283,7 @@ function ClientPage() {
             )}
             <TabsTrigger value="overview">Visão geral</TabsTrigger>
             <TabsTrigger value="notes">Notas</TabsTrigger>
-            <TabsTrigger value="reports">Relatórios</TabsTrigger>
+            {!client.is_project && <TabsTrigger value="reports">Relatórios</TabsTrigger>}
           </TabsList>
         </div>
 
@@ -383,10 +394,11 @@ function ClientPage() {
                     }}
                     onSubmit={handleSave}
                     submitting={saving}
+                    hideBilling={client.is_project}
                   />
                 </Card>
               </div>
-              {client.billing_model === "credits" && (
+              {!client.is_project && client.billing_model === "credits" && (
                 <div className="lg:col-span-1">
                   <CreditTiersEditor
                     clientId={client.id}
@@ -405,20 +417,22 @@ function ClientPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="reports" className="mt-4 overflow-y-auto pb-8">
-          <div className="w-full">
-            <ClientReportsPanel
-              clientId={id}
-              billingModel={client.billing_model}
-              fixedType={client.fixed_type}
-              monthlyValue={client.monthly_value}
-              demands={clientDemands}
-              clientEditions={clientEditions}
-              onOpenDemand={(demandId) => overlay.open(demandId, [{ id: client.id, name: client.name }])}
-            />
-          </div>
-        </TabsContent>
-        {client.billing_model === "seasonal" && (
+        {!client.is_project && (
+          <TabsContent value="reports" className="mt-4 overflow-y-auto pb-8">
+            <div className="w-full">
+              <ClientReportsPanel
+                clientId={id}
+                billingModel={client.billing_model}
+                fixedType={client.fixed_type}
+                monthlyValue={client.monthly_value}
+                demands={clientDemands}
+                clientEditions={clientEditions}
+                onOpenDemand={(demandId) => overlay.open(demandId, [{ id: client.id, name: client.name }])}
+              />
+            </div>
+          </TabsContent>
+        )}
+        {!client.is_project && client.billing_model === "seasonal" && (
           <TabsContent value="editions" className="mt-4 overflow-y-auto pb-8">
             <div className="w-full">
               <ClientEditionsPanel

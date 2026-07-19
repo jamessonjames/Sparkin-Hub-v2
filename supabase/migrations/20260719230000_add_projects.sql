@@ -1,0 +1,4 @@
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS parent_id UUID REFERENCES clients(id) ON DELETE SET NULL;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS is_project BOOLEAN NOT NULL DEFAULT false;
+
+CREATE INDEX IF NOT EXISTS idx_clients_parent_id ON clients(parent_id);

@@ -1,6 +1,6 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Users, ListChecks, Plus, CalendarDays, Settings, DollarSign, TrendingUp, GripVertical, ChevronDown, ChevronRight } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { LayoutDashboard, Users, ListChecks, Plus, CalendarDays, Settings, DollarSign, TrendingUp, GripVertical, ChevronDown, ChevronRight, FolderKanban } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -92,6 +92,22 @@ export function AppSidebar() {
     }
     return true;
   });
+
+  const [projectsOpen, setProjectsOpen] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("CF_ProjectsOpen");
+      if (saved) { try { return JSON.parse(saved); } catch {} }
+    }
+    return {};
+  });
+
+  const toggleProjects = useCallback((clientId: string) => {
+    setProjectsOpen((prev) => {
+      const next = { ...prev, [clientId]: !(prev[clientId] ?? true) };
+      localStorage.setItem("CF_ProjectsOpen", JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("CF_ClientsSectionOpen", String(clientsOpen));
@@ -308,7 +324,7 @@ export function AppSidebar() {
         {dropIdx === orderedItems.length && index === orderedItems.length - 1 && (
           <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
         )}
-        <div className="relative flex items-center">
+        <div className="relative flex items-center py-1">
           <div className={cn(
             "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
             collapsed && "hidden",
@@ -334,6 +350,16 @@ export function AppSidebar() {
   function renderClientsNavItem(item: NavItem, index: number) {
     const isDrag = isDragging && dragIdx === index;
 
+    const masterClients = (clients ?? []).filter((c) => !c.parent_id && !c.is_project);
+    const projectsByParent = new Map<string, typeof clients>();
+    for (const c of clients ?? []) {
+      if (c.parent_id) {
+        const arr = projectsByParent.get(c.parent_id) ?? [];
+        arr.push(c);
+        projectsByParent.set(c.parent_id, arr);
+      }
+    }
+
     return (
       <SidebarMenuItem
         key={item.to}
@@ -352,7 +378,7 @@ export function AppSidebar() {
           <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 rounded-full bg-primary/50 z-10" />
         )}
         <div>
-          <div className="relative flex items-center">
+          <div className="relative flex items-center py-1">
             <div className={cn(
               "absolute left-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/nav-item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-0.5 rounded",
               collapsed && "hidden",
@@ -391,23 +417,76 @@ export function AppSidebar() {
           </div>
           {!collapsed && clientsOpen && isAdminOrOwner && (
             <SidebarMenuSub className="gap-[1px] pl-4">
-              {(clients ?? []).slice(0, 20).map((c) => (
-                <SidebarMenuSubItem key={c.id}>
-                  <SidebarMenuSubButton asChild size="sm" isActive={pathname === `/clients/${c.id}`}>
-                    <Link
-                      to="/clients/$id"
-                      params={{ id: c.id }}
-                      className="flex items-center gap-2"
-                    >
-                      <span
-                        className="h-1.5 w-1.5 rounded-full shrink-0"
-                        style={{ backgroundColor: c.color || "var(--primary)" }}
-                      />
-                      <span className="truncate">{c.name}</span>
-                    </Link>
-                  </SidebarMenuSubButton>
-                </SidebarMenuSubItem>
-              ))}
+              {masterClients.slice(0, 20).map((mc) => {
+                const projectList = (projectsByParent.get(mc.id) ?? []).slice(0, 10);
+                const isProjOpen = projectsOpen[mc.id] ?? true;
+                return (
+                  <div key={mc.id} className="space-y-[1px]">
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton asChild size="sm" isActive={pathname === `/clients/${mc.id}`}>
+                          <Link
+                            to="/clients/$id"
+                            params={{ id: mc.id }}
+                            className="flex items-center gap-2 group/link"
+                          >
+                            <span
+                              className="h-1.5 w-1.5 rounded-full shrink-0"
+                              style={{ backgroundColor: mc.color || "var(--primary)" }}
+                            />
+                            <span className="truncate flex-1">{mc.name}</span>
+                            {projectList.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  toggleProjects(mc.id);
+                                }}
+                                className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors sidebar-action-btn"
+                              >
+                                {isProjOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                navigate({ to: "/clients/new", search: { parent_id: mc.id, is_project: true } });
+                              }}
+                              className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors sidebar-action-btn opacity-0 group-hover/link:opacity-100"
+                              title={`Novo projeto em ${mc.name}`}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </button>
+                          </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    {isProjOpen && projectList.length > 0 && (
+                      <div className="pl-3 space-y-[1px] border-l border-border/40 ml-1.5">
+                        {projectList.map((p) => (
+                          <SidebarMenuSubItem key={p.id}>
+                            <SidebarMenuSubButton asChild size="sm" isActive={pathname === `/clients/${p.id}`}>
+                              <Link
+                                to="/clients/$id"
+                                params={{ id: p.id }}
+                                className="flex items-center gap-2"
+                              >
+                                <FolderKanban className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                                <span
+                                  className="h-1.5 w-1.5 rounded-full shrink-0"
+                                  style={{ backgroundColor: p.color || "var(--primary)" }}
+                                />
+                                <span className="truncate">{p.name}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {(clients?.length ?? 0) === 0 && (
                 <div className="px-6 py-1 text-xs text-muted-foreground">
                   Nenhum cliente ainda.

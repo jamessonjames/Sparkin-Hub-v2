@@ -17,6 +17,8 @@ const upsertSchema = z.object({
   credits_enabled: z.boolean().default(false),
   access_active: z.boolean().default(true),
   color: z.string().optional().nullable(),
+  parent_id: z.string().uuid().optional().nullable(),
+  is_project: z.boolean().default(false),
 });
 
 export const listClients = createServerFn({ method: "GET" })
@@ -44,7 +46,7 @@ export const listClients = createServerFn({ method: "GET" })
       
       const { data, error } = await context.supabase
         .from("clients")
-        .select("id, name, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, slug, updated_at, color")
+        .select("id, name, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, slug, updated_at, color, parent_id, is_project")
         .in("id", clientIds)
         .is("deleted_at", null)
         .order("name", { ascending: true });
@@ -55,7 +57,7 @@ export const listClients = createServerFn({ method: "GET" })
 
     const { data, error } = await context.supabase
       .from("clients")
-      .select("id, name, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, slug, updated_at, color")
+      .select("id, name, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, slug, updated_at, color, parent_id, is_project")
       .is("deleted_at", null)
       .order("name", { ascending: true });
     if (error) throw new Error(error.message);
@@ -126,6 +128,8 @@ export const createClient = createServerFn({ method: "POST" })
         credits_enabled: data.credits_enabled,
         access_active: data.access_active,
         color: data.color || null,
+        parent_id: data.parent_id || null,
+        is_project: data.is_project,
         slug,
       })
       .select("id")
@@ -154,6 +158,8 @@ export const updateClient = createServerFn({ method: "POST" })
         credits_enabled: rest.credits_enabled,
         access_active: rest.access_active,
         color: rest.color || null,
+        parent_id: rest.parent_id || null,
+        is_project: rest.is_project,
       })
       .eq("id", id);
     if (error) throw new Error(error.message);
@@ -170,6 +176,21 @@ export const deleteClient = createServerFn({ method: "POST" })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+export const listClientProjects = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { parent_id: string }) => z.object({ parent_id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: projects, error } = await context.supabase
+      .from("clients")
+      .select("id, name, slug, color, contact_name, email, phone, created_at, updated_at, access_active")
+      .eq("parent_id", data.parent_id)
+      .eq("is_project", true)
+      .is("deleted_at", null)
+      .order("name", { ascending: true });
+    if (error) throw new Error(error.message);
+    return projects ?? [];
   });
 
 export const setClientCreditsEnabled = createServerFn({ method: "POST" })
