@@ -154,6 +154,8 @@ export function KanbanBoard({
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<"card" | "column" | null>(null);
   const [localDemands, setLocalDemands] = useState<KanbanDemand[]>(demands);
+  const localDemandsRef = useRef(localDemands);
+  useEffect(() => { localDemandsRef.current = localDemands; }, [localDemands]);
 
   // Load columns order from localStorage, fallback to default KANBAN_STATUSES
   const [columns, setColumns] = useState<string[]>(() => {
@@ -247,12 +249,14 @@ export function KanbanBoard({
       return;
     }
 
-    const activeDemand = localDemands.find((d) => d.id === activeId);
+    // Use ref to avoid stale closure if React hasn't re-rendered yet
+    const currentDemands = localDemandsRef.current;
+    const activeDemand = currentDemands.find((d) => d.id === activeId);
     if (!activeDemand) return;
 
     // Check if over a column (status) or a card
     const overIsColumn = columns.includes(overId);
-    const overDemand = overIsColumn ? null : localDemands.find((d) => d.id === overId);
+    const overDemand = overIsColumn ? null : currentDemands.find((d) => d.id === overId);
     const targetStatus: string = overIsColumn ? overId : (overDemand?.status ?? activeDemand.status);
 
     // Block moving to fazendo or para_analise in portal
@@ -300,12 +304,12 @@ export function KanbanBoard({
     const overId = String(over.id);
     const overIsColumn = columns.includes(overId);
 
-    // The local state already has the right position from handleDragOver
-    // Now we figure out the final status
-    const activeDemand = localDemands.find((d) => d.id === activeId);
+    // Use ref to avoid stale closure if React hasn't re-rendered yet after handleDragOver
+    const currentDemands = localDemandsRef.current;
+    const activeDemand = currentDemands.find((d) => d.id === activeId);
     if (!activeDemand) return;
 
-    const overDemand = overIsColumn ? null : localDemands.find((d) => d.id === overId);
+    const overDemand = overIsColumn ? null : currentDemands.find((d) => d.id === overId);
     const finalStatus: string = overIsColumn ? overId : (overDemand?.status ?? activeDemand.status);
 
     if (isClientPortal && (finalStatus === "fazendo" || finalStatus === "para_analise")) {
@@ -324,7 +328,7 @@ export function KanbanBoard({
     if (onReorder) {
       const allUpdates: { id: string; status: DemandStatus; sort_order: number }[] = [];
       for (const st of columns) {
-        const colItems = localDemands.filter((d) => d.status === st);
+        const colItems = currentDemands.filter((d) => d.status === st);
         colItems.forEach((d, i) => {
           allUpdates.push({ id: d.id, status: st as any, sort_order: i });
         });
