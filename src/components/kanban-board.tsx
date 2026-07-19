@@ -276,16 +276,20 @@ export function KanbanBoard({
           if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev;
           const reordered = arrayMove(colItems, fromIdx, toIdx);
           const otherItems = prev.filter((d) => d.status !== targetStatus);
-          return [...otherItems, ...reordered];
+          const result = [...otherItems, ...reordered];
+          localDemandsRef.current = result;
+          return result;
         });
       }
     } else {
       // Moving to a different column
-      setLocalDemands((prev) =>
-        prev.map((d) =>
+      setLocalDemands((prev) => {
+        const updated = prev.map((d) =>
           d.id === activeId ? { ...d, status: targetStatus } : d,
-        ),
-      );
+        );
+        localDemandsRef.current = updated;
+        return updated;
+      });
     }
   }
 
