@@ -92,6 +92,9 @@ export function applyThemeAndHighlight() {
     link.href = savedFavicon;
   }
 
+  // 3b. Update PWA manifest with custom icon
+  updateDynamicManifest();
+
   // 4. Highlight colors
   let palette;
   if (savedColor === "custom") {
@@ -117,4 +120,46 @@ export function applyThemeAndHighlight() {
   } else {
     document.documentElement.style.removeProperty("--primary-gradient");
   }
+}
+
+function updateDynamicManifest() {
+  if (typeof window === "undefined") return;
+
+  const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
+  const savedFavicon = localStorage.getItem("CF_Favicon") || "";
+
+  const iconSrc = savedFavicon || "/icon-512.png";
+
+  const manifest = {
+    name: `${savedName} Hub`,
+    short_name: savedName,
+    description: "Portal para organização de demandas, clientes e financeiro.",
+    start_url: "/",
+    scope: "/",
+    display: "standalone",
+    orientation: "portrait",
+    background_color: "#0f1117",
+    theme_color: "#0f1117",
+    lang: "pt-BR",
+    icons: [
+      { src: iconSrc, sizes: "512x512", type: "image/png", purpose: "any maskable" },
+      { src: iconSrc, sizes: "192x192", type: "image/png", purpose: "any" },
+    ],
+  };
+
+  // Remove old dynamic manifest link
+  const oldLink = document.querySelector("link[rel='manifest']") as HTMLLinkElement;
+  if (oldLink) {
+    const oldUrl = oldLink.getAttribute("href") || "";
+    if (oldUrl.startsWith("blob:")) URL.revokeObjectURL(oldUrl);
+    oldLink.remove();
+  }
+
+  const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("link");
+  link.rel = "manifest";
+  link.href = url;
+  document.head.appendChild(link);
 }

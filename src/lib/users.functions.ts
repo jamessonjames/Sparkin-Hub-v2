@@ -16,11 +16,11 @@ export const listProfiles = createServerFn({ method: "GET" })
 
 export const listUsersWithRoles = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(async () => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // Query profiles
-    const { data: profiles, error: pe } = await context.supabase
+    // Query profiles using admin client to bypass RLS
+    const { data: profiles, error: pe } = await supabaseAdmin
       .from("profiles")
       .select("id, name, email, avatar_url")
       .order("name", { ascending: true });

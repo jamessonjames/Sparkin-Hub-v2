@@ -9,7 +9,7 @@ export const Route = createFileRoute("/auth")({
     const { data } = await supabase.auth.getUser();
     if (data.user) throw redirect({ to: "/" });
   },
-  head: () => ({ meta: [{ title: "Entrar — Creative Flow Hub" }] }),
+  head: () => ({ meta: [] }),
   component: AuthPage,
 });
 
@@ -29,6 +29,7 @@ function AuthPage() {
     if (typeof window !== "undefined") {
       const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
       setSystemName(savedName);
+      document.title = `Entrar — ${savedName} Hub`;
     }
   }, []);
 

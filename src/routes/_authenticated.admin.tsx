@@ -39,7 +39,7 @@ import {
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/admin")({
-  head: () => ({ meta: [{ title: "Painel Admin — Creative Flow Hub" }] }),
+  head: () => ({ meta: [] }),
   component: AdminPage,
 });
 
@@ -282,6 +282,7 @@ function AdminPage() {
 
       setSystemName(savedName);
       setFaviconUrl(savedFavicon);
+      document.title = `Painel Admin — ${savedName} Hub`;
 
       setNotionEnabled(localStorage.getItem("CF_Int_NotionEnabled") === "true");
       setNotionToken(localStorage.getItem("CF_Int_NotionToken") || "");
@@ -369,6 +370,7 @@ function AdminPage() {
     localStorage.setItem("CF_Favicon", faviconUrl);
     applyThemeAndHighlight();
     window.dispatchEvent(new Event("systemBrandingChanged"));
+    document.title = `Painel Admin — ${systemName} Hub`;
     toast.success("Configurações de marca atualizadas!");
   }
 
