@@ -96,7 +96,7 @@ export function getStatusTheme(statusId: string, label: string) {
     };
   }
   
-  // Default/Grey (Aguardando material, Reunião, etc.)
+  // Default/Grey (Aguardando material, Reuni├úo, etc.)
   return {
     dot: "bg-zinc-400 dark:bg-zinc-500",
     pill: "bg-zinc-800/40 text-zinc-300 light:bg-zinc-200/60 light:text-zinc-700",
@@ -154,14 +154,7 @@ export function KanbanBoard({
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<"card" | "column" | null>(null);
   const [localDemands, setLocalDemands] = useState<KanbanDemand[]>(demands);
-  const [isDragging, setIsDragging] = useState(false);
-  const localDemandsRef = useRef(localDemands);
-  useEffect(() => { localDemandsRef.current = localDemands; }, [localDemands]);
-
-  // Sync external changes only when NOT dragging (prevents optimistic cache updates from resetting local state mid-drag)
-  useEffect(() => {
-    if (!isDragging) setLocalDemands(demands);
-  }, [demands, isDragging]);
+  const dragStatusRef = useRef<Record<string, string>>({});
 
   // Load columns order from localStorage, fallback to default KANBAN_STATUSES
   const [columns, setColumns] = useState<string[]>(() => {
@@ -185,15 +178,24 @@ export function KanbanBoard({
     return customStatusNames[status] ?? (STATUS_LABELS as Record<string, string>)[status] ?? status;
   }, [customStatusNames]);
 
+  // Keep localDemands in sync with demands when NOT dragging
+  useEffect(() => {
+    if (!activeId) setLocalDemands(demands);
+  }, [demands, activeId]);
+
+  // During a drag, render from localDemands (reflects drag-over visual moves).
+  // After drag ends (activeId === null), render from demands (the React Query cache).
+  const displayDemands = activeId ? localDemands : demands;
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return localDemands;
+    if (!search.trim()) return displayDemands;
     const q = search.toLowerCase();
-    return localDemands.filter(
+    return displayDemands.filter(
       (d) =>
         d.title.toLowerCase().includes(q) ||
         (d.clients?.name ?? "").toLowerCase().includes(q),
     );
-  }, [localDemands, search]);
+  }, [displayDemands, search]);
 
   const byStatus = useMemo(() => {
     const map: Record<string, KanbanDemand[]> = {};
@@ -202,7 +204,6 @@ export function KanbanBoard({
       if (map[d.status]) {
         map[d.status].push(d);
       } else {
-        // Fallback to nao_iniciado if column was removed
         if (map["nao_iniciado"]) {
           map["nao_iniciado"].push(d);
         }
@@ -212,17 +213,18 @@ export function KanbanBoard({
   }, [filtered, columns]);
 
   const activeDemand = useMemo(
-    () => (activeId ? localDemands.find((d) => d.id === activeId) ?? null : null),
-    [activeId, localDemands],
+    () => (activeId ? displayDemands.find((d) => d.id === activeId) ?? null : null),
+    [activeId, displayDemands],
   );
 
   function handleDragStart(e: DragStartEvent) {
-    setIsDragging(true);
     const id = String(e.active.id);
     if (columns.includes(id)) {
       setActiveType("column");
       setActiveColumnId(id);
     } else {
+      // Sync localDemands to the latest demands before starting the drag
+      setLocalDemands(demands);
       setActiveType("card");
       setActiveId(id);
     }
@@ -253,14 +255,12 @@ export function KanbanBoard({
       return;
     }
 
-    // Use ref to avoid stale closure if React hasn't re-rendered yet
-    const currentDemands = localDemandsRef.current;
-    const activeDemand = currentDemands.find((d) => d.id === activeId);
+    const activeDemand = localDemands.find((d) => d.id === activeId);
     if (!activeDemand) return;
 
     // Check if over a column (status) or a card
     const overIsColumn = columns.includes(overId);
-    const overDemand = overIsColumn ? null : currentDemands.find((d) => d.id === overId);
+    const overDemand = overIsColumn ? null : localDemands.find((d) => d.id === overId);
     const targetStatus: string = overIsColumn ? overId : (overDemand?.status ?? activeDemand.status);
 
     // Block moving to fazendo or para_analise in portal
@@ -276,73 +276,92 @@ export function KanbanBoard({
           if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev;
           const reordered = arrayMove(colItems, fromIdx, toIdx);
           const otherItems = prev.filter((d) => d.status !== targetStatus);
-          const result = [...otherItems, ...reordered];
-          localDemandsRef.current = result;
-          return result;
+          return [...otherItems, ...reordered];
         });
       }
     } else {
       // Moving to a different column
-      setLocalDemands((prev) => {
-        const updated = prev.map((d) =>
+      dragStatusRef.current[activeId] = targetStatus;
+      setLocalDemands((prev) =>
+        prev.map((d) =>
           d.id === activeId ? { ...d, status: targetStatus } : d,
-        );
-        localDemandsRef.current = updated;
-        return updated;
-      });
+        ),
+      );
     }
   }
 
-  function handleDragEnd(e: DragEndEvent) {
-    setIsDragging(false);
-    setActiveId(null);
+  async function handleDragEnd(e: DragEndEvent) {
+    const dragActiveId = String(e.active.id);
+    const dragOverId = e.over ? String(e.over.id) : null;
+
     setActiveColumnId(null);
     setActiveType(null);
 
     if (activeType === "column") {
+      dragStatusRef.current = {};
+      setActiveId(null);
       return;
     }
 
-    const { active, over } = e;
-    if (!over) {
+    if (!dragOverId) {
+      dragStatusRef.current = {};
+      setActiveId(null);
       setLocalDemands(demands);
       return;
     }
 
-    const activeId = String(active.id);
-    const overId = String(over.id);
-    const overIsColumn = columns.includes(overId);
+    const originalDemand = demands.find((d) => d.id === dragActiveId);
+    if (!originalDemand) {
+      dragStatusRef.current = {};
+      setActiveId(null);
+      return;
+    }
 
-    // Use ref to avoid stale closure if React hasn't re-rendered yet after handleDragOver
-    const currentDemands = localDemandsRef.current;
-    const activeDemand = currentDemands.find((d) => d.id === activeId);
-    if (!activeDemand) return;
-
-    const overDemand = overIsColumn ? null : currentDemands.find((d) => d.id === overId);
-    const finalStatus: string = overIsColumn ? overId : (overDemand?.status ?? activeDemand.status);
+    // Use the ref to get final status (set during handleDragOver, reliable even across renders)
+    const refStatus = dragStatusRef.current[dragActiveId];
+    const finalStatus: string = refStatus ?? originalDemand.status;
+    dragStatusRef.current = {};
 
     if (isClientPortal && (finalStatus === "fazendo" || finalStatus === "para_analise")) {
-      // Revert
-      setLocalDemands(demands);
+      setActiveId(null);
       return;
     }
 
-    // Status change (cross-column) - call onMove first
-    const originalDemand = demands.find((d) => d.id === activeId);
-    if (originalDemand && originalDemand.status !== activeDemand.status) {
-      onMove(activeId, activeDemand.status as any);
-    }
+    const statusChanged = originalDemand.status !== finalStatus;
 
-    // Persist sort order for the full board (reorderFn no longer updates status, only sort_order)
-    if (onReorder) {
-      const allUpdates: { id: string; status: DemandStatus; sort_order: number }[] = [];
-      for (const st of columns) {
-        const colItems = currentDemands.filter((d) => d.status === st);
-        colItems.forEach((d, i) => {
-          allUpdates.push({ id: d.id, status: st as any, sort_order: i });
-        });
+    if (statusChanged) {
+      await onMove(dragActiveId, finalStatus as DemandStatus);
+
+      if (onReorder) {
+        const adjusted = demands.map((d) =>
+          d.id === dragActiveId ? { ...d, status: finalStatus } : d
+        );
+        const allUpdates: { id: string; status: DemandStatus; sort_order: number }[] = [];
+        for (const st of columns) {
+          const colItems = adjusted.filter((d) => d.status === st);
+          colItems.forEach((d, i) => {
+            allUpdates.push({ id: d.id, status: st as any, sort_order: i });
+          });
+        }
+        onReorder(allUpdates);
       }
+
+      setActiveId(null);
+    } else if (onReorder) {
+      const colItems = demands
+        .filter((d) => d.status === originalDemand.status)
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      const fromIdx = colItems.findIndex((d) => d.id === dragActiveId);
+      const overIdx = colItems.findIndex((d) => d.id === dragOverId);
+      if (fromIdx === -1 || overIdx === -1) return;
+      const reordered = arrayMove(colItems, fromIdx, overIdx);
+      const allUpdates = reordered.map((d, i) => ({
+        id: d.id,
+        status: originalDemand.status as DemandStatus,
+        sort_order: i,
+      }));
       onReorder(allUpdates);
+      setActiveId(null);
     }
   }
 
@@ -396,7 +415,7 @@ export function KanbanBoard({
 
   function handleDeleteStatus(statusId: string) {
     if (byStatus[statusId]?.length > 0) {
-      alert("Não é possível remover um status que possui demandas.");
+      alert("N├úo ├® poss├¡vel remover um status que possui demandas.");
       return;
     }
     if (!confirm(`Remover o status "${getStatusLabel(statusId)}"?`)) return;
@@ -424,7 +443,7 @@ export function KanbanBoard({
     }
   }
 
-  // ── Drag board horizontally with right mouse button ──
+  // ÔöÇÔöÇ Drag board horizontally with right mouse button ÔöÇÔöÇ
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isDraggingBoard = useRef(false);
   const startX = useRef(0);

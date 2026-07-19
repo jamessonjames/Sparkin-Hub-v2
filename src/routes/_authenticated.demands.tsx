@@ -38,20 +38,21 @@ function DemandsPage() {
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn() });
 
   async function handleMove(id: string, status: DemandStatus) {
-    qc.setQueryData<typeof demands>(["demands"], (prev) =>
+    qc.setQueryData<typeof demands>(["demands", selectedUserId], (prev) =>
       (prev ?? []).map((d) => (d.id === id ? { ...d, status } : d)),
     );
     try {
       await moveFn({ data: { id, status } });
     } catch (e) {
+      console.error("[handleMove] moveFn failed", e);
       toast.error(e instanceof Error ? e.message : "Erro ao mover");
-      qc.invalidateQueries({ queryKey: ["demands"] });
+      qc.invalidateQueries({ queryKey: ["demands", selectedUserId] });
     }
   }
 
   async function handleReorder(updates: { id: string; status: DemandStatus; sort_order: number }[]) {
     // Optimistically update local cache
-    qc.setQueryData<typeof demands>(["demands"], (prev) => {
+    qc.setQueryData<typeof demands>(["demands", selectedUserId], (prev) => {
       if (!prev) return prev;
       const map = new Map(updates.map((u) => [u.id, u]));
       return prev.map((d) => {
@@ -63,7 +64,7 @@ function DemandsPage() {
       await reorderFn({ data: { updates } });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao reordenar");
-      qc.invalidateQueries({ queryKey: ["demands"] });
+      qc.invalidateQueries({ queryKey: ["demands", selectedUserId] });
     }
   }
 

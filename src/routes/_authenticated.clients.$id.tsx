@@ -139,14 +139,15 @@ function ClientPage() {
   const overlay = useDemandOverlay();
 
   async function handleMove(demandId: string, status: DemandStatus) {
-    qc.setQueryData<typeof allDemands>(["demands"], (prev) =>
+    qc.setQueryData<typeof allDemands>(["demands", selectedUserId], (prev) =>
       (prev ?? []).map((d) => (d.id === demandId ? { ...d, status } : d)),
     );
     try {
       await moveFn({ data: { id: demandId, status } });
     } catch (e) {
+      console.error("[handleMove] moveFn failed", e);
       toast.error(e instanceof Error ? e.message : "Erro ao mover");
-      qc.invalidateQueries({ queryKey: ["demands"] });
+      qc.invalidateQueries({ queryKey: ["demands", selectedUserId] });
     }
   }
 

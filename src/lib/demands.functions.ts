@@ -219,11 +219,17 @@ export const moveDemandStatus = createServerFn({ method: "POST" })
     const dbStatus = isCustom ? "nao_iniciado" : data.status;
     const dbStatusId = isCustom ? data.status : null;
 
+    console.log("[moveDemandStatus] attempting update", { id: data.id, dbStatus, userId: context.userId });
+
     const { error } = await context.supabase
       .from("demands")
       .update({ status: dbStatus as any, status_id: dbStatusId })
       .eq("id", data.id);
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error("[moveDemandStatus] RLS/DB error", error);
+      throw new Error(`moveDemandStatus: ${error.message}`);
+    }
+    console.log("[moveDemandStatus] success");
     return { ok: true };
   });
 
