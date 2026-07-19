@@ -154,8 +154,14 @@ export function KanbanBoard({
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<"card" | "column" | null>(null);
   const [localDemands, setLocalDemands] = useState<KanbanDemand[]>(demands);
+  const [isDragging, setIsDragging] = useState(false);
   const localDemandsRef = useRef(localDemands);
   useEffect(() => { localDemandsRef.current = localDemands; }, [localDemands]);
+
+  // Sync external changes only when NOT dragging (prevents optimistic cache updates from resetting local state mid-drag)
+  useEffect(() => {
+    if (!isDragging) setLocalDemands(demands);
+  }, [demands, isDragging]);
 
   // Load columns order from localStorage, fallback to default KANBAN_STATUSES
   const [columns, setColumns] = useState<string[]>(() => {
@@ -178,9 +184,6 @@ export function KanbanBoard({
   const getStatusLabel = useCallback((status: string) => {
     return customStatusNames[status] ?? (STATUS_LABELS as Record<string, string>)[status] ?? status;
   }, [customStatusNames]);
-
-  // Sync external changes into local state
-  useEffect(() => { setLocalDemands(demands); }, [demands]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return localDemands;
@@ -214,6 +217,7 @@ export function KanbanBoard({
   );
 
   function handleDragStart(e: DragStartEvent) {
+    setIsDragging(true);
     const id = String(e.active.id);
     if (columns.includes(id)) {
       setActiveType("column");
@@ -286,6 +290,7 @@ export function KanbanBoard({
   }
 
   function handleDragEnd(e: DragEndEvent) {
+    setIsDragging(false);
     setActiveId(null);
     setActiveColumnId(null);
     setActiveType(null);
