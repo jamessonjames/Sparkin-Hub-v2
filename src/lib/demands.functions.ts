@@ -254,13 +254,9 @@ export const updateDemandsOrder = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const promises = data.updates.map(async (u) => {
-      const isCustom = u.status.startsWith("custom_");
-      const dbStatus = isCustom ? "nao_iniciado" : u.status;
-      const dbStatusId = isCustom ? u.status : null;
-
       const { error } = await context.supabase
         .from("demands")
-        .update({ status: dbStatus as any, status_id: dbStatusId, sort_order: u.sort_order })
+        .update({ sort_order: u.sort_order })
         .eq("id", u.id);
       if (error) throw new Error(`Erro ao reordenar ${u.id}: ${error.message}`);
     });

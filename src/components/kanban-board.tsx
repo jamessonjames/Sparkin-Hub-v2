@@ -178,7 +178,7 @@ export function KanbanBoard({
   }, [customStatusNames]);
 
   // Sync external changes into local state
-  useMemo(() => { setLocalDemands(demands); }, [demands]);
+  useEffect(() => { setLocalDemands(demands); }, [demands]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return localDemands;
@@ -314,13 +314,13 @@ export function KanbanBoard({
       return;
     }
 
-    // Status change (cross-column) - call onMove
+    // Status change (cross-column) - call onMove first
     const originalDemand = demands.find((d) => d.id === activeId);
     if (originalDemand && originalDemand.status !== activeDemand.status) {
       onMove(activeId, activeDemand.status as any);
     }
 
-    // Persist sort order for the full board
+    // Persist sort order for the full board (reorderFn no longer updates status, only sort_order)
     if (onReorder) {
       const allUpdates: { id: string; status: DemandStatus; sort_order: number }[] = [];
       for (const st of columns) {
