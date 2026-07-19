@@ -301,6 +301,44 @@ function FinancePage() {
     },
   });
 
+  // Filtered lists (must be before early returns to keep hooks consistent)
+  const filteredRevenues = useMemo(() => {
+    if (!entries) return [];
+    return entries.filter((e) => {
+      if (e.type !== "revenue") return false;
+      const matchesSearch = e.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        (e.client?.name && e.client.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesStatus = statusFilter === "all" || e.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [entries, searchQuery, statusFilter]);
+
+  const filteredExpenses = useMemo(() => {
+    if (!entries) return [];
+    return entries.filter((e) => {
+      if (e.type !== "expense") return false;
+      const matchesSearch = e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (e.recipient_provider && e.recipient_provider.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesStatus = statusFilter === "all" || e.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [entries, searchQuery, statusFilter]);
+
+  const allTransactions = useMemo(() => {
+    if (!entries) return [];
+    return [...entries].sort((a, b) => b.due_date.localeCompare(a.due_date));
+  }, [entries]);
+
+  // Format helpers
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
+  };
+
+  const formatDate = (dateStr: string) => {
+    const [year, month, day] = dateStr.split("-");
+    return `${day}/${month}/${year}`;
+  };
+
   if (loadingRole) {
     return <div className="p-12 text-center text-muted-foreground text-sm font-sans animate-pulse">Carregando permissões...</div>;
   }
@@ -468,44 +506,6 @@ function FinancePage() {
         deleteMutation.mutate(id);
       }
     }
-  };
-
-  // Filtered lists
-  const filteredRevenues = useMemo(() => {
-    if (!entries) return [];
-    return entries.filter((e) => {
-      if (e.type !== "revenue") return false;
-      const matchesSearch = e.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        (e.client?.name && e.client.name.toLowerCase().includes(searchQuery.toLowerCase()));
-      const matchesStatus = statusFilter === "all" || e.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [entries, searchQuery, statusFilter]);
-
-  const filteredExpenses = useMemo(() => {
-    if (!entries) return [];
-    return entries.filter((e) => {
-      if (e.type !== "expense") return false;
-      const matchesSearch = e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (e.recipient_provider && e.recipient_provider.toLowerCase().includes(searchQuery.toLowerCase()));
-      const matchesStatus = statusFilter === "all" || e.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [entries, searchQuery, statusFilter]);
-
-  const allTransactions = useMemo(() => {
-    if (!entries) return [];
-    return [...entries].sort((a, b) => b.due_date.localeCompare(a.due_date));
-  }, [entries]);
-
-  // Format Helper
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
-  };
-
-  const formatDate = (dateStr: string) => {
-    const [year, month, day] = dateStr.split("-");
-    return `${day}/${month}/${year}`;
   };
 
   // Custom premium SVG line/bar chart builder
