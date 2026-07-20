@@ -154,11 +154,13 @@ function FinancePage() {
     if (!chartRef.current) return;
     const ro = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect?.width;
-      if (w) setChartWidth(Math.round(w - 48));
+      if (w) setChartWidth(Math.round(w));
     });
     ro.observe(chartRef.current);
     return () => ro.disconnect();
   }, []);
+
+  const [visibleLines, setVisibleLines] = useState({ revenue: true, expense: true, profit: true });
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
@@ -591,7 +593,7 @@ function FinancePage() {
         </div>
 
         <div className="w-full">
-          <svg viewBox={`0 0 ${vw} ${totalH}`} className="w-full h-72 font-sans text-[10px] fill-zinc-500" preserveAspectRatio="xMidYMid meet">
+          <svg viewBox={`0 0 ${vw} ${totalH}`} className="w-full h-72 font-sans text-[10px] fill-zinc-500" preserveAspectRatio="xMinYMin meet">
             {/* Grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
               const y = padT + graphH * ratio;
@@ -618,36 +620,48 @@ function FinancePage() {
             ))}
 
             {/* Revenue Line */}
-            <path d={`M ${revPath}`} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            {visibleLines.revenue && <path d={`M ${revPath}`} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
             {/* Expense Line */}
-            <path d={`M ${expPath}`} fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            {visibleLines.expense && <path d={`M ${expPath}`} fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
             {/* Profit Line */}
-            <path d={`M ${profPath}`} fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6,3" />
+            {visibleLines.profit && <path d={`M ${profPath}`} fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6,3" />}
 
             {/* Points */}
             {points.map((p, i) => (
               <g key={i}>
-                <circle cx={p.x} cy={p.rev} r="4" fill="#3b82f6" className="transition-all hover:r-6 cursor-pointer" />
-                <circle cx={p.x} cy={p.exp} r="4" fill="#ef4444" className="transition-all hover:r-6 cursor-pointer" />
-                <circle cx={p.x} cy={p.prof} r="3.5" fill="#22c55e" stroke="#166534" strokeWidth="1" className="transition-all hover:r-6 cursor-pointer" />
+                {visibleLines.revenue && <circle cx={p.x} cy={p.rev} r="4" fill="#3b82f6" className="transition-all hover:r-6 cursor-pointer" />}
+                {visibleLines.expense && <circle cx={p.x} cy={p.exp} r="4" fill="#ef4444" className="transition-all hover:r-6 cursor-pointer" />}
+                {visibleLines.profit && <circle cx={p.x} cy={p.prof} r="3.5" fill="#22c55e" stroke="#166534" strokeWidth="1" className="transition-all hover:r-6 cursor-pointer" />}
               </g>
             ))}
           </svg>
         </div>
 
         <div className="flex gap-6 justify-center mt-4 text-xs font-medium flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-blue-500" />
-            <span className="text-zinc-400">Faturamento Total (Receitas)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-red-500" />
-            <span className="text-zinc-400">Despesas / Custos</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-green-500" />
-            <span className="text-zinc-400">Lucro do Período</span>
-          </div>
+          {([
+            { key: "revenue" as const, label: "Faturamento Total (Receitas)", color: "#3b82f6", bg: "bg-blue-500" },
+            { key: "expense" as const, label: "Despesas / Custos", color: "#ef4444", bg: "bg-red-500" },
+            { key: "profit" as const, label: "Lucro do Período", color: "#22c55e", bg: "bg-green-500" },
+          ]).map((item) => {
+            const isVisible = visibleLines[item.key];
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setVisibleLines((prev) => ({ ...prev, [item.key]: !prev[item.key] }))}
+                className="flex items-center gap-2 transition-opacity hover:opacity-80"
+              >
+                <span
+                  className={cn(
+                    "h-3 w-3 rounded-full transition-all duration-200",
+                    isVisible ? item.bg : "bg-transparent border-2"
+                  )}
+                  style={!isVisible ? { borderColor: item.color } : undefined}
+                />
+                <span className={cn("text-zinc-400", !isVisible && "text-zinc-600")}>{item.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
     );
