@@ -39,6 +39,7 @@ import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight } from "lucide-react
 import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, DEFAULT_CREDIT_TIERS, type CreditTier } from "@/lib/credit-tiers";
 import { listProfiles } from "@/lib/users.functions";
 import { CreditProgressBar } from "@/components/credit-progress-bar";
+import { FileAttachments } from "@/components/file-attachments";
 
 export const Route = createFileRoute("/_authenticated/clients/$id")({
   head: () => ({ meta: [{ title: "Cliente" }] }),
@@ -283,6 +284,7 @@ function ClientPage() {
             )}
             <TabsTrigger value="overview">Visão geral</TabsTrigger>
             <TabsTrigger value="notes">Notas</TabsTrigger>
+            <TabsTrigger value="attachments">Anexos</TabsTrigger>
             {!client.is_project && <TabsTrigger value="reports">Relatórios</TabsTrigger>}
           </TabsList>
         </div>
@@ -414,6 +416,12 @@ function ClientPage() {
         <TabsContent value="notes" className="mt-4 overflow-y-auto">
           <div className="w-full">
             <ClientNotesPanel clientId={id} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="attachments" className="mt-4 overflow-y-auto">
+          <div className="w-full max-w-xl">
+            <FileAttachments entityType="client" entityId={id} />
           </div>
         </TabsContent>
 

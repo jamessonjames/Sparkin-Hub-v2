@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
 import { RichEditor } from "@/components/rich-editor";
+import { FileAttachments } from "@/components/file-attachments";
 import { Trash2, Send, Calendar, X, Save, User, Loader2, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -960,6 +961,13 @@ export function DemandDetailDialog({
                     gDrivePath={gDrivePath}
                   />
                 </div>
+
+                {/* Attachments Section — only for existing demands */}
+                {!isNew && !portalMode && id !== "new" && (
+                  <div className="shrink-0 border-t border-border pt-3 px-0.5">
+                    <FileAttachments entityType="demand" entityId={id} />
+                  </div>
+                )}
               </div>
 
               {/* Right Panel — Comments */}

@@ -46,28 +46,32 @@ export const getPublicPortal = createServerFn({ method: "GET" })
 
     let creditConfig = null;
     if (client.billing_model === "credits") {
-      // Load tiers from the config note (if exists)
       let tiers: any[] = [];
-      const { data: noteRows } = await sb
-        .from("notes")
-        .select("content")
-        .eq("client_id", client.id)
-        .eq("title", "__credit_tiers_config__")
-        .is("deleted_at", null)
-        .limit(1);
+      try {
+        const svcKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (svcKey) {
+          const adminSb = createClient<Database>(process.env.SUPABASE_URL!, svcKey, {
+            auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
+          });
+          const { data: noteRows } = await adminSb
+            .from("notes")
+            .select("content")
+            .eq("client_id", client.id)
+            .eq("title", "__credit_tiers_config__")
+            .is("deleted_at", null)
+            .limit(1);
 
-      if (noteRows && noteRows.length > 0) {
-        try {
-          const parsed = JSON.parse(noteRows[0].content ?? "{}");
-          if (parsed && Array.isArray(parsed)) {
-            tiers = parsed;
-          } else if (parsed?.tiers) {
-            tiers = parsed.tiers;
+          if (noteRows && noteRows.length > 0) {
+            const parsed = JSON.parse(noteRows[0].content ?? "{}");
+            if (parsed && Array.isArray(parsed)) {
+              tiers = parsed;
+            } else if (parsed?.tiers) {
+              tiers = parsed.tiers;
+            }
           }
-        } catch {}
-      }
+        }
+      } catch {}
 
-      // show_progress_bar is controlled by client.credits_enabled field
       creditConfig = {
         show_progress_bar: client.credits_enabled === true,
         tiers,

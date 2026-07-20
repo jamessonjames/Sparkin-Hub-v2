@@ -221,13 +221,16 @@ function FinancePage() {
     queryFn: () => listClientsFn(),
   });
 
+  // Generate receivables in background once per month session (not blocking summary)
+  const { data: _genResult } = useQuery({
+    queryKey: ["generateReceivables", currentMonth, currentYear],
+    queryFn: () => checkGenFn({ data: { month: currentMonth, year: currentYear } }),
+    staleTime: 1000 * 60 * 5, // 5 min — avoids re-running on every invalidation
+  });
+
   const { data: summary, isLoading: isLoadingSummary } = useQuery({
     queryKey: ["financialSummary", currentMonth, currentYear, chartMonths],
-    queryFn: async () => {
-      // First, trigger automatic recurring generation to ensure data is updated
-      await checkGenFn({ data: { month: currentMonth, year: currentYear } });
-      return summaryFn({ data: { month: currentMonth, year: currentYear, chartMonths } });
-    },
+    queryFn: () => summaryFn({ data: { month: currentMonth, year: currentYear, chartMonths } }),
   });
 
   const { data: entries, isLoading: isLoadingEntries } = useQuery({

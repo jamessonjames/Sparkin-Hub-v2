@@ -396,9 +396,23 @@ export const getFinancialSummary = createServerFn({ method: "GET" })
         }
       });
 
-      // Calculate last N months historical data
-      const chartData: { month: string; faturamento: number; despesas: number; lucro: number }[] = [];
+      // Calculate last N months historical data — single batch query
+      const chartStart = new Date(year, month - 1 - (chartMonths - 1), 1);
+      const chartStartStr = `${chartStart.getFullYear()}-${String(chartStart.getMonth() + 1).padStart(2, "0")}-01`;
+      const chartEndStr = endDate;
+
+      const { data: allHist, error: histErr } = await context.supabase
+        .from("financial_entries")
+        .select("type, total_value, due_date")
+        .gte("due_date", chartStartStr)
+        .lte("due_date", chartEndStr)
+        .order("due_date", { ascending: true });
+
+      if (histErr) throw histErr;
+
+      // Group by month in JS
       const monthNamesShort = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+      const chartData: { month: string; faturamento: number; despesas: number; lucro: number }[] = [];
 
       for (let i = chartMonths - 1; i >= 0; i--) {
         const d = new Date(year, month - 1 - i, 1);
@@ -408,18 +422,14 @@ export const getFinancialSummary = createServerFn({ method: "GET" })
         const mStart = `${y}-${String(m).padStart(2, "0")}-01`;
         const mEnd = `${y}-${String(m).padStart(2, "0")}-${new Date(y, m, 0).getDate()}`;
 
-        const { data: hist } = await context.supabase
-          .from("financial_entries")
-          .select("type, total_value")
-          .gte("due_date", mStart)
-          .lte("due_date", mEnd);
-
         let mRevenue = 0;
         let mExpense = 0;
 
-        (hist || []).forEach((e: any) => {
-          if (e.type === "revenue") mRevenue += Number(e.total_value || 0);
-          else mExpense += Number(e.total_value || 0);
+        (allHist || []).forEach((e: any) => {
+          if (e.due_date >= mStart && e.due_date <= mEnd) {
+            if (e.type === "revenue") mRevenue += Number(e.total_value || 0);
+            else mExpense += Number(e.total_value || 0);
+          }
         });
 
         chartData.push({
