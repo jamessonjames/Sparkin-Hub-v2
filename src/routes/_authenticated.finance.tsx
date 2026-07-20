@@ -152,10 +152,11 @@ function FinancePage() {
 
   useEffect(() => {
     if (!chartRef.current) return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect?.width;
-      if (w) setChartWidth(Math.round(w));
-    });
+    const update = () => {
+      if (chartRef.current) setChartWidth(chartRef.current.clientWidth);
+    };
+    update();
+    const ro = new ResizeObserver(update);
     ro.observe(chartRef.current);
     return () => ro.disconnect();
   }, []);
@@ -592,8 +593,8 @@ function FinancePage() {
           </div>
         </div>
 
-        <div ref={chartRef} className="w-full" style={{ height: 260 }}>
-          <svg viewBox={`0 0 ${vw} ${totalH}`} className="w-full h-full font-sans text-[10px] fill-zinc-500" preserveAspectRatio="xMinYMin meet">
+        <div ref={chartRef} className="w-full">
+          <svg viewBox={`0 0 ${vw} ${totalH}`} className="w-full font-sans text-[10px] fill-zinc-500" preserveAspectRatio="xMinYMin meet" style={{ height: totalH }}>
             {/* Grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
               const y = padT + graphH * ratio;
