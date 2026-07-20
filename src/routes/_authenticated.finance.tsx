@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -146,21 +146,6 @@ function FinancePage() {
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth() + 1);
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
   const [chartMonths, setChartMonths] = useState(6);
-
-  const chartRef = useRef<HTMLDivElement>(null);
-  const [chartWidth, setChartWidth] = useState(500);
-
-  useEffect(() => {
-    const el = chartRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setChartWidth(entry.contentRect.width - 100);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
@@ -539,27 +524,18 @@ function FinancePage() {
     const maxVal = Math.max(...allValues, 1000);
     const minVal = Math.min(...allValues, 0);
     const range = maxVal - minVal || 1;
-    const graphHeight = 180;
-    const graphWidth = Math.max(chartWidth, 300);
     const paddingLeft = 55;
     const paddingRight = 20;
     const paddingTop = 25;
     const paddingBottom = 30;
 
-    const totalWidth = graphWidth + paddingLeft + paddingRight;
-    const totalHeight = graphHeight + paddingTop + paddingBottom;
-
     const points = chartData.map((d, index) => {
-      const x = paddingLeft + (index / (chartData.length - 1)) * graphWidth;
-      const yRevenue = paddingTop + graphHeight - ((d.faturamento - minVal) / range) * graphHeight;
-      const yExpense = paddingTop + graphHeight - ((d.despesas - minVal) / range) * graphHeight;
-      const yProfit = paddingTop + graphHeight - ((d.lucro - minVal) / range) * graphHeight;
-      return { x, yRevenue, yExpense, yProfit, label: d.month, raw: d };
+      const xPct = index / (chartData.length - 1);
+      const yRevenuePct = 1 - ((d.faturamento - minVal) / range);
+      const yExpensePct = 1 - ((d.despesas - minVal) / range);
+      const yProfitPct = 1 - ((d.lucro - minVal) / range);
+      return { xPct, yRevenuePct, yExpensePct, yProfitPct, label: d.month, raw: d };
     });
-
-    const revenueLinePath = points.map((p) => `${p.x},${p.yRevenue}`).join(" L ");
-    const expenseLinePath = points.map((p) => `${p.x},${p.yExpense}`).join(" L ");
-    const profitLinePath = points.map((p) => `${p.x},${p.yProfit}`).join(" L ");
 
     const periodLabel = chartMonths === 3 ? "3 meses" : chartMonths === 12 ? "12 meses" : "6 meses";
 
@@ -570,7 +546,7 @@ function FinancePage() {
     ];
 
     return (
-      <div ref={chartRef} className="bg-zinc-900/40 p-6 rounded-xl border border-zinc-800/80">
+      <div className="bg-zinc-900/40 p-6 rounded-xl border border-zinc-800/80">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
@@ -595,68 +571,68 @@ function FinancePage() {
           </div>
         </div>
 
-        <div className="w-full overflow-x-auto">
-          <svg viewBox={`0 0 ${totalWidth} ${totalHeight}`} className="w-full h-72 font-sans text-[10px] fill-zinc-500" preserveAspectRatio="xMidYMid meet">
+        <div className="w-full">
+          <svg viewBox="0 0 1 1" className="w-full h-72 font-sans text-[10px] fill-zinc-500" preserveAspectRatio="xMidYMid meet">
             {/* Grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
-              const y = paddingTop + graphHeight * ratio;
+              const y = ratio;
               const val = maxVal - range * ratio;
               return (
                 <g key={i}>
-                  <line x1={paddingLeft} y1={y} x2={paddingLeft + graphWidth} y2={y} stroke="rgba(255,255,255,0.05)" strokeDasharray="3,3" />
-                  <text x={paddingLeft - 10} y={y + 3} textAnchor="end">{formatCurrency(val).split(",")[0]}</text>
+                  <line x1="0.08" y1={y} x2="0.96" y2={y} stroke="rgba(255,255,255,0.05)" strokeDasharray="0.01,0.01" />
+                  <text x="0.07" y={y + 0.015} textAnchor="end" fontSize="0.035">{formatCurrency(val).split(",")[0]}</text>
                 </g>
               );
             })}
 
             {/* Zero baseline */}
             {minVal < 0 && maxVal > 0 && (() => {
-              const y0 = paddingTop + graphHeight - ((0 - minVal) / range) * graphHeight;
+              const y0 = 1 - ((0 - minVal) / range);
               return (
-                <line x1={paddingLeft} y1={y0} x2={paddingLeft + graphWidth} y2={y0} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                <line x1="0.08" y1={y0} x2="0.96" y2={y0} stroke="rgba(255,255,255,0.15)" strokeWidth="0.004" />
               );
             })()}
 
             {/* X axis labels */}
             {points.map((p, i) => (
-              <text key={i} x={p.x} y={paddingTop + graphHeight + 18} textAnchor="middle">{p.label}</text>
+              <text key={i} x={p.xPct * 0.88 + 0.08} y="0.96" textAnchor="middle" fontSize="0.035">{p.label}</text>
             ))}
 
             {/* Revenue Line */}
             <path
-              d={`M ${revenueLinePath}`}
+              d={`M ${points.map((p) => `${p.xPct * 0.88 + 0.08},${p.yRevenuePct * 0.78 + 0.07}`).join(" L ")}`}
               fill="none"
               stroke="#3b82f6"
-              strokeWidth="2.5"
+              strokeWidth="0.008"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
             {/* Expense Line */}
             <path
-              d={`M ${expenseLinePath}`}
+              d={`M ${points.map((p) => `${p.xPct * 0.88 + 0.08},${p.yExpensePct * 0.78 + 0.07}`).join(" L ")}`}
               fill="none"
               stroke="#ef4444"
-              strokeWidth="2.5"
+              strokeWidth="0.008"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
             {/* Profit Line */}
             <path
-              d={`M ${profitLinePath}`}
+              d={`M ${points.map((p) => `${p.xPct * 0.88 + 0.08},${p.yProfitPct * 0.78 + 0.07}`).join(" L ")}`}
               fill="none"
               stroke="#22c55e"
-              strokeWidth="2.5"
+              strokeWidth="0.008"
               strokeLinecap="round"
               strokeLinejoin="round"
-              strokeDasharray="6,3"
+              strokeDasharray="0.02,0.01"
             />
 
             {/* Points */}
             {points.map((p, i) => (
               <g key={i}>
-                <circle cx={p.x} cy={p.yRevenue} r="4" fill="#3b82f6" className="transition-all hover:r-6 cursor-pointer" />
-                <circle cx={p.x} cy={p.yExpense} r="4" fill="#ef4444" className="transition-all hover:r-6 cursor-pointer" />
-                <circle cx={p.x} cy={p.yProfit} r="3.5" fill="#22c55e" stroke="#166534" strokeWidth="1" className="transition-all hover:r-6 cursor-pointer" />
+                <circle cx={p.xPct * 0.88 + 0.08} cy={p.yRevenuePct * 0.78 + 0.07} r="0.012" fill="#3b82f6" className="transition-all hover:r-0.02 cursor-pointer" />
+                <circle cx={p.xPct * 0.88 + 0.08} cy={p.yExpensePct * 0.78 + 0.07} r="0.012" fill="#ef4444" className="transition-all hover:r-0.02 cursor-pointer" />
+                <circle cx={p.xPct * 0.88 + 0.08} cy={p.yProfitPct * 0.78 + 0.07} r="0.01" fill="#22c55e" stroke="#166534" strokeWidth="0.003" className="transition-all hover:r-0.02 cursor-pointer" />
               </g>
             ))}
           </svg>
