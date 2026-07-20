@@ -548,7 +548,7 @@ function FinancePage() {
         </h3>
 
         <div className="w-full overflow-x-auto">
-          <svg viewBox={`0 0 ${totalWidth} ${totalHeight}`} className="w-full min-w-[600px] h-64 font-sans text-[10px] fill-zinc-500">
+          <svg viewBox={`0 0 ${totalWidth} ${totalHeight}`} className="w-full h-96 font-sans text-[10px] fill-zinc-500">
             {/* Grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
               const y = paddingTop + graphHeight * ratio;
@@ -570,7 +570,7 @@ function FinancePage() {
             <path
               d={`M ${revenueLinePath}`}
               fill="none"
-              stroke="var(--primary)"
+              stroke="#3b82f6"
               strokeWidth="3"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -588,7 +588,7 @@ function FinancePage() {
             {/* Points */}
             {points.map((p, i) => (
               <g key={i}>
-                <circle cx={p.x} cy={p.yRevenue} r="4" fill="var(--primary)" className="transition-all hover:r-6 cursor-pointer" />
+                <circle cx={p.x} cy={p.yRevenue} r="4" fill="#3b82f6" className="transition-all hover:r-6 cursor-pointer" />
                 <circle cx={p.x} cy={p.yExpense} r="4" fill="#ef4444" className="transition-all hover:r-6 cursor-pointer" />
               </g>
             ))}
@@ -597,7 +597,7 @@ function FinancePage() {
 
         <div className="flex gap-6 justify-center mt-4 text-xs font-medium">
           <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-primary" />
+            <span className="h-3 w-3 rounded-full bg-blue-500" />
             <span className="text-zinc-400">Faturamento Total (Receitas)</span>
           </div>
           <div className="flex items-center gap-2">
