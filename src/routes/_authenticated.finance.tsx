@@ -548,7 +548,7 @@ function FinancePage() {
         </h3>
 
         <div className="w-full overflow-x-auto">
-          <svg viewBox={`0 0 ${totalWidth} ${totalHeight}`} className="w-full h-96 font-sans text-[10px] fill-zinc-500">
+          <svg viewBox={`0 0 ${totalWidth} ${totalHeight}`} className="w-full h-64 font-sans text-[10px] fill-zinc-500">
             {/* Grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
               const y = paddingTop + graphHeight * ratio;
