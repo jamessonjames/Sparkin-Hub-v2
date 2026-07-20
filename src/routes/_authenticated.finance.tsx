@@ -546,9 +546,9 @@ function FinancePage() {
     const minVal = Math.min(...allValues, 0);
     const range = maxVal - minVal || 1;
     const vw = Math.max(chartWidth, 300);
-    const graphW = vw - 80;
+    const graphW = vw - 100;
     const graphH = 180;
-    const padL = 60;
+    const padL = 76;
     const padT = 20;
     const padB = 30;
     const totalH = graphH + padT + padB;
