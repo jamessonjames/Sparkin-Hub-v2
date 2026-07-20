@@ -567,7 +567,7 @@ function FinancePage() {
     ];
 
     return (
-      <div ref={chartRef} className="bg-zinc-900/40 p-6 rounded-xl border border-zinc-800/80">
+      <div className="bg-zinc-900/40 p-6 rounded-xl border border-zinc-800/80">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
@@ -592,8 +592,8 @@ function FinancePage() {
           </div>
         </div>
 
-        <div className="w-full">
-          <svg viewBox={`0 0 ${vw} ${totalH}`} className="w-full h-72 font-sans text-[10px] fill-zinc-500" preserveAspectRatio="xMinYMin meet">
+        <div ref={chartRef} className="w-full" style={{ height: 260 }}>
+          <svg viewBox={`0 0 ${vw} ${totalH}`} className="w-full h-full font-sans text-[10px] fill-zinc-500" preserveAspectRatio="xMinYMin meet">
             {/* Grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
               const y = padT + graphH * ratio;
