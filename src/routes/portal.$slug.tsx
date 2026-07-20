@@ -273,6 +273,7 @@ function PortalPage() {
           portalSlug={slug}
           portalClientName={client.name}
           portalBillingModel={client.billing_model}
+          portalCreditsEnabled={creditConfig?.show_progress_bar ?? false}
           initialDemandData={selectedDemand ?? undefined}
           onPortalDemandCreated={(newDemand) => {
             setDemands((prev) => [{ ...newDemand, created_at: new Date().toISOString() }, ...prev]);

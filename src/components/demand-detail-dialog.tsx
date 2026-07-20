@@ -78,6 +78,7 @@ export function DemandDetailDialog({
   portalSlug,
   portalClientName,
   portalBillingModel,
+  portalCreditsEnabled,
   initialDemandData,
   onPortalDemandCreated,
   onPortalDemandUpdated,
@@ -94,6 +95,7 @@ export function DemandDetailDialog({
   portalSlug?: string;
   portalClientName?: string;
   portalBillingModel?: string;
+  portalCreditsEnabled?: boolean;
   initialDemandData?: PortalInitialDemand;
   onPortalDemandCreated?: (d: PortalInitialDemand) => void;
   onPortalDemandUpdated?: (d: PortalInitialDemand) => void;
@@ -243,7 +245,7 @@ export function DemandDetailDialog({
   const demandTitle = title.trim() || "Nova Demanda";
   const gDrivePath = useMemo(() => ["Clients", clientName, "Demands", demandTitle], [clientName, demandTitle]);
   const isCreditBillingEnabled = portalMode
-    ? portalBillingModel === "credits"
+    ? portalBillingModel === "credits" && portalCreditsEnabled !== false
     : selectedClient?.billing_model === "credits";
 
   const headerInfoText = useMemo(() => {
