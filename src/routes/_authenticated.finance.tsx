@@ -150,16 +150,21 @@ function FinancePage() {
   const chartRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState(600);
 
-  useEffect(() => {
-    if (!chartRef.current) return;
-    const update = () => {
-      if (chartRef.current) setChartWidth(chartRef.current.clientWidth);
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(chartRef.current);
-    return () => ro.disconnect();
-  }, []);
+  // Use a callback ref pattern to measure AFTER element is in DOM
+  const chartCallbackRef = (el: HTMLDivElement | null) => {
+    chartRef.current = el;
+    if (el) {
+      setChartWidth(el.clientWidth);
+      const ro = new ResizeObserver(() => {
+        if (chartRef.current) setChartWidth(chartRef.current.clientWidth);
+      });
+      ro.observe(el);
+      // Store for cleanup — we'll use the ref
+      (el as any).__ro = ro;
+    } else if (chartRef.current) {
+      (chartRef.current as any).__ro?.disconnect();
+    }
+  };
 
   const [visibleLines, setVisibleLines] = useState({ revenue: true, expense: true, profit: true });
 
@@ -568,7 +573,7 @@ function FinancePage() {
     ];
 
     return (
-      <div ref={chartRef} className="bg-zinc-900/40 rounded-xl border border-zinc-800/80 overflow-hidden">
+      <div ref={chartCallbackRef} className="bg-zinc-900/40 rounded-xl border border-zinc-800/80 overflow-hidden">
         <div className="p-6 pb-0">
           <div className="flex items-center justify-between mb-6">
           <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
