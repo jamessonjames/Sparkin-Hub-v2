@@ -594,7 +594,7 @@ function FinancePage() {
         </div>
 
         <div ref={chartRef} className="w-full">
-          <svg viewBox={`0 0 ${vw} ${totalH}`} className="w-full font-sans text-[10px] fill-zinc-500" preserveAspectRatio="xMinYMin meet" style={{ height: totalH }}>
+          <svg className="w-full font-sans text-[10px] fill-zinc-500" style={{ height: 220 }}>
             {/* Grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
               const y = padT + graphH * ratio;
