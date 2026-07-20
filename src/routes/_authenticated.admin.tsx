@@ -70,7 +70,7 @@ function AdminPage() {
   // Logged-in user state
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  const { data: users = [], isLoading } = useQuery({
+  const { data: users = [], isLoading, error: usersError } = useQuery({
     queryKey: ["users-with-roles"],
     queryFn: () => listUsersFn(),
   });
@@ -734,6 +734,10 @@ function AdminPage() {
               <CardContent className="space-y-4">
                 {isLoading ? (
                   <div className="py-6 text-center text-muted-foreground text-xs">Carregando usuários...</div>
+                ) : usersError ? (
+                  <div className="py-6 text-center text-red-400 text-xs">{usersError instanceof Error ? usersError.message : "Erro ao carregar usuários"}</div>
+                ) : users.length === 0 ? (
+                  <div className="py-6 text-center text-muted-foreground text-xs">Nenhum usuário encontrado.</div>
                 ) : (
                   users.map((u) => {
                     const role = u.user_roles?.[0]?.role ?? "collaborator";
