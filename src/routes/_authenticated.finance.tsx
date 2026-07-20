@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -145,6 +145,7 @@ function FinancePage() {
   // Period State (Current month and year)
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth() + 1);
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
+  const [chartMonths, setChartMonths] = useState(6);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
@@ -200,11 +201,11 @@ function FinancePage() {
   });
 
   const { data: summary, isLoading: isLoadingSummary } = useQuery({
-    queryKey: ["financialSummary", currentMonth, currentYear],
+    queryKey: ["financialSummary", currentMonth, currentYear, chartMonths],
     queryFn: async () => {
       // First, trigger automatic recurring generation to ensure data is updated
       await checkGenFn({ data: { month: currentMonth, year: currentYear } });
-      return summaryFn({ data: { month: currentMonth, year: currentYear } });
+      return summaryFn({ data: { month: currentMonth, year: currentYear, chartMonths } });
     },
   });
 
@@ -508,6 +509,21 @@ function FinancePage() {
     }
   };
 
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState(500);
+
+  useEffect(() => {
+    const el = chartRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setChartWidth(entry.contentRect.width - 100);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Custom premium SVG line/bar chart builder
   const renderChart = () => {
     if (!summary || !summary.chartData || summary.chartData.length === 0) {
@@ -519,12 +535,15 @@ function FinancePage() {
     }
 
     const chartData = summary.chartData;
-    const maxVal = Math.max(...chartData.map((d) => Math.max(d.faturamento, d.despesas, 1000)));
-    const graphHeight = 160;
-    const graphWidth = 500;
-    const paddingLeft = 50;
+    const allValues = chartData.flatMap((d) => [d.faturamento, d.despesas, d.lucro]);
+    const maxVal = Math.max(...allValues, 1000);
+    const minVal = Math.min(...allValues, 0);
+    const range = maxVal - minVal || 1;
+    const graphHeight = 180;
+    const graphWidth = Math.max(chartWidth, 300);
+    const paddingLeft = 55;
     const paddingRight = 20;
-    const paddingTop = 20;
+    const paddingTop = 25;
     const paddingBottom = 30;
 
     const totalWidth = graphWidth + paddingLeft + paddingRight;
@@ -532,34 +551,71 @@ function FinancePage() {
 
     const points = chartData.map((d, index) => {
       const x = paddingLeft + (index / (chartData.length - 1)) * graphWidth;
-      const yRevenue = paddingTop + graphHeight - (d.faturamento / maxVal) * graphHeight;
-      const yExpense = paddingTop + graphHeight - (d.despesas / maxVal) * graphHeight;
-      return { x, yRevenue, yExpense, label: d.month, raw: d };
+      const yRevenue = paddingTop + graphHeight - ((d.faturamento - minVal) / range) * graphHeight;
+      const yExpense = paddingTop + graphHeight - ((d.despesas - minVal) / range) * graphHeight;
+      const yProfit = paddingTop + graphHeight - ((d.lucro - minVal) / range) * graphHeight;
+      return { x, yRevenue, yExpense, yProfit, label: d.month, raw: d };
     });
 
     const revenueLinePath = points.map((p) => `${p.x},${p.yRevenue}`).join(" L ");
     const expenseLinePath = points.map((p) => `${p.x},${p.yExpense}`).join(" L ");
+    const profitLinePath = points.map((p) => `${p.x},${p.yProfit}`).join(" L ");
+
+    const periodLabel = chartMonths === 3 ? "3 meses" : chartMonths === 12 ? "12 meses" : "6 meses";
+
+    const rangeOptions = [
+      { value: 3, label: "3M" },
+      { value: 6, label: "6M" },
+      { value: 12, label: "12M" },
+    ];
 
     return (
-      <div className="bg-zinc-900/40 p-6 rounded-xl border border-zinc-800/80">
-        <h3 className="text-sm font-semibold text-zinc-300 mb-6 flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-primary" />
-          Análise Financeira Consolidada (Últimos 6 meses)
-        </h3>
+      <div ref={chartRef} className="bg-zinc-900/40 p-6 rounded-xl border border-zinc-800/80">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            Análise Financeira Consolidada (Últimos {periodLabel})
+          </h3>
+          <div className="flex items-center gap-1 bg-zinc-800/60 rounded-lg p-0.5">
+            {rangeOptions.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setChartMonths(opt.value)}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
+                  chartMonths === opt.value
+                    ? "bg-zinc-700 text-zinc-100 shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200"
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="w-full overflow-x-auto">
-          <svg viewBox={`0 0 ${totalWidth} ${totalHeight}`} className="w-full h-64 font-sans text-[10px] fill-zinc-500">
+          <svg viewBox={`0 0 ${totalWidth} ${totalHeight}`} className="w-full h-72 font-sans text-[10px] fill-zinc-500" preserveAspectRatio="xMidYMid meet">
             {/* Grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
               const y = paddingTop + graphHeight * ratio;
-              const val = maxVal * (1 - ratio);
+              const val = maxVal - range * ratio;
               return (
                 <g key={i}>
                   <line x1={paddingLeft} y1={y} x2={paddingLeft + graphWidth} y2={y} stroke="rgba(255,255,255,0.05)" strokeDasharray="3,3" />
-                  <text x={paddingLeft - 8} y={y + 3} textAnchor="end">{formatCurrency(val).split(",")[0]}</text>
+                  <text x={paddingLeft - 10} y={y + 3} textAnchor="end">{formatCurrency(val).split(",")[0]}</text>
                 </g>
               );
             })}
+
+            {/* Zero baseline */}
+            {minVal < 0 && maxVal > 0 && (() => {
+              const y0 = paddingTop + graphHeight - ((0 - minVal) / range) * graphHeight;
+              return (
+                <line x1={paddingLeft} y1={y0} x2={paddingLeft + graphWidth} y2={y0} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+              );
+            })()}
 
             {/* X axis labels */}
             {points.map((p, i) => (
@@ -571,7 +627,7 @@ function FinancePage() {
               d={`M ${revenueLinePath}`}
               fill="none"
               stroke="#3b82f6"
-              strokeWidth="3"
+              strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
@@ -580,9 +636,19 @@ function FinancePage() {
               d={`M ${expenseLinePath}`}
               fill="none"
               stroke="#ef4444"
-              strokeWidth="3"
+              strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
+            />
+            {/* Profit Line */}
+            <path
+              d={`M ${profitLinePath}`}
+              fill="none"
+              stroke="#22c55e"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray="6,3"
             />
 
             {/* Points */}
@@ -590,12 +656,13 @@ function FinancePage() {
               <g key={i}>
                 <circle cx={p.x} cy={p.yRevenue} r="4" fill="#3b82f6" className="transition-all hover:r-6 cursor-pointer" />
                 <circle cx={p.x} cy={p.yExpense} r="4" fill="#ef4444" className="transition-all hover:r-6 cursor-pointer" />
+                <circle cx={p.x} cy={p.yProfit} r="3.5" fill="#22c55e" stroke="#166534" strokeWidth="1" className="transition-all hover:r-6 cursor-pointer" />
               </g>
             ))}
           </svg>
         </div>
 
-        <div className="flex gap-6 justify-center mt-4 text-xs font-medium">
+        <div className="flex gap-6 justify-center mt-4 text-xs font-medium flex-wrap">
           <div className="flex items-center gap-2">
             <span className="h-3 w-3 rounded-full bg-blue-500" />
             <span className="text-zinc-400">Faturamento Total (Receitas)</span>
@@ -603,6 +670,10 @@ function FinancePage() {
           <div className="flex items-center gap-2">
             <span className="h-3 w-3 rounded-full bg-red-500" />
             <span className="text-zinc-400">Despesas / Custos</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-green-500" />
+            <span className="text-zinc-400">Lucro do Período</span>
           </div>
         </div>
       </div>

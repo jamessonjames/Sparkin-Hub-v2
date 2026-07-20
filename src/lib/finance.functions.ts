@@ -330,8 +330,9 @@ export const getFinancialSummary = createServerFn({ method: "GET" })
   .validator(z.object({
     month: z.number().min(1).max(12),
     year: z.number(),
+    chartMonths: z.number().min(3).max(12).default(6),
   }))
-  .handler(async ({ data: { month, year }, context }) => {
+  .handler(async ({ data: { month, year, chartMonths }, context }) => {
     try {
       const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
       const lastDay = new Date(year, month, 0).getDate();
@@ -395,11 +396,11 @@ export const getFinancialSummary = createServerFn({ method: "GET" })
         }
       });
 
-      // Calculate last 6 months historical data
-      const chartData: { month: string; faturamento: number; despesas: number }[] = [];
+      // Calculate last N months historical data
+      const chartData: { month: string; faturamento: number; despesas: number; lucro: number }[] = [];
       const monthNamesShort = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-      for (let i = 5; i >= 0; i--) {
+      for (let i = chartMonths - 1; i >= 0; i--) {
         const d = new Date(year, month - 1 - i, 1);
         const m = d.getMonth() + 1;
         const y = d.getFullYear();
@@ -425,6 +426,7 @@ export const getFinancialSummary = createServerFn({ method: "GET" })
           month: `${monthNamesShort[m - 1]}/${String(y).slice(2)}`,
           faturamento: mRevenue,
           despesas: mExpense,
+          lucro: mRevenue - mExpense,
         });
       }
 
