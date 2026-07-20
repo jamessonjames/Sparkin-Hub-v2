@@ -568,8 +568,9 @@ function FinancePage() {
     ];
 
     return (
-      <div className="bg-zinc-900/40 p-6 rounded-xl border border-zinc-800/80">
-        <div className="flex items-center justify-between mb-6">
+      <div ref={chartRef} className="bg-zinc-900/40 rounded-xl border border-zinc-800/80">
+        <div className="p-6 pb-0">
+          <div className="flex items-center justify-between mb-6">
           <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
             Análise Financeira Consolidada (Últimos {periodLabel})
@@ -592,9 +593,10 @@ function FinancePage() {
             ))}
           </div>
         </div>
+        </div>
 
-        <div ref={chartRef} className="w-full">
-          <svg className="w-full font-sans text-[10px] fill-zinc-500" style={{ height: 220 }}>
+        <div className="w-full px-1">
+          <svg className="w-full block font-sans text-[10px] fill-zinc-500" style={{ height: 220 }}>
             {/* Grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
               const y = padT + graphH * ratio;
@@ -638,7 +640,7 @@ function FinancePage() {
           </svg>
         </div>
 
-        <div className="flex gap-6 justify-center mt-4 text-xs font-medium flex-wrap">
+        <div className="flex gap-6 justify-center mt-4 text-xs font-medium flex-wrap pb-6 px-6">
           {([
             { key: "revenue" as const, label: "Faturamento Total (Receitas)", color: "#3b82f6", bg: "bg-blue-500" },
             { key: "expense" as const, label: "Despesas / Custos", color: "#ef4444", bg: "bg-red-500" },
