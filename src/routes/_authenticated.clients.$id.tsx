@@ -349,6 +349,7 @@ function ClientPage() {
               </p>
             </div>
           ) : (
+            <div className="w-screen ml-[calc(-50vw+50%)]">
             <KanbanBoard
               demands={filteredDemands.map((d) => ({
                 id: d.id,
@@ -372,6 +373,7 @@ function ClientPage() {
                 )
               }
             />
+            </div>
           )}
         </TabsContent>
 

@@ -90,6 +90,7 @@ function DemandsPage() {
           Crie um cliente antes de abrir demandas.
         </Card>
       ) : (
+        <div className="w-screen ml-[calc(-50vw+50%)]">
         <KanbanBoard
           demands={demands.map((d) => ({
             id: d.id,
@@ -108,6 +109,7 @@ function DemandsPage() {
           onReorder={handleReorder}
           showSearch={true}
         />
+        </div>
       )}
     </div>
   );
