@@ -20,10 +20,11 @@ function Dashboard() {
   const activityFn = useServerFn(getClientActivityStatus);
   const { data: demands = [] } = useQuery({ queryKey: ["demands"], queryFn: () => demandsFn() });
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn() });
-  const { data: clientActivities = [] } = useQuery({
+  const { data: _clientActivities } = useQuery({
     queryKey: ["clientActivity"],
     queryFn: () => activityFn(),
   });
+  const clientActivities = Array.isArray(_clientActivities) ? _clientActivities : [];
 
   const open = demands.filter((d) => d.status !== "concluido" && d.status !== "rascunho");
   const today = new Date().toISOString().slice(0, 10);
