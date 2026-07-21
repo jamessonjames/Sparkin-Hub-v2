@@ -54,17 +54,11 @@ export const HIGHLIGHT_COLORS: Record<
 export function applyThemeAndHighlight() {
   if (typeof window === "undefined") return;
 
-  const savedTheme = localStorage.getItem("CF_Theme") || "dark";
+  document.documentElement.classList.remove("light");
+
   const savedColor = (localStorage.getItem("CF_HighlightColor") || "roxo") as HighlightColor;
   const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
   const savedFavicon = localStorage.getItem("CF_Favicon") || "";
-
-  // 1. Theme
-  if (savedTheme === "light") {
-    document.documentElement.classList.add("light");
-  } else {
-    document.documentElement.classList.remove("light");
-  }
 
   // 2. Custom System Name/Title
   if (savedName) {

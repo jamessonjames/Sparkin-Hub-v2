@@ -8,7 +8,7 @@ export const listProfiles = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("profiles")
-      .select("id, name, email, avatar_url, theme, highlight_color, custom_hex, sidebar_order")
+      .select("id, name, email, avatar_url, highlight_color, custom_hex, sidebar_order")
       .order("name", { ascending: true });
     if (error) throw new Error(error.message);
     return data ?? [];
@@ -142,14 +142,12 @@ export const saveUserPreferences = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({
-      theme: z.enum(["dark", "light"]).optional(),
       highlight_color: z.string().optional(),
       custom_hex: z.string().optional(),
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
     const updates: Record<string, string> = {};
-    if (data.theme) updates.theme = data.theme;
     if (data.highlight_color) updates.highlight_color = data.highlight_color;
     if (data.custom_hex) updates.custom_hex = data.custom_hex;
 
@@ -166,12 +164,11 @@ export const getUserPreferences = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("profiles")
-      .select("theme, highlight_color, custom_hex, sidebar_order")
+      .select("highlight_color, custom_hex, sidebar_order")
       .eq("id", context.userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
     return {
-      theme: data?.theme ?? "dark",
       highlight_color: data?.highlight_color ?? "roxo",
       custom_hex: data?.custom_hex ?? "#4f46e5",
       sidebar_order: (data?.sidebar_order as string[] | null) ?? null,

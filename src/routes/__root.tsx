@@ -132,11 +132,10 @@ function RootComponent() {
     // Apply global branding from localStorage (system name, favicon)
     applyThemeAndHighlight();
 
-    // Load per-user theme/color preferences from DB and override
+    // Load per-user highlight color preferences from DB
     supabase.auth.getUser().then(({ data }) => {
       if (!data?.user) return;
       getPrefsFn().then((prefs) => {
-        document.documentElement.classList.toggle("light", prefs.theme === "light");
         const color = prefs.highlight_color ?? "roxo";
         const hex = prefs.custom_hex ?? "#4f46e5";
         let primary, primaryFg, accent, accentFg, gradient;

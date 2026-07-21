@@ -80,7 +80,6 @@ function AdminPage() {
   // Local storage branding settings
   const [systemName, setSystemName] = useState("Creative Flow");
   const [faviconUrl, setFaviconUrl] = useState("");
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [highlightColor, setHighlightColor] = useState<HighlightColor>("roxo");
   const [customHex, setCustomHex] = useState("#4f46e5");
 
@@ -259,23 +258,18 @@ function AdminPage() {
       const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
       const savedFavicon = localStorage.getItem("CF_Favicon") || "";
 
-      // Load theme/color from DB first; fall back to localStorage
+      // Load color from DB first; fall back to localStorage
       getPrefsFn().then((prefs) => {
-        const savedTheme = (prefs.theme as "light" | "dark") || (localStorage.getItem("CF_Theme") as "light" | "dark") || "dark";
         const savedColor = (prefs.highlight_color as HighlightColor) || (localStorage.getItem("CF_HighlightColor") || "roxo") as HighlightColor;
         const savedHex = prefs.custom_hex || localStorage.getItem("CF_CustomHex") || "#4f46e5";
-        setTheme(savedTheme);
         setHighlightColor(savedColor);
         setCustomHex(savedHex);
-        localStorage.setItem("CF_Theme", savedTheme);
         localStorage.setItem("CF_HighlightColor", savedColor);
         localStorage.setItem("CF_CustomHex", savedHex);
         applyThemeAndHighlight();
       }).catch(() => {
-        const savedTheme = (localStorage.getItem("CF_Theme") as "light" | "dark") || "dark";
         const savedColor = (localStorage.getItem("CF_HighlightColor") || "roxo") as HighlightColor;
         const savedHex = localStorage.getItem("CF_CustomHex") || "#4f46e5";
-        setTheme(savedTheme);
         setHighlightColor(savedColor);
         setCustomHex(savedHex);
       });
@@ -340,13 +334,6 @@ function AdminPage() {
       });
     }
   }, []);
-
-  const updateThemeInstantly = (newTheme: "light" | "dark") => {
-    setTheme(newTheme);
-    localStorage.setItem("CF_Theme", newTheme);
-    applyThemeAndHighlight();
-    savePrefsFn({ data: { theme: newTheme } }).catch(() => {});
-  };
 
   const updateColorInstantly = (newColor: HighlightColor) => {
     setHighlightColor(newColor);
@@ -567,27 +554,9 @@ function AdminPage() {
                   </>
                 )}
 
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground font-semibold">Tema Padrão</Label>
-                  <div className="flex gap-4">
-                    <label className={cn(
-                      "flex items-center gap-2 border border-border bg-surface-2/40 rounded-lg px-4 py-2 cursor-pointer hover:bg-surface-2 transition-all flex-1 text-center justify-center font-semibold text-xs text-muted-foreground",
-                      theme === "dark" && "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
-                    )}>
-                      <input type="radio" name="theme" value="dark" checked={theme === "dark"} onChange={() => updateThemeInstantly("dark")} className="hidden" />
-                      Tema Escuro (Recomendado)
-                    </label>
-                    <label className={cn(
-                      "flex items-center gap-2 border border-border bg-surface-2/40 rounded-lg px-4 py-2 cursor-pointer hover:bg-surface-2 transition-all flex-1 text-center justify-center font-semibold text-xs text-muted-foreground",
-                      theme === "light" && "border-[var(--primary)] bg-[var(--primary)]/10 text-foreground"
-                    )}>
-                      <input type="radio" name="theme" value="light" checked={theme === "light"} onChange={() => updateThemeInstantly("light")} className="hidden" />
-                      Tema Claro
-                    </label>
-                  </div>
-                </div>
-
                 {/* Cores de Destaque */}
+                {isOwner && (
+                <>
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground font-semibold">Cores Sólidas</Label>
@@ -704,12 +673,12 @@ function AdminPage() {
                   </div>
                 </div>
 
-                {isOwner && (
                   <div className="pt-2 border-t border-border">
                     <Button type="submit" className="gap-2 px-6 text-xs h-9 btn-primary">
                       <Save className="h-4 w-4" /> Salvar Nome & Favicon
                     </Button>
                   </div>
+                </>
                 )}
               </form>
             </CardContent>
