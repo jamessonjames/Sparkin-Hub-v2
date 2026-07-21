@@ -131,7 +131,7 @@ function updateDynamicManifest() {
   const iconSrc = savedFavicon || "/icon-512.png";
 
   const manifest = {
-    name: `${savedName} Hub`,
+    name: savedName.endsWith(" Hub") ? savedName : `${savedName} Hub`,
     short_name: savedName,
     description: "Portal para organização de demandas, clientes e financeiro.",
     start_url: "/",

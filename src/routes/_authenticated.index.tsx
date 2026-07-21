@@ -98,7 +98,14 @@ function Dashboard() {
             ))}
             {clients.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                Nenhum cliente. <Link to="/clients/new" className="text-primary underline">Criar o primeiro</Link>.
+                Nenhum cliente.{" "}
+                <button
+                  onClick={() => window.dispatchEvent(new CustomEvent("open-client-form"))}
+                  className="text-primary underline cursor-pointer"
+                >
+                  Criar o primeiro
+                </button>
+                .
               </p>
             )}
           </div>

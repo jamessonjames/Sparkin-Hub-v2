@@ -417,13 +417,16 @@ export function AppSidebar() {
                 >
                   {clientsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                 </button>
-                <Link
-                  to="/clients/new"
-                  className="sidebar-action-btn p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors"
-                  onClick={(e) => e.stopPropagation()}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent("open-client-form"));
+                  }}
+                  className="sidebar-action-btn p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                </Link>
+                </button>
               </div>
             )}
           </div>
@@ -464,7 +467,7 @@ export function AppSidebar() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                navigate({ to: "/clients/new", search: { parent_id: mc.id, is_project: true } });
+                                window.dispatchEvent(new CustomEvent("open-client-form", { detail: { parentId: mc.id, isProject: true } }));
                               }}
                               className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors sidebar-action-btn opacity-0 group-hover/link:opacity-100"
                               title={`Novo projeto em ${mc.name}`}

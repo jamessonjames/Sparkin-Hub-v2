@@ -35,10 +35,8 @@ function ClientsList() {
             {clients.length} {clients.length === 1 ? "cliente" : "clientes"}
           </p>
         </div>
-        <Button asChild>
-          <Link to="/clients/new">
-            <Plus className="h-4 w-4 mr-1" /> Novo cliente
-          </Link>
+        <Button onClick={() => window.dispatchEvent(new CustomEvent("open-client-form"))}>
+          <Plus className="h-4 w-4 mr-1" /> Novo cliente
         </Button>
       </div>
 

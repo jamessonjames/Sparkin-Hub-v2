@@ -4,13 +4,15 @@ import { AppSidebar } from "./app-sidebar";
 import { BottomNav } from "./bottom-nav";
 import { DemandOverlayProvider } from "@/contexts/demand-overlay";
 import { DemandOverlayRenderer } from "@/components/demand-overlay-renderer";
+import { ClientFormDialog } from "@/components/client-form-dialog";
 import { UserProvider } from "@/contexts/user-context";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, UserCircle, ChevronDown } from "lucide-react";
-import { useState, useEffect } from "react";
+import { LogOut, UserCircle, ChevronDown, Download } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useAutoScheduler } from "@/hooks/use-auto-scheduler";
+
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -29,13 +31,24 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   useAutoScheduler();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
+  const deferredPromptRef = useRef<any>(null);
+  const [pwaInstallable, setPwaInstallable] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) {
         setCurrentUser(data.user);
+
+        supabase
+          .from("profiles")
+          .select("name")
+          .eq("id", data.user.id)
+          .maybeSingle()
+          .then(({ data: profile }) => {
+            if (profile?.name) setCurrentUserName(profile.name);
+          });
         
-        // Query current user role
         supabase
           .from("user_roles")
           .select("role")
@@ -49,6 +62,18 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
       }
     });
   }, []);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      deferredPromptRef.current = e;
+      setPwaInstallable(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const displayName = currentUserName || currentUser?.email || "";
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -68,7 +93,18 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
                 {title && <h1 className="font-display font-semibold text-foreground">{title}</h1>}
               </div>
               
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                {pwaInstallable && (
+                  <button
+                    onClick={() => {
+                      deferredPromptRef.current?.prompt();
+                    }}
+                    title="Instalar aplicativo"
+                    className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-zinc-800/40 transition-colors cursor-pointer"
+                  >
+                    <Download className="h-4 w-4" />
+                  </button>
+                )}
                 {currentUser && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -76,7 +112,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
                         <UserCircle className="h-5 w-5 text-muted-foreground shrink-0" />
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold text-zinc-300 shrink-0">
-                            {currentUser.email}
+                            {displayName}
                           </span>
                           {currentUserRole && (
                             <span
@@ -123,6 +159,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
         </div>
         {/* Global demand overlay — persists across page navigation */}
         <DemandOverlayRenderer />
+        <ClientFormDialog />
       </SidebarProvider>
     </DemandOverlayProvider>
     </UserProvider>
