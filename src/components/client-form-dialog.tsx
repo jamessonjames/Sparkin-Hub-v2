@@ -44,6 +44,7 @@ export function ClientFormDialog() {
       toast.success(state.isProject ? "Projeto criado!" : "Cliente criado!");
       qc.invalidateQueries({ queryKey: ["clients"] });
       qc.invalidateQueries({ queryKey: ["clientActivity"] });
+      qc.invalidateQueries({ queryKey: ["clientActivityMap"] });
       setState({ open: false });
       if (res?.id) navigate({ to: "/clients/$id", params: { id: res.id } });
     } catch (e) {

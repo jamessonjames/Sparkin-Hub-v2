@@ -64,7 +64,7 @@ export function AppSidebar() {
     queryFn: () => listFn(),
   });
   const { data: activityMap } = useQuery({
-    queryKey: ["clientActivity"],
+    queryKey: ["clientActivityMap"],
     queryFn: async () => {
       const data: ClientActivity[] = await activityFn();
       const map = new Map<string, ClientActivity>();
