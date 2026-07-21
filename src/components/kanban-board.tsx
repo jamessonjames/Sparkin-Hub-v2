@@ -124,6 +124,9 @@ export function KanbanBoard({
   onReorder,
   isClientPortal = false,
   showSearch = true,
+  scrollRef,
+  search,
+  onSearchChange,
 }: {
   demands: KanbanDemand[];
   onMove: (id: string, status: DemandStatus) => void;
@@ -132,6 +135,9 @@ export function KanbanBoard({
   onReorder?: (updates: { id: string; status: DemandStatus; sort_order: number }[]) => void;
   isClientPortal?: boolean;
   showSearch?: boolean;
+  scrollRef?: React.RefObject<HTMLDivElement | null>;
+  search?: string;
+  onSearchChange?: (value: string) => void;
 }) {
   const listProfilesFn = useServerFn(listProfiles);
   const { data: profiles = [] } = useQuery({
@@ -149,7 +155,9 @@ export function KanbanBoard({
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
   );
-  const [search, setSearch] = useState("");
+  const [internalSearch, setInternalSearch] = useState("");
+  const resolvedSearch = search !== undefined ? search : internalSearch;
+  const handleSearchChange = onSearchChange ?? setInternalSearch;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<"card" | "column" | null>(null);
@@ -188,14 +196,14 @@ export function KanbanBoard({
   const displayDemands = activeId ? localDemands : demands;
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return displayDemands;
-    const q = search.toLowerCase();
+    if (!resolvedSearch.trim()) return displayDemands;
+    const q = resolvedSearch.toLowerCase();
     return displayDemands.filter(
       (d) =>
         d.title.toLowerCase().includes(q) ||
         (d.clients?.name ?? "").toLowerCase().includes(q),
     );
-  }, [displayDemands, search]);
+  }, [displayDemands, resolvedSearch]);
 
   const byStatus = useMemo(() => {
     const map: Record<string, KanbanDemand[]> = {};
@@ -444,7 +452,8 @@ export function KanbanBoard({
   }
 
   // ÔöÇÔöÇ Drag board horizontally with right mouse button ÔöÇÔöÇ
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const internalScrollRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = scrollRef ?? internalScrollRef;
   const isDraggingBoard = useRef(false);
   const startX = useRef(0);
   const startScrollLeft = useRef(0);
@@ -502,20 +511,20 @@ export function KanbanBoard({
 
   return (
     <div className="flex flex-col flex-1 gap-3 min-h-0">
-      {showSearch && (
+      {showSearch && !onSearchChange && (
         <div className="w-full shrink-0">
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <input
               type="text"
               placeholder="Buscar demandas..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={resolvedSearch}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-border bg-surface-2/40 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring transition-all"
             />
-            {search && (
+            {resolvedSearch && (
               <button
-                onClick={() => setSearch("")}
+                onClick={() => handleSearchChange("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X className="h-3.5 w-3.5" />
@@ -536,7 +545,7 @@ export function KanbanBoard({
           ref={scrollContainerRef}
           onMouseDown={handleMouseDown}
           onContextMenu={handleContextMenu}
-          className="flex gap-3 overflow-x-auto flex-1 min-h-0 -mx-2 px-2 pb-6 select-none md:select-auto items-stretch align-stretch pr-8"
+          className="flex gap-3 flex-1 min-h-0 -mx-2 px-2 pb-6 select-none md:select-auto items-stretch align-stretch pr-8"
         >
           <SortableContext
             items={columns}

@@ -1,5 +1,5 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { useState, useEffect, useMemo } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPublicPortal, updatePortalDemandsOrder } from "@/lib/portal.functions";
@@ -8,7 +8,7 @@ import { KanbanBoard, type KanbanDemand } from "@/components/kanban-board";
 import type { DemandStatus } from "@/lib/demands.functions";
 import { cn } from "@/lib/utils";
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
-import { LayoutList, Columns2, Plus, Calendar } from "lucide-react";
+import { LayoutList, Columns2, Plus, Calendar, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CreditProgressBar } from "@/components/credit-progress-bar";
 
@@ -75,6 +75,8 @@ function PortalPage() {
   const initialDemands = data.demands;
   const creditConfig = (data as any).creditConfig;
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [search, setSearch] = useState("");
   const [view, setView] = useState<"list" | "kanban">("kanban");
   const [demands, setDemands] = useState<PortalDemand[]>(initialDemands as PortalDemand[]);
 
@@ -171,7 +173,25 @@ function PortalPage() {
               <p className="text-sm text-muted-foreground mt-0.5">{client.contact_name}</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <div className="relative w-56">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Buscar demandas..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-border bg-surface-2/40 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring transition-all"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             {/* View toggle */}
             <div className="flex items-center rounded-lg border border-border overflow-hidden bg-surface-2/30">
               <button
@@ -196,18 +216,18 @@ function PortalPage() {
               </button>
             </div>
 
-            <Button size="sm" onClick={() => openNew()} className="flex items-center gap-1.5">
+            <Button size="sm" onClick={() => openNew()} style={{ backgroundColor: "#2783de" }} className="hover:opacity-90 border-0 flex items-center gap-1.5">
               <Plus className="h-3.5 w-3.5" />
-              Abrir demanda
+              Demanda
             </Button>
           </div>
         </div>
       </header>
 
       {/* Main */}
-      <main className="flex-1 flex flex-col px-4 pt-4 md:px-6 md:pt-6 min-h-0 overflow-hidden">
+      <main className="flex-1 flex flex-col pt-12 md:pt-16 min-h-0">
         {client.billing_model === "credits" && creditConfig?.show_progress_bar === true && (
-          <div className="mb-4 shrink-0">
+          <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 shrink-0 pb-8">
             <CreditProgressBar
               totalCredits={currentMonthCredits}
               tiers={creditConfig.tiers}
@@ -217,7 +237,7 @@ function PortalPage() {
         )}
 
         {view === "list" ? (
-          <div className="flex-1 overflow-y-auto space-y-6 pb-6">
+          <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 flex-1 min-h-0 overflow-y-auto space-y-6 pb-6">
             <section>
               <h2 className="text-sm font-semibold mb-3 text-foreground">
                 Em andamento <span className="text-muted-foreground font-normal">({active.length})</span>
@@ -247,18 +267,29 @@ function PortalPage() {
             )}
           </div>
         ) : (
-          <KanbanBoard
-            demands={kanbanDemands}
-            onMove={handleMove}
-            onOpen={(id) => setOpenDialogId(id)}
-            onAdd={(status) => {
-              if (status === "fazendo") return;
-              openNew(status);
-            }}
-            onReorder={handleReorder}
-            isClientPortal={true}
-            showSearch={true}
-          />
+          <div className="flex-1 flex min-h-0">
+            <div
+              ref={scrollRef}
+              className="flex flex-col flex-1 min-w-0 min-h-0 overflow-x-auto"
+              style={{ paddingLeft: `max(0px, calc((100vw - 1400px) / 2))` }}
+            >
+            <KanbanBoard
+              scrollRef={scrollRef}
+              demands={kanbanDemands}
+              onMove={handleMove}
+              onOpen={(id) => setOpenDialogId(id)}
+              onAdd={(status) => {
+                if (status === "fazendo") return;
+                openNew(status);
+              }}
+              onReorder={handleReorder}
+              isClientPortal={true}
+              showSearch={false}
+              search={search}
+              onSearchChange={setSearch}
+            />
+            </div>
+          </div>
         )}
       </main>
 

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, useEffect, useMemo } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import {
   getClient,
@@ -36,7 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, DEFAULT_CREDIT_TIERS, type CreditTier } from "@/lib/credit-tiers";
 import { listProfiles } from "@/lib/users.functions";
 import { CreditProgressBar } from "@/components/credit-progress-bar";
@@ -146,6 +146,8 @@ function ClientPage() {
   const overlay = useDemandOverlay();
   const { state: sidebarState } = useSidebar();
   const sidebarWidth = sidebarState === "collapsed" ? 48 : 256;
+  const [search, setSearch] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   async function handleMove(demandId: string, status: DemandStatus) {
     qc.setQueryData<typeof allDemands>(["demands", selectedUserId], (prev) =>
@@ -294,46 +296,68 @@ function ClientPage() {
           </TabsList>
         </div>
 
-        <TabsContent value="demands" className="flex-1 flex flex-col min-h-0">
-          <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 flex flex-col gap-4 shrink-0 pt-1">
-            <div className="flex justify-end items-center gap-3">
-              {isAdminOrOwner && profiles.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase">Usuário:</span>
-                  <Select
-                    value={selectedUserId ?? currentUser?.id ?? ""}
-                    onValueChange={(val) => setSelectedUserId(val === currentUser?.id ? null : val)}
+        <TabsContent value="demands" className="flex-1 flex flex-col min-h-0 gap-8">
+          <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 flex flex-col gap-4 shrink-0 pt-6">
+            <div className="flex justify-between items-center gap-3">
+              <div className="relative w-56">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Buscar demandas..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-border bg-surface-2/40 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring transition-all"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    <SelectTrigger className="h-8 text-xs bg-background border-border text-foreground w-auto min-w-[140px]">
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={currentUser?.id ?? ""} className="text-xs font-semibold">
-                        {profiles.find(p => p.id === currentUser?.id)?.name ?? "Meu perfil"} (Eu)
-                      </SelectItem>
-                      {profiles.filter(p => p.id !== currentUser?.id).map((p) => (
-                        <SelectItem key={p.id} value={p.id} className="text-xs">
-                          {p.name ?? p.email}
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                {isAdminOrOwner && profiles.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground font-semibold uppercase">Usuário:</span>
+                    <Select
+                      value={selectedUserId ?? currentUser?.id ?? ""}
+                      onValueChange={(val) => setSelectedUserId(val === currentUser?.id ? null : val)}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-background border-border text-foreground w-auto min-w-[140px]">
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={currentUser?.id ?? ""} className="text-xs font-semibold">
+                          {profiles.find(p => p.id === currentUser?.id)?.name ?? "Meu perfil"} (Eu)
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <Button
-                onClick={() =>
-                  overlay.openNew(
-                    [{ id: client.id, name: client.name }],
-                    client.id,
-                    "nao_iniciado",
-                    selectedEditionId === "all" ? undefined : selectedEditionId,
-                    isAdminOrOwner && selectedUserId ? selectedUserId : undefined
-                  )
-                }
-                size="sm"
-              >
-                <Plus className="h-4 w-4 mr-1" /> Nova demanda
-              </Button>
+                        {profiles.filter(p => p.id !== currentUser?.id).map((p) => (
+                          <SelectItem key={p.id} value={p.id} className="text-xs">
+                            {p.name ?? p.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <Button
+                  onClick={() =>
+                    overlay.openNew(
+                      [{ id: client.id, name: client.name }],
+                      client.id,
+                      "nao_iniciado",
+                      selectedEditionId === "all" ? undefined : selectedEditionId,
+                      isAdminOrOwner && selectedUserId ? selectedUserId : undefined
+                    )
+                  }
+                  size="sm"
+                  style={{ backgroundColor: "#2783de" }}
+                  className="hover:opacity-90 border-0"
+                >
+                  <Plus className="h-4 w-4 mr-1" /> Demanda
+                </Button>
+              </div>
             </div>
 
             {client.billing_model === "credits" && (
@@ -358,10 +382,12 @@ function ClientPage() {
               </div>
             ) : (
               <div
-                className="flex-1 min-w-0"
+                ref={scrollRef}
+                className="flex flex-col flex-1 min-w-0 min-h-0 overflow-x-auto"
                 style={{ paddingLeft: kanbanPaddingLeft }}
               >
               <KanbanBoard
+                scrollRef={scrollRef}
                 demands={filteredDemands.map((d) => ({
                   id: d.id,
                   title: d.title,
@@ -383,6 +409,9 @@ function ClientPage() {
                     isAdminOrOwner && selectedUserId ? selectedUserId : undefined
                   )
                 }
+                showSearch={false}
+                search={search}
+                onSearchChange={setSearch}
               />
               </div>
             )}
