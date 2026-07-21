@@ -57,8 +57,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
-              router.invalidate();
-              reset();
+              window.location.reload();
             }}
             className="btn-primary"
           >
@@ -130,12 +129,16 @@ function RootComponent() {
   const getPrefsFn = useServerFn(getUserPreferences);
 
   useEffect(() => {
-    const chunkError = (e: ErrorEvent) => {
-      if (/Failed to fetch dynamically imported module/.test(e.message)) {
-        window.location.reload();
-      }
+    const isChunkError = (msg: string) => /Failed to fetch dynamically imported module/.test(msg);
+
+    const onError = (e: ErrorEvent) => {
+      if (isChunkError(e.message)) window.location.reload();
     };
-    window.addEventListener("error", chunkError);
+    const onRejection = (e: PromiseRejectionEvent) => {
+      if (isChunkError(e.reason?.message || "")) window.location.reload();
+    };
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
 
     // Apply global branding from localStorage (system name, favicon)
     applyThemeAndHighlight();
@@ -168,7 +171,8 @@ function RootComponent() {
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });
     return () => {
-      window.removeEventListener("error", chunkError);
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
       sub.subscription.unsubscribe();
     };
   }, [router, queryClient, getPrefsFn]);
