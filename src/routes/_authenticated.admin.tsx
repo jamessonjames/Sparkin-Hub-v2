@@ -300,19 +300,18 @@ function AdminPage() {
         .catch(() => setLoadingGDriveStatus(false));
     }
 
-      // Load pricing settings
-      getPricingFn().then((res) => {
-        setBaseHourlyRate(res.base_hourly_rate);
-        setPricingTiers(res.tiers || []);
-      });
+    // Load pricing settings
+    getPricingFn().then((res) => {
+      setBaseHourlyRate(res.base_hourly_rate);
+      setPricingTiers(res.tiers || []);
+    });
 
-      // Get logged-in user
-      supabase.auth.getUser().then(({ data }) => {
-        if (data?.user) {
-          setCurrentUser(data.user);
-        }
-      });
-    }
+    // Get logged-in user
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) {
+        setCurrentUser(data.user);
+      }
+    });
   }, []);
 
   const updateColorInstantly = (newColor: HighlightColor) => {
