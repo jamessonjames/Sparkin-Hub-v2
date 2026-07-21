@@ -812,6 +812,15 @@ function KanbanColumn({
         </div>
 
         <div className="flex items-center gap-1 opacity-0 group-hover/column:opacity-100 transition-opacity shrink-0 ml-1">
+          {onAdd && (
+            <button
+              onClick={() => onAdd(status)}
+              title="Nova demanda"
+              className="text-muted-foreground hover:text-foreground transition-colors rounded p-0.5 hover:bg-zinc-800 light:hover:bg-zinc-200 shrink-0"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          )}
           <button
             onClick={onAutoSort}
             title="Ordenar por data"
@@ -860,7 +869,7 @@ function KanbanColumn({
             )}
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>Adicionar projeto</span>
+            <span>Demanda</span>
           </button>
         )}
       </div>
