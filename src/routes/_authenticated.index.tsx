@@ -6,6 +6,8 @@ import { listClients } from "@/lib/clients.functions";
 import { Card } from "@/components/ui/card";
 import { AlertCircle, ListChecks, Users, CheckCircle2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { getClientActivityStatus, getStatusColor, getStatusLabel } from "@/lib/activity.functions";
+import type { ClientActivity } from "@/lib/activity.functions";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({ meta: [{ title: "Dashboard — Creative Flow Hub" }] }),
@@ -15,8 +17,13 @@ export const Route = createFileRoute("/_authenticated/")({
 function Dashboard() {
   const demandsFn = useServerFn(listDemands);
   const clientsFn = useServerFn(listClients);
+  const activityFn = useServerFn(getClientActivityStatus);
   const { data: demands = [] } = useQuery({ queryKey: ["demands"], queryFn: () => demandsFn() });
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn() });
+  const { data: clientActivities = [] } = useQuery({
+    queryKey: ["clientActivity"],
+    queryFn: () => activityFn(),
+  });
 
   const open = demands.filter((d) => d.status !== "concluido" && d.status !== "rascunho");
   const today = new Date().toISOString().slice(0, 10);
@@ -97,6 +104,42 @@ function Dashboard() {
           </div>
         </Card>
       </div>
+
+      <Card className="p-4">
+        <h3 className="font-semibold text-foreground mb-3">Saúde & Ritmo dos Clientes</h3>
+        <div className="space-y-1">
+          {clientActivities.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum cliente ativo.</p>
+          ) : (
+            clientActivities.map((a) => (
+              <Link
+                key={a.clientId}
+                to="/clients/$id"
+                params={{ id: a.clientId }}
+                className="flex items-center gap-3 text-sm py-2 border-b border-border last:border-0 hover:text-primary"
+              >
+                <span
+                  className="h-2 w-2 rounded-full shrink-0"
+                  style={{ backgroundColor: getStatusColor(a.status) }}
+                />
+                <span className="truncate flex-1">{a.clientName}</span>
+                <span
+                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0"
+                  style={{
+                    color: getStatusColor(a.status),
+                    backgroundColor: `${getStatusColor(a.status)}18`,
+                  }}
+                >
+                  {getStatusLabel(a.status)}
+                </span>
+                <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
+                  {a.estoqueTotal} na fila | {a.entregasRecentes} entregues
+                </span>
+              </Link>
+            ))
+          )}
+        </div>
+      </Card>
     </div>
   );
 }

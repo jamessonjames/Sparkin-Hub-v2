@@ -24,6 +24,8 @@ import { saveSidebarOrder } from "@/lib/users.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/contexts/user-context";
 import { cn } from "@/lib/utils";
+import { getClientActivityStatus, getStatusColor } from "@/lib/activity.functions";
+import type { ClientActivity } from "@/lib/activity.functions";
 
 type NavItem = { title: string; to: string; icon: typeof LayoutDashboard; exact?: boolean };
 const DEFAULT_NAV_ITEMS: NavItem[] = [
@@ -56,9 +58,19 @@ export function AppSidebar() {
   const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
   const listFn = useServerFn(listClients);
   const saveOrderFn = useServerFn(saveSidebarOrder);
+  const activityFn = useServerFn(getClientActivityStatus);
   const { data: clients } = useQuery({
     queryKey: ["clients"],
     queryFn: () => listFn(),
+  });
+  const { data: activityMap } = useQuery({
+    queryKey: ["clientActivity"],
+    queryFn: async () => {
+      const data: ClientActivity[] = await activityFn();
+      const map = new Map<string, ClientActivity>();
+      for (const a of data) map.set(a.clientId, a);
+      return map;
+    },
   });
 
   const [systemName, setSystemName] = useState("Creative Flow");
@@ -431,7 +443,7 @@ export function AppSidebar() {
                           >
                             <span
                               className="h-1.5 w-1.5 rounded-full shrink-0"
-                              style={{ backgroundColor: mc.color || "var(--primary)" }}
+                              style={{ backgroundColor: getStatusColor(activityMap?.get(mc.id)?.status ?? "atencao") }}
                             />
                             <span className="truncate flex-1">{mc.name}</span>
                             {projectList.length > 0 && (
@@ -475,7 +487,7 @@ export function AppSidebar() {
                                 <FolderKanban className="h-3 w-3 text-muted-foreground/60 shrink-0" />
                                 <span
                                   className="h-1.5 w-1.5 rounded-full shrink-0"
-                                  style={{ backgroundColor: p.color || "var(--primary)" }}
+                                  style={{ backgroundColor: getStatusColor(activityMap?.get(p.id)?.status ?? "atencao") }}
                                 />
                                 <span className="truncate">{p.name}</span>
                               </Link>
