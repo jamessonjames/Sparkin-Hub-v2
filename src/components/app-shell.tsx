@@ -168,7 +168,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               </div>
             </header>
             <main className="flex-1 min-w-0 pb-16 md:pb-0 flex flex-col overflow-auto">
-              <div className="w-full max-w-[1400px] mx-auto flex flex-col flex-1">{children}</div>
+               <div className="w-full flex flex-col flex-1">{children}</div>
             </main>
           </div>
           <BottomNav />

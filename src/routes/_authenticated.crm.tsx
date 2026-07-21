@@ -276,8 +276,8 @@ function CrmPage() {
   };
 
   return (
-    <div className="flex flex-col h-full p-4 md:p-6 gap-4 min-h-0">
-      <div className="w-full flex items-center justify-between shrink-0">
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 pt-4 md:pt-6 pb-2 flex items-center justify-between shrink-0">
         <div>
           <h2 className="font-display text-2xl font-bold text-foreground">Funil Comercial</h2>
           <p className="text-sm text-muted-foreground">Gerencie leads e oportunidades de venda.</p>
@@ -287,7 +287,7 @@ function CrmPage() {
         </Button>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto flex-1 min-h-0 -mx-2 px-2 pb-6">
+      <div className="flex gap-3 overflow-x-auto flex-1 min-h-0 px-4 md:px-6 pb-6">
         {COLUMNS.map((col) => {
           const items = byStatus[col.status] ?? [];
           const theme = STATUS_THEME[col.status];

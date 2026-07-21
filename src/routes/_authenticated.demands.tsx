@@ -12,6 +12,7 @@ import { listClients } from "@/lib/clients.functions";
 import { KanbanBoard } from "@/components/kanban-board";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useSidebar } from "@/components/ui/sidebar";
 import { Plus } from "lucide-react";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { useUserContext } from "@/contexts/user-context";
@@ -30,6 +31,8 @@ function DemandsPage() {
   const overlay = useDemandOverlay();
   const { currentUserRole, selectedUserId } = useUserContext();
   const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
+  const { state: sidebarState } = useSidebar();
+  const sidebarWidth = sidebarState === "collapsed" ? 48 : 256;
 
   const { data: demands = [] } = useQuery({
     queryKey: ["demands", selectedUserId],
@@ -51,7 +54,6 @@ function DemandsPage() {
   }
 
   async function handleReorder(updates: { id: string; status: DemandStatus; sort_order: number }[]) {
-    // Optimistically update local cache
     qc.setQueryData<typeof demands>(["demands", selectedUserId], (prev) => {
       if (!prev) return prev;
       const map = new Map(updates.map((u) => [u.id, u]));
@@ -71,46 +73,55 @@ function DemandsPage() {
   const resolvedClients = clients.map((c) => ({ id: c.id, name: c.name }));
 
   return (
-    <div className="flex flex-col h-full p-4 md:p-6 gap-4">
-      <div className="w-full flex items-center justify-between shrink-0">
-        <div>
-          <h2 className="font-display text-2xl font-bold text-foreground">Demandas</h2>
-          <p className="text-sm text-muted-foreground">Arraste os cards entre as colunas para mover ou reordenar.</p>
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 pt-4 md:pt-6 pb-2 shrink-0">
+        <div className="w-full flex items-center justify-between">
+          <div>
+            <h2 className="font-display text-2xl font-bold text-foreground">Demandas</h2>
+            <p className="text-sm text-muted-foreground">Arraste os cards entre as colunas para mover ou reordenar.</p>
+          </div>
+          <Button
+            onClick={() => overlay.openNew(resolvedClients, undefined, undefined, undefined, isAdminOrOwner && selectedUserId ? selectedUserId : undefined)}
+            disabled={clients.length === 0}
+          >
+            <Plus className="h-4 w-4 mr-1" /> Nova demanda
+          </Button>
         </div>
-        <Button
-          onClick={() => overlay.openNew(resolvedClients, undefined, undefined, undefined, isAdminOrOwner && selectedUserId ? selectedUserId : undefined)}
-          disabled={clients.length === 0}
-        >
-          <Plus className="h-4 w-4 mr-1" /> Nova demanda
-        </Button>
       </div>
 
-      {clients.length === 0 ? (
-        <Card className="p-8 text-center text-sm text-muted-foreground">
-          Crie um cliente antes de abrir demandas.
-        </Card>
-      ) : (
-        <div className="w-screen ml-[calc(-50vw+50%)]">
-        <KanbanBoard
-          demands={demands.map((d) => ({
-            id: d.id,
-            title: d.title,
-            status: d.status,
-            priority: d.priority,
-            due_date: d.due_date,
-            clients: d.clients ?? null,
-            sort_order: (d as any).sort_order ?? null,
-            assignee_user_id: d.assignee_user_id ?? null,
-            comments_count: (d as any).comments_count ?? 0,
-          }))}
-          onMove={handleMove}
-          onOpen={(id) => overlay.open(id, resolvedClients)}
-          onAdd={(status) => overlay.openNew(resolvedClients, undefined, status, undefined, isAdminOrOwner && selectedUserId ? selectedUserId : undefined)}
-          onReorder={handleReorder}
-          showSearch={true}
-        />
-        </div>
-      )}
+      <div className="flex-1 flex min-h-0">
+        {clients.length === 0 ? (
+          <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 pb-4 md:pb-6">
+            <Card className="p-8 text-center text-sm text-muted-foreground">
+              Crie um cliente antes de abrir demandas.
+            </Card>
+          </div>
+        ) : (
+          <div
+            className="flex-1 min-w-0"
+            style={{ paddingLeft: `max(0px, calc((100vw - ${sidebarWidth}px - 1400px) / 2))` }}
+          >
+          <KanbanBoard
+            demands={demands.map((d) => ({
+              id: d.id,
+              title: d.title,
+              status: d.status,
+              priority: d.priority,
+              due_date: d.due_date,
+              clients: d.clients ?? null,
+              sort_order: (d as any).sort_order ?? null,
+              assignee_user_id: d.assignee_user_id ?? null,
+              comments_count: (d as any).comments_count ?? 0,
+            }))}
+            onMove={handleMove}
+            onOpen={(id) => overlay.open(id, resolvedClients)}
+            onAdd={(status) => overlay.openNew(resolvedClients, undefined, status, undefined, isAdminOrOwner && selectedUserId ? selectedUserId : undefined)}
+            onReorder={handleReorder}
+            showSearch={true}
+          />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -475,7 +475,7 @@ function AdminPage() {
 
 
   return (
-    <div className="w-full p-4 md:p-6 space-y-6 pb-24 md:pb-6">
+    <div className="w-full max-w-[1400px] mx-auto p-4 md:p-6 space-y-6 pb-24 md:pb-6">
       <div>
         <h2 className="font-display text-2xl font-bold text-foreground">Painel Administrativo</h2>
         <p className="text-sm text-muted-foreground">Configurações globais, controle de acessos e integrações do sistema.</p>

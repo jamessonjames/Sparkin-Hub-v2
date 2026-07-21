@@ -24,6 +24,7 @@ import { DemandForm, type DemandFormValues } from "@/components/demand-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { useUserContext } from "@/contexts/user-context";
+import { useSidebar } from "@/components/ui/sidebar";
 import { ClientNotesPanel } from "@/components/client-notes-panel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -143,6 +144,8 @@ function ClientPage() {
 
   const [saving, setSaving] = useState(false);
   const overlay = useDemandOverlay();
+  const { state: sidebarState } = useSidebar();
+  const sidebarWidth = sidebarState === "collapsed" ? 48 : 256;
 
   async function handleMove(demandId: string, status: DemandStatus) {
     qc.setQueryData<typeof allDemands>(["demands", selectedUserId], (prev) =>
@@ -199,9 +202,11 @@ function ClientPage() {
 
   if (!client) return <div className="p-6 text-muted-foreground">Carregando...</div>;
 
+  const kanbanPaddingLeft = `max(0px, calc((100vw - ${sidebarWidth}px - 1400px) / 2))`;
+
   return (
-    <div className="w-full flex flex-col h-full p-4 md:p-6 gap-4 overflow-hidden">
-      <div className="w-full flex flex-col gap-4">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 pt-4 md:pt-6 pb-2 shrink-0">
         <button
           onClick={() => navigate({ to: "/clients" })}
           className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
@@ -209,7 +214,7 @@ function ClientPage() {
           <ArrowLeft className="h-3 w-3" /> Voltar
         </button>
 
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3 mt-2">
           <div>
             <h2 className="font-display text-2xl font-bold text-foreground">
               {client.is_project && parentClient
@@ -274,7 +279,7 @@ function ClientPage() {
       </div>
 
       <Tabs defaultValue="demands" className="flex-1 flex flex-col min-h-0">
-        <div className="w-full">
+        <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
           <TabsList>
             <TabsTrigger value="demands">
               Demandas ({filteredDemands.length})
@@ -289,8 +294,8 @@ function ClientPage() {
           </TabsList>
         </div>
 
-        <TabsContent value="demands" className="mt-4 flex-1 flex flex-col min-h-0 gap-4">
-          <div className="w-full flex flex-col gap-4 shrink-0">
+        <TabsContent value="demands" className="flex-1 flex flex-col min-h-0">
+          <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 flex flex-col gap-4 shrink-0 pt-1">
             <div className="flex justify-end items-center gap-3">
               {isAdminOrOwner && profiles.length > 0 && (
                 <div className="flex items-center gap-2">
@@ -339,46 +344,53 @@ function ClientPage() {
             )}
           </div>
 
-          {client.billing_model === "seasonal" && clientEditions.length === 0 ? (
-            <div className="text-center py-12 border border-dashed border-border rounded-lg bg-muted/10">
-              <p className="text-sm text-muted-foreground italic">
-                Este cliente por temporada ainda não possui edições cadastradas.
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Vá para a aba de "Edições" para criar a primeira edição do evento.
-              </p>
-            </div>
-          ) : (
-            <div className="w-screen ml-[calc(-50vw+50%)]">
-            <KanbanBoard
-              demands={filteredDemands.map((d) => ({
-                id: d.id,
-                title: d.title,
-                status: d.status,
-                priority: d.priority,
-                due_date: d.due_date,
-                clients: d.clients ?? null,
-                assignee_user_id: d.assignee_user_id ?? null,
-                comments_count: (d as any).comments_count ?? 0,
-              }))}
-              onMove={handleMove}
-              onOpen={(demandId) => overlay.open(demandId, [{ id: client.id, name: client.name }])}
-              onAdd={(status) =>
-                overlay.openNew(
-                  [{ id: client.id, name: client.name }],
-                  client.id,
-                  status,
-                  selectedEditionId === "all" ? undefined : selectedEditionId,
-                  isAdminOrOwner && selectedUserId ? selectedUserId : undefined
-                )
-              }
-            />
-            </div>
-          )}
+          <div className="flex-1 flex min-h-0">
+            {client.billing_model === "seasonal" && clientEditions.length === 0 ? (
+              <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 pb-6">
+                <div className="text-center py-12 border border-dashed border-border rounded-lg bg-muted/10">
+                  <p className="text-sm text-muted-foreground italic">
+                    Este cliente por temporada ainda não possui edições cadastradas.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Vá para a aba de "Edições" para criar a primeira edição do evento.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div
+                className="flex-1 min-w-0"
+                style={{ paddingLeft: kanbanPaddingLeft }}
+              >
+              <KanbanBoard
+                demands={filteredDemands.map((d) => ({
+                  id: d.id,
+                  title: d.title,
+                  status: d.status,
+                  priority: d.priority,
+                  due_date: d.due_date,
+                  clients: d.clients ?? null,
+                  assignee_user_id: d.assignee_user_id ?? null,
+                  comments_count: (d as any).comments_count ?? 0,
+                }))}
+                onMove={handleMove}
+                onOpen={(demandId) => overlay.open(demandId, [{ id: client.id, name: client.name }])}
+                onAdd={(status) =>
+                  overlay.openNew(
+                    [{ id: client.id, name: client.name }],
+                    client.id,
+                    status,
+                    selectedEditionId === "all" ? undefined : selectedEditionId,
+                    isAdminOrOwner && selectedUserId ? selectedUserId : undefined
+                  )
+                }
+              />
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="overview" className="mt-4 overflow-y-auto pb-8">
-          <div className="w-full">
+          <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               <div className="lg:col-span-2">
                 <Card className="p-6">
@@ -416,20 +428,22 @@ function ClientPage() {
         </TabsContent>
 
         <TabsContent value="notes" className="mt-4 overflow-y-auto">
-          <div className="w-full">
+          <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
             <ClientNotesPanel clientId={id} />
           </div>
         </TabsContent>
 
         <TabsContent value="attachments" className="mt-4 overflow-y-auto">
-          <div className="w-full max-w-xl">
-            <FileAttachments entityType="client" entityId={id} />
+          <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
+            <div className="w-full max-w-xl">
+              <FileAttachments entityType="client" entityId={id} />
+            </div>
           </div>
         </TabsContent>
 
         {!client.is_project && (
           <TabsContent value="reports" className="mt-4 overflow-y-auto pb-8">
-            <div className="w-full">
+            <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
               <ClientReportsPanel
                 clientId={id}
                 billingModel={client.billing_model}
@@ -444,7 +458,7 @@ function ClientPage() {
         )}
         {!client.is_project && client.billing_model === "seasonal" && (
           <TabsContent value="editions" className="mt-4 overflow-y-auto pb-8">
-            <div className="w-full">
+            <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
               <ClientEditionsPanel
                 clientId={client.id}
                 editions={clientEditions}
