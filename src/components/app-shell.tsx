@@ -9,7 +9,8 @@ import { UserProvider } from "@/contexts/user-context";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, UserCircle, ChevronDown, Download } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAutoScheduler } from "@/hooks/use-auto-scheduler";
 
@@ -26,6 +27,14 @@ const ROLE_LABELS: Record<string, string> = {
   collaborator: "Colaborador",
 };
 
+let deferredInstallPrompt: any = null;
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+  });
+}
+
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
   const navigate = useNavigate();
   useAutoScheduler();
@@ -33,17 +42,9 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   const [isStandalone, setIsStandalone] = useState(true);
-  const deferredPromptRef = useRef<any>(null);
 
   useEffect(() => {
     setIsStandalone(window.matchMedia("(display-mode: standalone)").matches);
-
-    const handler = (e: Event) => {
-      e.preventDefault();
-      deferredPromptRef.current = e;
-    };
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
   useEffect(() => {
@@ -104,10 +105,12 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
                 {!isStandalone && (
                   <button
                     onClick={async () => {
-                      if (deferredPromptRef.current) {
-                        deferredPromptRef.current.prompt();
-                        const result = await deferredPromptRef.current.userChoice;
+                      if (deferredInstallPrompt) {
+                        deferredInstallPrompt.prompt();
+                        const result = await deferredInstallPrompt.userChoice;
                         if (result.outcome === "accepted") setIsStandalone(true);
+                      } else {
+                        toast.info("Disponível após interagir mais com o site.");
                       }
                     }}
                     title="Instalar aplicativo"
