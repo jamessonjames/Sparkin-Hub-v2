@@ -1,13 +1,17 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 
-interface DemandOverlayState {
-  demandId: string | null; // "new" for creation mode, uuid for edit mode, null for closed
-  minimized: boolean;
+type DemandEntry = {
+  demandId: string;
   clients: { id: string; name: string }[];
   defaultClientId?: string;
   defaultStatus?: string;
   defaultClientEditionId?: string;
   defaultAssigneeId?: string;
+};
+
+interface DemandOverlayState {
+  activeDemand: DemandEntry | null;
+  minimizedDemands: DemandEntry[];
   open: (id: string, clients?: { id: string; name: string }[]) => void;
   openNew: (
     clients: { id: string; name: string }[],
@@ -18,78 +22,103 @@ interface DemandOverlayState {
   ) => void;
   close: () => void;
   minimize: () => void;
-  restore: () => void;
+  restore: (id: string) => void;
+  closeMinimized: (id: string) => void;
 }
 
 const DemandOverlayContext = createContext<DemandOverlayState | null>(null);
 
+function makeEntry(
+  demandId: string,
+  clients?: { id: string; name: string }[],
+  defaults?: {
+    defaultClientId?: string;
+    defaultStatus?: string;
+    defaultClientEditionId?: string;
+    defaultAssigneeId?: string;
+  }
+): DemandEntry {
+  return {
+    demandId,
+    clients: clients ?? [],
+    defaultClientId: defaults?.defaultClientId,
+    defaultStatus: defaults?.defaultStatus,
+    defaultClientEditionId: defaults?.defaultClientEditionId,
+    defaultAssigneeId: defaults?.defaultAssigneeId,
+  };
+}
+
 export function DemandOverlayProvider({ children }: { children: ReactNode }) {
-  const [demandId, setDemandId] = useState<string | null>(null);
-  const [minimized, setMinimized] = useState(false);
-  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
-  const [defaultClientId, setDefaultClientId] = useState<string | undefined>(undefined);
-  const [defaultStatus, setDefaultStatus] = useState<string | undefined>(undefined);
-  const [defaultClientEditionId, setDefaultClientEditionId] = useState<string | undefined>(undefined);
-  const [defaultAssigneeId, setDefaultAssigneeId] = useState<string | undefined>(undefined);
+  const [activeDemand, setActiveDemand] = useState<DemandEntry | null>(null);
+  const [minimizedDemands, setMinimizedDemands] = useState<DemandEntry[]>([]);
 
-  function open(id: string, cls?: { id: string; name: string }[]) {
-    setDemandId(id);
-    setMinimized(false);
-    setDefaultClientId(undefined);
-    setDefaultStatus(undefined);
-    setDefaultClientEditionId(undefined);
-    setDefaultAssigneeId(undefined);
-    if (cls) setClients(cls);
-  }
+  const open = useCallback((id: string, clients?: { id: string; name: string }[]) => {
+    setMinimizedDemands((prev) => prev.filter((e) => e.demandId !== id));
+    setActiveDemand(makeEntry(id, clients));
+  }, []);
 
-  function openNew(
-    cls: { id: string; name: string }[],
-    defaultClientId?: string,
-    defaultStatus?: string,
-    defaultClientEditionId?: string,
-    defaultAssigneeId?: string
-  ) {
-    setDemandId("new");
-    setMinimized(false);
-    setClients(cls);
-    setDefaultClientId(defaultClientId || cls[0]?.id);
-    setDefaultStatus(defaultStatus || "nao_iniciado");
-    setDefaultClientEditionId(defaultClientEditionId);
-    setDefaultAssigneeId(defaultAssigneeId);
-  }
+  const openNew = useCallback(
+    (
+      clients: { id: string; name: string }[],
+      defaultClientId?: string,
+      defaultStatus?: string,
+      defaultClientEditionId?: string,
+      defaultAssigneeId?: string
+    ) => {
+      setMinimizedDemands((prev) => prev.filter((e) => e.demandId !== "new"));
+      setActiveDemand(
+        makeEntry("new", clients, {
+          defaultClientId,
+          defaultStatus,
+          defaultClientEditionId,
+          defaultAssigneeId,
+        })
+      );
+    },
+    []
+  );
 
-  function close() {
-    setDemandId(null);
-    setMinimized(false);
-    setDefaultClientId(undefined);
-    setDefaultStatus(undefined);
-    setDefaultClientEditionId(undefined);
-    setDefaultAssigneeId(undefined);
-  }
+  const close = useCallback(() => {
+    setActiveDemand(null);
+  }, []);
 
-  function minimize() {
-    setMinimized(true);
-  }
+  const minimize = useCallback(() => {
+    setActiveDemand((current) => {
+      if (!current) return current;
+      setMinimizedDemands((prev) => {
+        // Max 3 minimized; if already at limit, remove oldest
+        const updated = [current, ...prev.filter((e) => e.demandId !== current.demandId)];
+        return updated.slice(0, 3);
+      });
+      return null;
+    });
+  }, []);
 
-  function restore() {
-    setMinimized(false);
-  }
+  const restore = useCallback((id: string) => {
+    setMinimizedDemands((prev) => {
+      const entry = prev.find((e) => e.demandId === id);
+      if (entry) {
+        setActiveDemand(entry);
+      }
+      return prev.filter((e) => e.demandId !== id);
+    });
+  }, []);
+
+  const closeMinimized = useCallback((id: string) => {
+    setMinimizedDemands((prev) => prev.filter((e) => e.demandId !== id));
+  }, []);
 
   return (
     <DemandOverlayContext.Provider
       value={{
-        demandId,
-        minimized,
-        clients,
-        defaultClientId,
-        defaultStatus,
-        defaultClientEditionId,
-        defaultAssigneeId,
+        activeDemand,
+        minimizedDemands,
         open,
         openNew,
         close,
         minimize,
         restore,
+        closeMinimized,
       }}
     >
       {children}
