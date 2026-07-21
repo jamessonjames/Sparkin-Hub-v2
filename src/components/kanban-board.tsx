@@ -459,6 +459,12 @@ export function KanbanBoard({
   const startScrollLeft = useRef(0);
   const hasMovedBoard = useRef(false);
 
+  // ── Floating dummy scrollbar ──
+  const dummyScrollRef = useRef<HTMLDivElement>(null);
+  const kanbanRootRef = useRef<HTMLDivElement>(null);
+  const isSyncingScroll = useRef(false);
+  const dummyInnerRef = useRef<HTMLDivElement>(null);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 2) return; // Only right click
     const container = scrollContainerRef.current;
@@ -502,6 +508,69 @@ export function KanbanBoard({
     };
   }, []);
 
+  // ── Sync floating scrollbar with board scroll ──
+  const updateDummy = useCallback(() => {
+    const container = scrollContainerRef.current;
+    const dummy = dummyScrollRef.current;
+    const inner = dummyInnerRef.current;
+    if (!container || !dummy || !inner) return;
+    const rect = container.getBoundingClientRect();
+    dummy.style.left = `${rect.left}px`;
+    dummy.style.width = `${rect.width}px`;
+    inner.style.width = `${container.scrollWidth}px`;
+    dummy.style.display = "block";
+  }, []);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    const dummy = dummyScrollRef.current;
+    if (!container || !dummy) return;
+
+    updateDummy();
+
+    // Hide native scrollbar on wrapper div (keep scroll behavior)
+    if (!document.getElementById("sh-scrollbar-style")) {
+      const s = document.createElement("style");
+      s.id = "sh-scrollbar-style";
+      s.textContent = `.sh-hide-scrollbar::-webkit-scrollbar{display:none}.sh-hide-scrollbar{scrollbar-width:none}`;
+      document.head.appendChild(s);
+    }
+    container.classList.add("sh-hide-scrollbar");
+
+    const onBoardScroll = () => {
+      if (isSyncingScroll.current) return;
+      isSyncingScroll.current = true;
+      dummy.scrollLeft = container.scrollLeft;
+      isSyncingScroll.current = false;
+    };
+
+    container.addEventListener("scroll", onBoardScroll);
+    const observer = new ResizeObserver(updateDummy);
+    observer.observe(container);
+    window.addEventListener("resize", updateDummy);
+
+    return () => {
+      container.removeEventListener("scroll", onBoardScroll);
+      observer.disconnect();
+      window.removeEventListener("resize", updateDummy);
+    };
+  }, []);
+
+  // Re-check visibility when columns/content render
+  useEffect(() => {
+    updateDummy();
+  });
+
+  const handleDummyScroll = () => {
+    const container = scrollContainerRef.current;
+    const dummy = dummyScrollRef.current;
+    if (!container || !dummy) return;
+    if (isSyncingScroll.current) return;
+    isSyncingScroll.current = true;
+    container.scrollLeft = dummy.scrollLeft;
+    isSyncingScroll.current = false;
+  };
+
   const handleContextMenu = (e: React.MouseEvent) => {
     if (hasMovedBoard.current) {
       e.preventDefault();
@@ -510,7 +579,7 @@ export function KanbanBoard({
   };
 
   return (
-    <div className="flex flex-col flex-1 gap-3 min-h-0">
+    <div ref={kanbanRootRef} className="flex flex-col flex-1 gap-3 min-h-0">
       {showSearch && !onSearchChange && (
         <div className="w-full shrink-0">
           <div className="relative max-w-sm">
@@ -545,7 +614,7 @@ export function KanbanBoard({
           ref={scrollContainerRef}
           onMouseDown={handleMouseDown}
           onContextMenu={handleContextMenu}
-          className="flex gap-3 flex-1 min-h-0 -mx-2 px-2 pb-6 select-none md:select-auto items-stretch align-stretch pr-8"
+          className="flex gap-3 flex-1 min-h-0 -mx-2 px-2 select-none md:select-auto items-stretch align-stretch pr-8"
         >
           <SortableContext
             items={columns}
@@ -600,6 +669,16 @@ export function KanbanBoard({
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {/* Floating dummy scrollbar — syncs with the kanban horizontal scroll */}
+      <div
+        ref={dummyScrollRef}
+        onScroll={handleDummyScroll}
+        className="fixed bottom-0 z-50 h-6 overflow-x-auto overflow-y-hidden bg-background/80 border-t border-border/50"
+        style={{ pointerEvents: "auto" }}
+      >
+        <div ref={dummyInnerRef} className="h-[1px]" />
+      </div>
     </div>
   );
 }
