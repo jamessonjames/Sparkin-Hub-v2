@@ -32,8 +32,27 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
-  const deferredPromptRef = useRef<any>(null);
   const [pwaInstallable, setPwaInstallable] = useState(false);
+  const deferredPromptRef = useRef<any>(null);
+
+  useEffect(() => {
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+    if (isStandalone) return;
+
+    const handler = (e: Event) => {
+      e.preventDefault();
+      deferredPromptRef.current = e;
+      setPwaInstallable(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -63,16 +82,6 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
     });
   }, []);
 
-  useEffect(() => {
-    const handler = (e: Event) => {
-      e.preventDefault();
-      deferredPromptRef.current = e;
-      setPwaInstallable(true);
-    };
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
-
   const displayName = currentUserName || currentUser?.email || "";
 
   async function signOut() {
@@ -96,8 +105,12 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               <div className="flex items-center gap-1">
                 {pwaInstallable && (
                   <button
-                    onClick={() => {
-                      deferredPromptRef.current?.prompt();
+                    onClick={async () => {
+                      if (deferredPromptRef.current) {
+                        deferredPromptRef.current.prompt();
+                        const result = await deferredPromptRef.current.userChoice;
+                        if (result.outcome === "accepted") setPwaInstallable(false);
+                      }
                     }}
                     title="Instalar aplicativo"
                     className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-zinc-800/40 transition-colors cursor-pointer"
