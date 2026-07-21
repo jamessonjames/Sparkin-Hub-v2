@@ -3,8 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listUsersWithRoles, updateUserRole, createUserWithRole, updateUserAdmin, deleteUserAdmin, saveUserPreferences, getUserPreferences } from "@/lib/users.functions";
-import { storeGoogleDriveToken, getGoogleDriveStatus, disconnectGoogleDrive } from "@/lib/gdrive.functions";
-import { connectGDrive, clearGDriveToken } from "@/lib/gdrive-token";
+import { storeGoogleDriveToken, getGoogleDriveStatus, disconnectGoogleDrive, uploadToGDrive } from "@/lib/gdrive.functions";
+import { connectGDrive, clearGDriveToken, getGDriveAccessToken } from "@/lib/gdrive-token";
 import { getPricingSettings, savePricingSettings } from "@/lib/pricing.functions";
 import { applyThemeAndHighlight, HIGHLIGHT_COLORS, type HighlightColor } from "@/utils/theme";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -97,8 +97,10 @@ function AdminPage() {
     reader.onload = async (event) => {
       const base64 = (event.target?.result as string).split(",")[1];
       try {
+        const accessToken = await getGDriveAccessToken();
         const response = await uploadFn({
           data: {
+            accessToken,
             fileBase64: base64,
             fileName: file.name,
             mimeType: file.type,
