@@ -3,7 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listUsersWithRoles, updateUserRole, createUserWithRole, updateUserAdmin, deleteUserAdmin, saveUserPreferences, getUserPreferences } from "@/lib/users.functions";
-import { uploadToGDrive, getGoogleDriveStatus, disconnectGoogleDrive, exchangeGoogleCode } from "@/lib/gdrive.functions";
+import { storeGoogleDriveToken, getGoogleDriveStatus, disconnectGoogleDrive } from "@/lib/gdrive.functions";
+import { connectGDrive, clearGDriveToken } from "@/lib/gdrive-token";
 import { getPricingSettings, savePricingSettings } from "@/lib/pricing.functions";
 import { applyThemeAndHighlight, HIGHLIGHT_COLORS, type HighlightColor } from "@/utils/theme";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -159,7 +160,7 @@ function AdminPage() {
 
   const getStatusFn = useServerFn(getGoogleDriveStatus);
   const disconnectFn = useServerFn(disconnectGoogleDrive);
-  const exchangeCodeFn = useServerFn(exchangeGoogleCode);
+  const storeTokenFn = useServerFn(storeGoogleDriveToken);
 
   // Pricing settings state
   const [baseHourlyRate, setBaseHourlyRate] = useState<number>(80);
@@ -215,25 +216,26 @@ function AdminPage() {
     }
   };
 
-  const handleConnectGDrive = () => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) {
+  const handleConnectGDrive = async () => {
+    if (!import.meta.env.VITE_GOOGLE_CLIENT_ID) {
       toast.error("VITE_GOOGLE_CLIENT_ID não configurado no arquivo .env");
       return;
     }
-    const redirectUri = window.location.origin + window.location.pathname;
-    const scope = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive";
-    const responseType = "code";
-    const accessType = "offline";
-    const prompt = "consent";
-
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
-      redirectUri
-    )}&response_type=${responseType}&scope=${encodeURIComponent(
-      scope
-    )}&access_type=${accessType}&prompt=${prompt}`;
-
-    window.location.href = url;
+    try {
+      const { accessToken, email } = await connectGDrive();
+      toast.loading("Conectando sua conta do Google Drive...");
+      const res = await storeTokenFn({ data: { accessToken, email } });
+      toast.dismiss();
+      if (res.success) {
+        setGDriveConnected(true);
+        setGDriveEmail(email);
+        toast.success(`Google Drive conectado com sucesso: ${email}`);
+      } else {
+        toast.error(`Falha ao conectar Google Drive: ${res.error}`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao conectar Google Drive.");
+    }
   };
 
   const handleDisconnectGDrive = async () => {
@@ -241,6 +243,7 @@ function AdminPage() {
     try {
       const res = await disconnectFn();
       if (res.success) {
+        clearGDriveToken();
         setGDriveConnected(false);
         setGDriveEmail("");
         toast.success("Google Drive desconectado.");
@@ -287,38 +290,15 @@ function AdminPage() {
       setWhatsappEnabled(localStorage.getItem("CF_Int_WhatsappEnabled") === "true");
       setWhatsappPhone(localStorage.getItem("CF_Int_WhatsappPhone") || "");
 
-      // Check Google Drive OAuth callback code in URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get("code");
-      if (code) {
-        // Clear code parameter from URL to keep it clean
-        window.history.replaceState({}, document.title, window.location.pathname);
-        toast.loading("Conectando sua conta do Google Drive...");
-        exchangeCodeFn({ data: { code, redirectUri: window.location.origin + window.location.pathname } })
-          .then((res) => {
-            toast.dismiss();
-            if (res.success) {
-              setGDriveConnected(true);
-              setGDriveEmail(res.email);
-              toast.success(`Google Drive conectado com sucesso: ${res.email}`);
-            } else {
-              toast.error(`Falha ao conectar Google Drive: ${res.error}`);
-            }
-          })
-          .catch((err) => {
-            toast.dismiss();
-            toast.error(`Erro: ${err.message}`);
-          });
-      } else {
-        // Load connection status
-        getStatusFn()
-          .then((res) => {
-            setGDriveConnected(res.connected);
-            setGDriveEmail(res.email || "");
-            setLoadingGDriveStatus(false);
-          })
-          .catch(() => setLoadingGDriveStatus(false));
-      }
+      // Load Google Drive connection status
+      getStatusFn()
+        .then((res) => {
+          setGDriveConnected(res.connected);
+          setGDriveEmail(res.email || "");
+          setLoadingGDriveStatus(false);
+        })
+        .catch(() => setLoadingGDriveStatus(false));
+    }
 
       // Load pricing settings
       getPricingFn().then((res) => {

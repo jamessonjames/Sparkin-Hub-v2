@@ -15,6 +15,7 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { useCallback, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { uploadToGDrive } from "@/lib/gdrive.functions";
+import { getGDriveAccessToken } from "@/lib/gdrive-token";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -155,8 +156,10 @@ export function RichEditor({
         const fullBase64 = e.target?.result as string;
         const base64 = fullBase64.split(",")[1];
         try {
+          const accessToken = await getGDriveAccessToken();
           const response = await uploadFn({
             data: {
+              accessToken,
               fileBase64: base64,
               fileName: file.name,
               mimeType: file.type,
@@ -168,7 +171,6 @@ export function RichEditor({
             editor?.chain().focus().setImage({ src: response.url }).run();
             toast.success("Imagem enviada para o Google Drive com sucesso!");
           } else {
-            // Fallback
             editor?.chain().focus().setImage({ src: fullBase64 }).run();
             toast.warning("Hospedagem Google Drive indisponível. Salvo em base64.");
           }

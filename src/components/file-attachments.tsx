@@ -7,6 +7,7 @@ import {
   listAttachments,
   deleteAttachment,
 } from "@/lib/attachments.functions";
+import { getGDriveAccessToken } from "@/lib/gdrive-token";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Upload, Trash2, File, FileText, Image, Download, Loader2 } from "lucide-react";
@@ -56,20 +57,26 @@ export function FileAttachments({
       const reader = new FileReader();
       reader.onload = async (e) => {
         const base64 = (e.target?.result as string).split(",")[1];
-        const res = await uploadFn({
-          data: {
-            entityType,
-            entityId,
-            fileBase64: base64,
-            fileName: file.name,
-            mimeType: file.type || "application/octet-stream",
-          },
-        });
-        if (res.success) {
-          toast.success(`"${file.name}" anexado!`);
-          qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
-        } else {
-          toast.error(res.error || "Erro ao anexar arquivo.");
+        try {
+          const accessToken = await getGDriveAccessToken();
+          const res = await uploadFn({
+            data: {
+              accessToken,
+              entityType,
+              entityId,
+              fileBase64: base64,
+              fileName: file.name,
+              mimeType: file.type || "application/octet-stream",
+            },
+          });
+          if (res.success) {
+            toast.success(`"${file.name}" anexado!`);
+            qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
+          } else {
+            toast.error(res.error || "Erro ao anexar arquivo.");
+          }
+        } catch (err: any) {
+          toast.error(err.message || "Erro ao anexar arquivo.");
         }
         setUploading(false);
       };

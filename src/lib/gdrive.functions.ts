@@ -2,86 +2,33 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-// Exchange OAuth authorization code for tokens
-export const exchangeGoogleCode = createServerFn({ method: "POST" })
+// Store Google Drive token after client-side OAuth (GIS)
+export const storeGoogleDriveToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(z.object({ code: z.string(), redirectUri: z.string() }))
-  .handler(async ({ data: { code, redirectUri }, context }) => {
-    const clientId = process.env.VITE_GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret) {
-      throw new Error("Client ID ou Client Secret do Google não configurados no servidor.");
-    }
-
+  .validator(z.object({
+    accessToken: z.string(),
+    email: z.string(),
+  }))
+  .handler(async ({ data: { accessToken, email }, context }) => {
     try {
-      // 1. Exchange authorization code for tokens
-      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          code,
-          client_id: clientId,
-          client_secret: clientSecret,
-          redirect_uri: redirectUri,
-          grant_type: "authorization_code",
-        }).toString(),
-      });
+      const rootFolderId = await getOrCreateFolderPath(accessToken, []);
 
-      if (!tokenRes.ok) {
-        const errorText = await tokenRes.text();
-        throw new Error(`Erro ao trocar código de autorização: ${errorText}`);
-      }
-
-      const tokens = await tokenRes.json();
-      const { access_token, refresh_token } = tokens;
-
-      if (!refresh_token) {
-        // Note: Google only sends refresh_token on the first consent prompt.
-        // We force it in the OAuth link using prompt=consent, but we handle it just in case.
-        throw new Error("Não foi recebido um Refresh Token. Se o Drive já estava conectado, desconecte e tente novamente.");
-      }
-
-      // 2. Fetch user profile to get account email
-      const userinfoRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-        headers: { Authorization: `Bearer ${access_token}` },
-      });
-
-      let email = "Desconhecido";
-      if (userinfoRes.ok) {
-        const userinfo = await userinfoRes.json();
-        email = userinfo.email || "Desconhecido";
-      }
-
-      // 3. Create Root Folder in User's Drive
-      const rootFolderId = await getOrCreateFolderPath(access_token, []);
-
-      // 4. Save credentials to database (bypassing RLS with service_role)
       const { error: dbError } = await context.supabase
         .from("system_settings")
         .upsert({
           key: "google_drive_credentials",
           value: {
-            refresh_token,
             account_email: email,
             folder_id: rootFolderId,
           },
         });
 
-      if (dbError) {
-        throw new Error(`Erro ao salvar configurações no banco de dados: ${dbError.message}`);
-      }
+      if (dbError) throw new Error(`Erro ao salvar no banco: ${dbError.message}`);
 
-      return {
-        success: true,
-        email,
-      };
+      return { success: true, folderId: rootFolderId };
     } catch (error: any) {
-      console.error("exchangeGoogleCode error:", error);
-      return {
-        success: false,
-        error: error.message || "Erro desconhecido durante o intercâmbio de tokens.",
-      };
+      console.error("storeGoogleDriveToken error:", error);
+      return { success: false, error: error.message || "Erro desconhecido." };
     }
   });
 
@@ -129,35 +76,6 @@ export const disconnectGoogleDrive = createServerFn({ method: "POST" })
       return { success: false, error: e.message || "Falha ao desconectar." };
     }
   });
-
-// Helper: Refresh access token using stored refresh token
-async function getAccessTokenFromRefreshToken(refreshToken: string) {
-  const clientId = process.env.VITE_GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    throw new Error("Client ID ou Client Secret do Google não configurados no servidor.");
-  }
-
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }).toString(),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Erro ao renovar token do Google: ${err}`);
-  }
-
-  const data = await res.json();
-  return data.access_token as string;
-}
 
 // Find folder by name inside parent folder
 async function findFolder(accessToken: string, name: string, parentId?: string): Promise<string | null> {
@@ -210,7 +128,7 @@ async function createFolder(accessToken: string, name: string, parentId?: string
 }
 
 // Create nested folder hierarchy on Google Drive recursively, starting from a given root folder ID if provided
-async function getOrCreateFolderPath(accessToken: string, pathParts: string[], startRootId?: string): Promise<string> {
+export async function getOrCreateFolderPath(accessToken: string, pathParts: string[], startRootId?: string): Promise<string> {
   let currentParentId = startRootId;
 
   if (!currentParentId) {
@@ -235,7 +153,7 @@ async function getOrCreateFolderPath(accessToken: string, pathParts: string[], s
 }
 
 // Upload file to Google Drive folder using multipart upload
-async function uploadFile(
+export async function uploadFile(
   accessToken: string,
   fileBase64: string,
   fileName: string,
@@ -281,7 +199,7 @@ async function uploadFile(
 }
 
 // Grant anyone with link read access to a file
-async function makeFilePublic(accessToken: string, fileId: string): Promise<void> {
+export async function makeFilePublic(accessToken: string, fileId: string): Promise<void> {
   const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
     method: "POST",
     headers: {
@@ -300,63 +218,38 @@ async function makeFilePublic(accessToken: string, fileId: string): Promise<void
   }
 }
 
+export async function getRootFolderId(context: { supabase: any }): Promise<string | null> {
+  const { data } = await (context.supabase as any)
+    .from("system_settings")
+    .select("value")
+    .eq("key", "google_drive_credentials")
+    .maybeSingle();
+  return (data?.value as any)?.folder_id || null;
+}
+
 const uploadSchema = z.object({
+  accessToken: z.string(),
   fileBase64: z.string(),
   fileName: z.string(),
   mimeType: z.string(),
   pathParts: z.array(z.string()).default([]),
 });
 
-// Server function for file upload to Google Drive using credentials stored in the DB
+// Server function for file upload to Google Drive using an access token from the frontend
 export const uploadToGDrive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(uploadSchema)
-  .handler(async ({ data: { fileBase64, fileName, mimeType, pathParts }, context }) => {
+  .handler(async ({ data: { accessToken, fileBase64, fileName, mimeType, pathParts }, context }) => {
     try {
-      // 1. Fetch Google Drive credentials from database (bypassing RLS with service_role)
-      const { data, error: dbError } = await context.supabase
-        .from("system_settings")
-        .select("value")
-        .eq("key", "google_drive_credentials")
-        .maybeSingle();
-
-      if (dbError) throw dbError;
-      if (!data?.value) {
-        throw new Error("Integração do Google Drive não conectada no Painel Administrativo.");
-      }
-
-      const credentials = data.value as any;
-      const { refresh_token, folder_id: rootFolderId } = credentials;
-
-      if (!refresh_token) {
-        throw new Error("Refresh Token não configurado no banco de dados.");
-      }
-
-      // 2. Refresh Access Token
-      const accessToken = await getAccessTokenFromRefreshToken(refresh_token);
-
-      // 3. Resolve/Create Subfolder Path (Starting from rootFolderId)
-      const folderId = await getOrCreateFolderPath(accessToken, pathParts, rootFolderId);
-
-      // 4. Upload File
+      const rootFolderId = await getRootFolderId(context);
+      const folderId = await getOrCreateFolderPath(accessToken, pathParts, rootFolderId || undefined);
       const fileId = await uploadFile(accessToken, fileBase64, fileName, mimeType, folderId);
-
-      // 5. Make File Public
       await makeFilePublic(accessToken, fileId);
-
-      // 6. Return direct view URL
       const viewUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
 
-      return {
-        success: true,
-        fileId,
-        url: viewUrl,
-      };
+      return { success: true, fileId, url: viewUrl };
     } catch (error: any) {
       console.error("uploadToGDrive server function error:", error);
-      return {
-        success: false,
-        error: error.message || "Erro durante o upload ao Google Drive.",
-      };
+      return { success: false, error: error.message || "Erro durante o upload ao Google Drive." };
     }
   });
