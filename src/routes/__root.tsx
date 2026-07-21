@@ -130,6 +130,13 @@ function RootComponent() {
   const getPrefsFn = useServerFn(getUserPreferences);
 
   useEffect(() => {
+    const chunkError = (e: ErrorEvent) => {
+      if (/Failed to fetch dynamically imported module/.test(e.message)) {
+        window.location.reload();
+      }
+    };
+    window.addEventListener("error", chunkError);
+
     // Apply global branding from localStorage (system name, favicon)
     applyThemeAndHighlight();
 
@@ -160,7 +167,10 @@ function RootComponent() {
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      window.removeEventListener("error", chunkError);
+      sub.subscription.unsubscribe();
+    };
   }, [router, queryClient, getPrefsFn]);
 
   return (
