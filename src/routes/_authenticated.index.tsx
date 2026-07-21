@@ -6,6 +6,7 @@ import { listClients } from "@/lib/clients.functions";
 import { Card } from "@/components/ui/card";
 import { AlertCircle, ListChecks, Users, CheckCircle2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { getClientActivityStatus, getStatusColor, getStatusLabel } from "@/lib/activity.functions";
 import type { ClientActivity } from "@/lib/activity.functions";
 
@@ -30,6 +31,7 @@ function Dashboard() {
   const today = new Date().toISOString().slice(0, 10);
   const overdue = open.filter((d) => d.due_date && d.due_date < today);
   const done = demands.filter((d) => d.status === "concluido");
+  const overlay = useDemandOverlay();
 
   const stats = [
     { label: "Demandas em aberto", value: open.length, icon: ListChecks, tone: "text-primary" },
@@ -66,14 +68,14 @@ function Dashboard() {
               .sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))
               .slice(0, 5)
               .map((d) => (
-                <Link
+                <button
                   key={d.id}
-                  to="/demands"
-                  className="flex items-center justify-between text-sm py-2 border-b border-border last:border-0 hover:text-primary"
+                  onClick={() => overlay.open(d.id, d.clients ? [d.clients] : undefined)}
+                  className="flex items-center justify-between text-sm py-2 border-b border-border last:border-0 hover:text-primary w-full text-left cursor-pointer"
                 >
                   <span className="truncate">{d.title}</span>
                   <span className="text-xs text-muted-foreground shrink-0 ml-2">{d.due_date}</span>
-                </Link>
+                </button>
               ))}
             {open.filter((d) => d.due_date).length === 0 && (
               <p className="text-sm text-muted-foreground">Nenhuma entrega agendada.</p>
