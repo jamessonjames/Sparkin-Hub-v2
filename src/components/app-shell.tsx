@@ -32,17 +32,15 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
-  const [pwaInstallable, setPwaInstallable] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(true);
   const deferredPromptRef = useRef<any>(null);
 
   useEffect(() => {
-    const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-    if (isStandalone) return;
+    setIsStandalone(window.matchMedia("(display-mode: standalone)").matches);
 
     const handler = (e: Event) => {
       e.preventDefault();
       deferredPromptRef.current = e;
-      setPwaInstallable(true);
     };
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);
@@ -103,13 +101,13 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               </div>
               
               <div className="flex items-center gap-1">
-                {pwaInstallable && (
+                {!isStandalone && (
                   <button
                     onClick={async () => {
                       if (deferredPromptRef.current) {
                         deferredPromptRef.current.prompt();
                         const result = await deferredPromptRef.current.userChoice;
-                        if (result.outcome === "accepted") setPwaInstallable(false);
+                        if (result.outcome === "accepted") setIsStandalone(true);
                       }
                     }}
                     title="Instalar aplicativo"
