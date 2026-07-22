@@ -871,7 +871,7 @@ function KanbanColumn({
             )}
           >
             <Plus className="h-3.5 w-3.5 shrink-0" />
-            <span>Adicionar projeto</span>
+            <span>Demanda</span>
           </button>
         )}
       </div>
