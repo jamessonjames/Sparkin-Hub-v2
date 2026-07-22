@@ -87,9 +87,19 @@ export const AttachmentCardExtension = Node.create({
             href: HTMLAttributes.src,
             target: "_blank",
             rel: "noopener noreferrer",
-            class: "px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-1 cursor-pointer no-underline shadow-sm",
+            class: "px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex items-center gap-1 cursor-pointer no-underline",
           },
-          "Abrir Arquivo",
+          "Abrir",
+        ],
+        [
+          "button",
+          {
+            type: "button",
+            "data-action": "delete-attachment",
+            title: "Excluir anexo permanentemente",
+            class: "h-7.5 w-7.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all flex items-center justify-center cursor-pointer border border-destructive/20 ml-1 font-bold text-xs",
+          },
+          "✕",
         ],
       ],
     ];
@@ -218,6 +228,18 @@ export function RichEditor({
             : "min-h-[180px] p-4 text-sm",
         ),
       },
+      handleClickOn: (view, pos, node, nodePos, event) => {
+        if (!view.editable) return false;
+        const target = event.target as HTMLElement;
+        if (target.closest("[data-action='delete-attachment']")) {
+          event.preventDefault();
+          event.stopPropagation();
+          view.dispatch(view.state.tr.delete(nodePos, nodePos + node.nodeSize));
+          toast.success("Anexo removido da demanda.");
+          return true;
+        }
+        return false;
+      },
       handleDrop: (view, event, slice, moved) => {
         if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
           event.preventDefault();
@@ -318,7 +340,7 @@ export function RichEditor({
       } else {
         knownFileIdsRef.current = currentIds;
       }
-    }, 3000);
+    }, 300);
 
     return () => {
       clearTimeout(timer);
