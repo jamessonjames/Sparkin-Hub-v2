@@ -47,71 +47,77 @@ export function getStatusTheme(statusId: string, label: string) {
   
   if (statusId === "nao_iniciado" || normLabel.includes("nao iniciado") || normLabel.includes("iniciado")) {
     return {
-      dot: "bg-[#d9730d]",
-      pill: "bg-[#3c281e] text-[#e28a38]",
-      cardBg: "bg-[#251d18] hover:bg-[#2e231e]",
-      cardBorder: "border-[#4a3223] hover:border-[#5c3e2b]",
-      btnText: "text-[#e28a38] hover:text-[#f8a858]",
-      columnBg: "bg-[#1f1814]/40 border border-[#3c281e]/30",
+      dot: "bg-[#9ca3af]",
+      pill: "bg-[#27272a] text-[#d4d4d8]",
+      cardBg: "bg-[#242427] hover:bg-[#2b2b2f]",
+      cardBorder: "border-[#37373c] hover:border-[#4b4b52]",
+      btnText: "text-[#d4d4d8] hover:text-white",
+      btnBorder: "border-[#37373c] hover:border-[#4b4b52] bg-[#242427]/40",
+      columnBg: "bg-[#18181b]/70 border border-[#27272a]/60",
     };
   }
   if (statusId === "fazendo" || normLabel.includes("fazendo") || normLabel.includes("progresso")) {
     return {
-      dot: "bg-[#9065b0]",
-      pill: "bg-[#362740] text-[#c07ed9]",
-      cardBg: "bg-[#231b2b] hover:bg-[#2b2136]",
-      cardBorder: "border-[#422e4f] hover:border-[#533a64]",
-      btnText: "text-[#c07ed9] hover:text-[#d59be8]",
-      columnBg: "bg-[#1c1524]/40 border border-[#362740]/30",
+      dot: "bg-[#c084fc]",
+      pill: "bg-[#3d2343] text-[#e879f9]",
+      cardBg: "bg-[#2a1d33] hover:bg-[#32233c]",
+      cardBorder: "border-[#442854] hover:border-[#57336b]",
+      btnText: "text-[#e879f9] hover:text-[#f0abfc]",
+      btnBorder: "border-[#442854] hover:border-[#57336b] bg-[#2a1d33]/40",
+      columnBg: "bg-[#1d1722]/70 border border-[#33223b]/60",
     };
   }
   if (statusId === "para_analise" || normLabel.includes("analise") || normLabel.includes("revisao")) {
     return {
-      dot: "bg-[#1f78b4]",
-      pill: "bg-[#1d2d3e] text-[#5ebdff]",
-      cardBg: "bg-[#172433] hover:bg-[#1d2e42]",
-      cardBorder: "border-[#253950] hover:border-[#2f4866]",
-      btnText: "text-[#5ebdff] hover:text-[#8acaff]",
-      columnBg: "bg-[#141f2d]/50 border border-[#1d2d3e]/40",
+      dot: "bg-[#60a5fa]",
+      pill: "bg-[#172b43] text-[#60a5fa]",
+      cardBg: "bg-[#18293d] hover:bg-[#1d324b]",
+      cardBorder: "border-[#284466] hover:border-[#335682]",
+      btnText: "text-[#60a5fa] hover:text-[#93c5fd]",
+      btnBorder: "border-[#284466] hover:border-[#335682] bg-[#18293d]/40",
+      columnBg: "bg-[#131f2c]/70 border border-[#1e334a]/60",
     };
   }
   if (statusId === "com_ajustes" || normLabel.includes("ajuste") || normLabel.includes("pendente")) {
     return {
-      dot: "bg-[#dfb22d]",
-      pill: "bg-[#392f1d] text-[#dfab01]",
-      cardBg: "bg-[#252117] hover:bg-[#2d281b]",
-      cardBorder: "border-[#453921] hover:border-[#574829]",
-      btnText: "text-[#dfab01] hover:text-[#f3c833]",
-      columnBg: "bg-[#1f1b13]/40 border border-[#392f1d]/30",
+      dot: "bg-[#fbbf24]",
+      pill: "bg-[#3a2818] text-[#fbbf24]",
+      cardBg: "bg-[#332317] hover:bg-[#3d2b1c]",
+      cardBorder: "border-[#543822] hover:border-[#6b472a]",
+      btnText: "text-[#fbbf24] hover:text-[#fde047]",
+      btnBorder: "border-[#543822] hover:border-[#6b472a] bg-[#332317]/40",
+      columnBg: "bg-[#221a14]/70 border border-[#3d2b1d]/60",
     };
   }
   if (statusId === "concluido" || normLabel.includes("concluido") || normLabel.includes("finalizado") || normLabel.includes("sucesso")) {
     return {
-      dot: "bg-[#0f7b4b]",
-      pill: "bg-[#1e3626] text-[#4dab72]",
-      cardBg: "bg-[#17271d] hover:bg-[#1e3225]",
-      cardBorder: "border-[#274531] hover:border-[#32573e]",
-      btnText: "text-[#4dab72] hover:text-[#6ec690]",
-      columnBg: "bg-[#132219]/40 border border-[#1e3626]/30",
+      dot: "bg-[#4ade80]",
+      pill: "bg-[#1a3324] text-[#4ade80]",
+      cardBg: "bg-[#1c3024] hover:bg-[#223b2c]",
+      cardBorder: "border-[#2a4d38] hover:border-[#356147]",
+      btnText: "text-[#4ade80] hover:text-[#86efac]",
+      btnBorder: "border-[#2a4d38] hover:border-[#356147] bg-[#1c3024]/40",
+      columnBg: "bg-[#14231b]/70 border border-[#203a2a]/60",
     };
   }
   
   // Default/Grey (Aguardando material, Reunião, etc.)
   return {
-    dot: "bg-[#787878]",
-    pill: "bg-[#2b2b2b] text-[#a4a4a4]",
-    cardBg: "bg-[#222222] hover:bg-[#2a2a2a]",
-    cardBorder: "border-[#333333] hover:border-[#404040]",
-    btnText: "text-[#a4a4a4] hover:text-[#cccccc]",
-    columnBg: "bg-[#1c1c1c]/40 border border-[#2b2b2b]/30",
+    dot: "bg-[#9ca3af]",
+    pill: "bg-[#27272a] text-[#d4d4d8]",
+    cardBg: "bg-[#242427] hover:bg-[#2b2b2f]",
+    cardBorder: "border-[#37373c] hover:border-[#4b4b52]",
+    btnText: "text-[#d4d4d8] hover:text-white",
+    btnBorder: "border-[#37373c] hover:border-[#4b4b52] bg-[#242427]/40",
+    columnBg: "bg-[#18181b]/70 border border-[#27272a]/60",
   };
 }
 
 const PRIORITY_CHIP: Record<string, string> = {
-  low:    "bg-[#282828] text-[#a4a4a4] border border-[#383838]",
-  medium: "bg-[#392f1d] text-[#e0b338] border border-[#4d3e23]",
-  high:   "bg-[#481b1b] text-[#e56868] border border-[#5c2424]",
-  urgent: "bg-[#5c1d1d] text-[#f87171] border border-[#752424]",
+  low:    "bg-[#242427] text-[#9ca3af] border border-[#37373c]",
+  medium: "bg-[#3a2818] text-[#fbbf24] border border-[#543822]",
+  high:   "bg-[#3e1b1b] text-[#f87171] border border-[#5a2424]",
+  urgent: "bg-[#4c1d1d] text-[#fca5a5] border border-[#6e2424]",
 };
 
 export function KanbanBoard({
@@ -793,20 +799,17 @@ function KanbanColumn({
                 }
               }}
               className={cn(
-                "flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium shrink-0 cursor-default",
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold shrink-0 cursor-default",
                 theme.pill,
                 onRename && "cursor-pointer hover:opacity-85"
               )}
               title={onRename ? "Clique para renomear" : undefined}
             >
-              <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", theme.dot)} />
+              <span className={cn("h-2 w-2 rounded-full shrink-0", theme.dot)} />
               <span className="truncate">{label}</span>
+              <span className="ml-1 opacity-75 font-medium">{demands.length}</span>
             </div>
           )}
-
-          <span className="text-xs text-zinc-500 font-medium ml-1 shrink-0">
-            {demands.length}
-          </span>
         </div>
 
         <div className="flex items-center gap-1 opacity-0 group-hover/column:opacity-100 transition-opacity shrink-0 ml-1">
@@ -862,12 +865,13 @@ function KanbanColumn({
           <button
             onClick={() => onAdd(status)}
             className={cn(
-              "flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium w-full transition-all cursor-pointer bg-transparent border border-transparent hover:bg-zinc-800/40 light:hover:bg-zinc-200/40 mt-1",
+              "flex items-center justify-start gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold w-full transition-all cursor-pointer border mt-2 shadow-xs",
               theme.btnText,
+              theme.btnBorder
             )}
           >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Demanda</span>
+            <Plus className="h-3.5 w-3.5 shrink-0" />
+            <span>Adicionar projeto</span>
           </button>
         )}
       </div>
