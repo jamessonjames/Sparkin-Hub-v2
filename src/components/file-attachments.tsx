@@ -34,17 +34,17 @@ export function FileAttachments({
   entityId,
   disabled,
   hideUploadButton,
-  uploadingFiles = [],
 }: {
   entityType: "client" | "demand";
   entityId: string;
   disabled?: boolean;
   hideUploadButton?: boolean;
-  uploadingFiles?: { id: string; name: string; size: number; progress: number }[];
 }) {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState<any[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   const uploadFn = useServerFn(uploadAttachment);
   const listFn = useServerFn(listAttachments);
@@ -56,41 +56,63 @@ export function FileAttachments({
   });
 
   async function handleUpload(file: File) {
+    const tempId = Math.random().toString();
+    const newUpload = { id: tempId, name: file.name, size: file.size, progress: 10 };
+    setUploadingFiles((prev) => [...prev, newUpload]);
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setUploadingFiles((prev) =>
+        prev.map((item) =>
+          item.id === tempId
+            ? { ...item, progress: Math.min(item.progress + Math.floor(Math.random() * 15) + 5, 90) }
+            : item
+        )
+      );
+    }, 350);
+
     setUploading(true);
     try {
       const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = (e.target?.result as string).split(",")[1];
-        try {
-          const accessToken = await getGDriveAccessToken();
-          const res = await uploadFn({
-            data: {
-              accessToken,
-              entityType,
-              entityId,
-              fileBase64: base64,
-              fileName: file.name,
-              mimeType: file.type || "application/octet-stream",
-            },
-          });
-          if (res.success) {
-            toast.success(`"${file.name}" anexado!`);
-            qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
-          } else {
-            toast.error(res.error || "Erro ao anexar arquivo.");
+      await new Promise<void>((resolve, reject) => {
+        reader.onload = async (e) => {
+          const base64 = (e.target?.result as string).split(",")[1];
+          try {
+            const accessToken = await getGDriveAccessToken();
+            const res = await uploadFn({
+              data: {
+                accessToken,
+                entityType,
+                entityId,
+                fileBase64: base64,
+                fileName: file.name,
+                mimeType: file.type || "application/octet-stream",
+              },
+            });
+            if (res.success) {
+              toast.success(`"${file.name}" anexado!`);
+              qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
+              resolve();
+            } else {
+              toast.error(res.error || "Erro ao anexar arquivo.");
+              reject(new Error(res.error));
+            }
+          } catch (err: any) {
+            toast.error(err.message || "Erro ao anexar arquivo.");
+            reject(err);
           }
-        } catch (err: any) {
-          toast.error(err.message || "Erro ao anexar arquivo.");
-        }
-        setUploading(false);
-      };
-      reader.onerror = () => {
-        toast.error("Erro ao ler o arquivo.");
-        setUploading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch {
-      toast.error("Erro ao anexar arquivo.");
+        };
+        reader.onerror = () => {
+          toast.error("Erro ao ler o arquivo.");
+          reject(new Error("Erro de leitura"));
+        };
+        reader.readAsDataURL(file);
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      clearInterval(progressInterval);
+      setUploadingFiles((prev) => prev.filter((item) => item.id !== tempId));
       setUploading(false);
     }
   }
@@ -107,7 +129,41 @@ export function FileAttachments({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div 
+      className={cn(
+        "flex flex-col gap-3 p-3 rounded-xl border border-dashed transition-all duration-250 relative",
+        isDragging ? "border-primary bg-primary/5 shadow-inner scale-[1.01]" : "border-transparent"
+      )}
+      onDragOver={(e) => {
+        if (disabled) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+      }}
+      onDrop={async (e) => {
+        if (disabled) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        if (droppedFiles.length > 0) {
+          for (const file of droppedFiles) {
+            await handleUpload(file);
+          }
+        }
+      }}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 bg-background/85 backdrop-blur-xs z-10 flex flex-col items-center justify-center border-2 border-dashed border-primary rounded-xl pointer-events-none animate-in fade-in duration-200">
+          <Upload className="h-5 w-5 text-primary mb-1 animate-bounce" />
+          <p className="text-[10px] font-bold text-foreground">Solte para anexar</p>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
           Anexos ({files.length})
