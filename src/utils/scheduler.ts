@@ -300,33 +300,39 @@ export function scheduleDemands(
 
 /**
  * Priority-first rescheduler.
- * Manually scheduled demands are pinned: their saved due_date blocks that slot
- * and is never moved by the automatic scheduler. Remaining active demands are
- * packed into free slots by priority (urgent > high > medium > low), ties by created_at ASC.
+ * 1. Manually pinned demands (is_manually_scheduled = true) are locked to their exact slots.
+ * 2. Day-targeted demands (has due_date from form modal) are scheduled starting on that target day,
+ *    ordered by priority (urgent > high > medium > low), tie-break created_at ASC.
+ * 3. Completely floating demands (no due_date) are scheduled in remaining slots from today by priority.
  */
 export function scheduleByPriority(
   demands: UnscheduledDemand[],
   config: SchedulingConfig = DEFAULT_CONFIG,
   _fixed: UnscheduledDemand[] = []
 ): Record<string, string> {
-  // Manual arrasto SEMPRE vence prioridade. Demandas com is_manually_scheduled=true
-  // são tratadas como slots imutáveis. O auto-scheduler apenas distribui as demais
-  // por prioridade nos slots livres restantes.
   const active = [..._fixed, ...demands]
     .filter((d) => d.status !== "concluido" && d.status !== "para_analise")
     .filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i);
 
+  // 1) Pinned demands (is_manually_scheduled = true and due_date exists)
   const pinned = active.filter(
     (d) => (d as any).is_manually_scheduled && d.due_date
   );
+
+  // 2) Day-targeted demands (has due_date, but NOT is_manually_scheduled)
+  const dayTargeted = active.filter(
+    (d) => !((d as any).is_manually_scheduled && d.due_date) && d.due_date
+  );
+
+  // 3) Completely floating demands (no due_date at all)
   const floating = active.filter(
-    (d) => !((d as any).is_manually_scheduled && d.due_date)
+    (d) => !d.due_date
   );
 
   const scheduledTimes: Record<string, string> = {};
   const takenSlots = new Set<string>();
 
-  // 1) Trava tudo que foi arrastado manualmente — não é movido em hipótese alguma.
+  // 1) Lock pinned demands into their exact slot
   for (const demand of pinned) {
     const parsed = safeParseDate(demand.due_date!);
     const duration = demand.estimated_hours ? Number(demand.estimated_hours) : 1.0;
@@ -334,14 +340,77 @@ export function scheduleByPriority(
     blockSlots(parsed, duration, takenSlots);
   }
 
-  // 2) Ordena o restante por prioridade e encaixa nos slots livres.
-  const sorted = [...floating].sort((a, b) => {
+  const now = getTzTime(config.timezone);
+
+  // Priority weight DESC, tie-break created_at ASC (FIFO)
+  const compareByPriority = (a: UnscheduledDemand, b: UnscheduledDemand) => {
     const pw = (PRIORITY_WEIGHT[b.priority] ?? 2) - (PRIORITY_WEIGHT[a.priority] ?? 2);
     if (pw !== 0) return pw;
     return (a.created_at ?? "").localeCompare(b.created_at ?? "");
-  });
+  };
 
-  const now = getTzTime(config.timezone);
+  // 2) Group day-targeted demands by target date string YYYY-MM-DD
+  const dayGroups = new Map<string, UnscheduledDemand[]>();
+  for (const d of dayTargeted) {
+    const parsed = safeParseDate(d.due_date!);
+    const dayStr = toISO(parsed);
+    const list = dayGroups.get(dayStr) ?? [];
+    list.push(d);
+    dayGroups.set(dayStr, list);
+  }
+
+  // Sort dates chronologically
+  const sortedDates = Array.from(dayGroups.keys()).sort();
+
+  for (const dayStr of sortedDates) {
+    const groupDemands = dayGroups.get(dayStr)!;
+    groupDemands.sort(compareByPriority);
+
+    const [y, m, d] = dayStr.split("-").map(Number);
+    const dayStart = new Date(y, m - 1, d, config.startHour, 0, 0);
+
+    let searchCursor = new Date(dayStart);
+    if (dayStr === toISO(now)) {
+      const nowSlot = new Date(now);
+      const mins = nowSlot.getMinutes();
+      if (mins > 0 && mins <= 30) nowSlot.setMinutes(30, 0, 0);
+      else {
+        if (mins > 30) nowSlot.setHours(nowSlot.getHours() + 1);
+        nowSlot.setMinutes(0, 0, 0);
+      }
+      if (nowSlot.getTime() > dayStart.getTime()) {
+        searchCursor = nowSlot;
+      }
+    }
+
+    if (!isValidSlot(searchCursor, config)) {
+      searchCursor = getNextSlot(searchCursor, config);
+    }
+
+    for (const demand of groupDemands) {
+      const duration = demand.estimated_hours ? Number(demand.estimated_hours) : 1.0;
+      let search = new Date(searchCursor);
+      let placed: Date | null = null;
+      let safety = 0;
+      while (safety < 2000) {
+        if (isValidSlot(search, config) && areSlotsFree(search, duration, takenSlots)) {
+          placed = new Date(search);
+          break;
+        }
+        search = getNextSlot(search, config);
+        safety++;
+      }
+
+      if (placed) {
+        scheduledTimes[demand.id] = formatTzString(placed);
+        blockSlots(placed, duration, takenSlots);
+      }
+    }
+  }
+
+  // 3) Schedule completely floating demands (no due_date)
+  const sortedFloating = [...floating].sort(compareByPriority);
+
   let cursor = new Date(now);
   const mins = cursor.getMinutes();
   if (mins > 0 && mins <= 30) cursor.setMinutes(30, 0, 0);
@@ -351,7 +420,7 @@ export function scheduleByPriority(
   }
   if (!isValidSlot(cursor, config)) cursor = getNextSlot(cursor, config);
 
-  for (const demand of sorted) {
+  for (const demand of sortedFloating) {
     const duration = demand.estimated_hours ? Number(demand.estimated_hours) : 1.0;
     let search = new Date(cursor);
     let placed: Date | null = null;
