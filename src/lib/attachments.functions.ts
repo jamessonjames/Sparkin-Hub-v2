@@ -1,21 +1,22 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { getOrCreateFolderPath, uploadFile, makeFilePublic, getRootFolderId } from "@/lib/gdrive.functions";
+import { getOrCreateFolderPath, uploadFile, makeFilePublic, getRootFolderId, getServerGDriveAccessToken } from "@/lib/gdrive.functions";
 
 // ── Upload a file attachment to Google Drive and save record ──
 export const uploadAttachment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(z.object({
-    accessToken: z.string(),
+    accessToken: z.string().optional().nullable(),
     entityType: z.enum(["client", "demand"]),
     entityId: z.string().uuid(),
     fileBase64: z.string(),
     fileName: z.string(),
     mimeType: z.string(),
   }))
-  .handler(async ({ data: { accessToken, entityType, entityId, fileBase64, fileName, mimeType }, context }) => {
+  .handler(async ({ data: { accessToken: providedToken, entityType, entityId, fileBase64, fileName, mimeType }, context }) => {
     try {
+      const accessToken = providedToken || (await getServerGDriveAccessToken(context));
       const rootFolderId = await getRootFolderId(context);
       if (!rootFolderId) {
         throw new Error("Google Drive não conectado. Conecte em Admin > Integrações.");

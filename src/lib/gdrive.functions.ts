@@ -2,16 +2,85 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+// Helper to get or refresh valid Google Drive access token on the server
+export async function getServerGDriveAccessToken(context: { supabase: any }): Promise<string> {
+  const { data } = await (context.supabase as any)
+    .from("system_settings")
+    .select("value")
+    .eq("key", "google_drive_credentials")
+    .maybeSingle();
+
+  const creds = data?.value as any;
+  if (!creds) {
+    throw new Error("Google Drive não configurado no sistema. Conecte sua conta em Admin > Integrações.");
+  }
+
+  // 1. If active access_token is valid (not expiring in next 60s)
+  if (creds.access_token && creds.expires_at && Date.now() < creds.expires_at - 60000) {
+    return creds.access_token;
+  }
+
+  // 2. If refresh_token is present, exchange for a new access token
+  if (creds.refresh_token) {
+    try {
+      const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
+      const params = new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        grant_type: "refresh_token",
+        refresh_token: creds.refresh_token,
+      });
+
+      const res = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params.toString(),
+      });
+
+      if (res.ok) {
+        const tokenData = await res.json();
+        const newAccessToken = tokenData.access_token;
+        const expiresIn = tokenData.expires_in || 3600;
+        const newExpiresAt = Date.now() + expiresIn * 1000;
+
+        await (context.supabase as any)
+          .from("system_settings")
+          .update({
+            value: {
+              ...creds,
+              access_token: newAccessToken,
+              expires_at: newExpiresAt,
+            },
+          })
+          .eq("key", "google_drive_credentials");
+
+        return newAccessToken;
+      }
+    } catch (err) {
+      console.error("[getServerGDriveAccessToken] refresh token error:", err);
+    }
+  }
+
+  // 3. Fallback to existing access_token if present
+  if (creds.access_token) {
+    return creds.access_token;
+  }
+
+  throw new Error("Sessão do Google Drive não conectada. Conecte sua conta em Admin > Integrações.");
+}
+
 // Store Google Drive token after client-side OAuth (GIS)
 export const storeGoogleDriveToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(z.object({
     accessToken: z.string(),
     email: z.string(),
+    refreshToken: z.string().optional().nullable(),
+    expiresIn: z.number().optional().nullable(),
   }))
-  .handler(async ({ data: { accessToken, email }, context }) => {
+  .handler(async ({ data: { accessToken, email, refreshToken, expiresIn }, context }) => {
     try {
       const rootFolderId = await getOrCreateFolderPath(accessToken, []);
+      const expiresAt = Date.now() + (expiresIn || 3600) * 1000;
 
       const { error: dbError } = await context.supabase
         .from("system_settings")
@@ -20,6 +89,9 @@ export const storeGoogleDriveToken = createServerFn({ method: "POST" })
           value: {
             account_email: email,
             folder_id: rootFolderId,
+            access_token: accessToken,
+            refresh_token: refreshToken || null,
+            expires_at: expiresAt,
           },
         });
 
@@ -229,19 +301,20 @@ export async function getRootFolderId(context: { supabase: any }): Promise<strin
 }
 
 const uploadSchema = z.object({
-  accessToken: z.string(),
+  accessToken: z.string().optional().nullable(),
   fileBase64: z.string(),
   fileName: z.string(),
   mimeType: z.string(),
   pathParts: z.array(z.string()).default([]),
 });
 
-// Server function for file upload to Google Drive using an access token from the frontend
+// Server function for file upload to Google Drive using system token or provided token
 export const uploadToGDrive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(uploadSchema)
-  .handler(async ({ data: { accessToken, fileBase64, fileName, mimeType, pathParts }, context }) => {
+  .handler(async ({ data: { accessToken: providedToken, fileBase64, fileName, mimeType, pathParts }, context }) => {
     try {
+      const accessToken = providedToken || (await getServerGDriveAccessToken(context));
       const rootFolderId = await getRootFolderId(context);
       const folderId = await getOrCreateFolderPath(accessToken, pathParts, rootFolderId || undefined);
       const fileId = await uploadFile(accessToken, fileBase64, fileName, mimeType, folderId);
@@ -261,11 +334,12 @@ export const uploadToGDrive = createServerFn({ method: "POST" })
 export const deleteFromGDrive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(z.object({
-    accessToken: z.string(),
+    accessToken: z.string().optional().nullable(),
     fileId: z.string(),
   }))
-  .handler(async ({ data: { accessToken, fileId } }) => {
+  .handler(async ({ data: { accessToken: providedToken, fileId }, context }) => {
     try {
+      const accessToken = providedToken || (await getServerGDriveAccessToken(context));
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
         method: "DELETE",
         headers: {
