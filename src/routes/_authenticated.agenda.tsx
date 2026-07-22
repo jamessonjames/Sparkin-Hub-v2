@@ -1230,6 +1230,11 @@ function DraggableReminderCard({
     id: dragId,
   });
 
+  const formattedTitle = useMemo(() => {
+    const raw = reminder.title.trim();
+    return raw.length > 15 ? `${raw.slice(0, 15)}...` : raw;
+  }, [reminder.title]);
+
   const COLOR_TAG: Record<string, { bg: string; border: string; text: string; dot: string }> = {
     yellow: { bg: "bg-[#2b2416]", border: "border-[#d4a017]", text: "text-amber-300", dot: "bg-[#d4a017]" },
     blue:   { bg: "bg-[#162436]", border: "border-[#2383e2]", text: "text-blue-300",  dot: "bg-[#2383e2]" },
@@ -1248,8 +1253,8 @@ function DraggableReminderCard({
       data-reminder-card="true"
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       className={cn(
-        "z-30 h-5.5 px-2 rounded-full border text-[9.5px] font-bold shadow-md select-none flex items-center gap-1.5 cursor-grab active:cursor-grabbing hover:scale-105 transition-all truncate",
-        hasDemandInSlot ? "absolute top-1 right-1 max-w-[55%]" : "relative my-1 float-right max-w-[90%]",
+        "z-30 h-5.5 px-2 rounded-full border text-[9.5px] font-bold shadow-md select-none flex items-center gap-1.5 cursor-grab active:cursor-grabbing hover:scale-105 transition-all truncate max-w-[120px]",
+        hasDemandInSlot ? "absolute top-1 right-1" : "relative my-1 float-right",
         style.bg,
         style.border,
         style.text,
@@ -1258,7 +1263,7 @@ function DraggableReminderCard({
       title={`Lembrete: ${reminder.title}`}
     >
       <span className={cn("h-1.5 w-1.5 rounded-full shrink-0 animate-pulse", style.dot)} />
-      <span className="truncate">{reminder.title}</span>
+      <span className="truncate max-w-[90px]">{formattedTitle}</span>
       {reminder.recurrence_type && reminder.recurrence_type !== "none" && (
         <span className="text-[8px] opacity-75 shrink-0" title="Recorrente">↻</span>
       )}
@@ -1267,6 +1272,11 @@ function DraggableReminderCard({
 }
 
 function ReminderPostItCardPreview({ reminder }: { reminder: ReminderData }) {
+  const formattedTitle = useMemo(() => {
+    const raw = reminder.title.trim();
+    return raw.length > 15 ? `${raw.slice(0, 15)}...` : raw;
+  }, [reminder.title]);
+
   const COLOR_TAG: Record<string, { bg: string; border: string; text: string; dot: string }> = {
     yellow: { bg: "bg-[#2b2416]", border: "border-[#d4a017]", text: "text-amber-300", dot: "bg-[#d4a017]" },
     blue:   { bg: "bg-[#162436]", border: "border-[#2383e2]", text: "text-blue-300",  dot: "bg-[#2383e2]" },
@@ -1279,14 +1289,14 @@ function ReminderPostItCardPreview({ reminder }: { reminder: ReminderData }) {
   return (
     <div
       className={cn(
-        "h-5.5 px-2 rounded-full border text-[9.5px] font-bold shadow-2xl select-none flex items-center gap-1.5 opacity-95",
+        "h-5.5 px-2 rounded-full border text-[9.5px] font-bold shadow-2xl select-none flex items-center gap-1.5 opacity-95 max-w-[120px]",
         style.bg,
         style.border,
         style.text
       )}
     >
       <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", style.dot)} />
-      <span className="truncate">{reminder.title}</span>
+      <span className="truncate max-w-[90px]">{formattedTitle}</span>
     </div>
   );
 }
