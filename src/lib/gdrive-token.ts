@@ -3,6 +3,7 @@ let cachedToken: string | null = null;
 let tokenExpiry = 0;
 
 async function ensureGISLoaded(): Promise<void> {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
   if (typeof google !== "undefined" && google.accounts?.oauth2) return;
   await new Promise<void>((resolve) => {
     const s = document.createElement("script");
@@ -15,6 +16,7 @@ async function ensureGISLoaded(): Promise<void> {
 const GOOGLE_CLIENT_ID = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_ID) || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
 
 export async function getGDriveAccessToken(): Promise<string> {
+  if (typeof window === "undefined") throw new Error("Apenas no cliente.");
   if (cachedToken && Date.now() < tokenExpiry - 60000) return cachedToken;
   await ensureGISLoaded();
   if (!tokenClient) {
@@ -41,6 +43,7 @@ export async function getGDriveAccessToken(): Promise<string> {
 }
 
 export async function connectGDriveCode(): Promise<string> {
+  if (typeof window === "undefined") throw new Error("Apenas no cliente.");
   await ensureGISLoaded();
   return new Promise((resolve, reject) => {
     const codeClient = google.accounts.oauth2.initCodeClient({
@@ -62,6 +65,7 @@ export async function connectGDriveCode(): Promise<string> {
 }
 
 export async function connectGDrive(): Promise<{ accessToken: string; email: string }> {
+  if (typeof window === "undefined") throw new Error("Apenas no cliente.");
   await ensureGISLoaded();
   return new Promise((resolve, reject) => {
     const tc = google.accounts.oauth2.initTokenClient({
