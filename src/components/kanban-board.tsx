@@ -48,72 +48,70 @@ export function getStatusTheme(statusId: string, label: string) {
   if (statusId === "nao_iniciado" || normLabel.includes("nao iniciado") || normLabel.includes("iniciado")) {
     return {
       dot: "bg-[#d9730d]",
-      pill: "bg-[#402a1c] text-[#e89a3e] light:bg-[#faece3] light:text-[#d9730d]",
-      cardBg: "bg-[#2c201a] hover:bg-[#34261f] light:bg-[#fdf3eb] light:hover:bg-[#faece3]",
-      cardBorder: "border-[#443026] hover:border-[#523b2e] light:border-[#e0b89b] light:hover:border-[#d9730d]/50",
-      btnText: "text-[#d9730d] hover:text-[#f89838]",
-      columnBg: "bg-[#241a12]/10 border border-[#4d321d]/10 light:bg-[#241a12]/5 light:border-[#d9730d]/10",
+      pill: "bg-[#3c281e] text-[#e28a38]",
+      cardBg: "bg-[#251d18] hover:bg-[#2e231e]",
+      cardBorder: "border-[#4a3223] hover:border-[#5c3e2b]",
+      btnText: "text-[#e28a38] hover:text-[#f8a858]",
+      columnBg: "bg-[#1f1814]/40 border border-[#3c281e]/30",
     };
   }
   if (statusId === "fazendo" || normLabel.includes("fazendo") || normLabel.includes("progresso")) {
     return {
       dot: "bg-[#9065b0]",
-      pill: "bg-[#2b1e3a] text-purple-400 light:bg-[#f3eafa] light:text-[#9065b0]",
-      cardBg: "bg-[#281e2f] hover:bg-[#302438] light:bg-[#f9f5fd] light:hover:bg-[#f3eafa]",
-      cardBorder: "border-[#3e2b49] hover:border-[#4b3558] light:border-[#d8c3e8] light:hover:border-[#9065b0]/50",
-      btnText: "text-[#9065b0] hover:text-[#b18cd4]",
-      columnBg: "bg-[#1d1628]/10 border border-[#3c225a]/10 light:bg-[#1d1628]/5 light:border-[#9065b0]/10",
+      pill: "bg-[#362740] text-[#c07ed9]",
+      cardBg: "bg-[#231b2b] hover:bg-[#2b2136]",
+      cardBorder: "border-[#422e4f] hover:border-[#533a64]",
+      btnText: "text-[#c07ed9] hover:text-[#d59be8]",
+      columnBg: "bg-[#1c1524]/40 border border-[#362740]/30",
     };
   }
   if (statusId === "para_analise" || normLabel.includes("analise") || normLabel.includes("revisao")) {
     return {
       dot: "bg-[#1f78b4]",
-      pill: "bg-[#182a3c] text-blue-400 light:bg-[#e1f0fc] light:text-[#1f78b4]",
-      cardBg: "bg-[#1c2a3a] hover:bg-[#223347] light:bg-[#f0f7fe] light:hover:bg-[#e1f0fc]",
-      cardBorder: "border-[#2d3f55] hover:border-[#374d68] light:border-[#b8daf6] light:hover:border-[#1f78b4]/50",
-      btnText: "text-[#1f78b4] hover:text-[#4da6ff]",
-      columnBg: "bg-[#121c2a]/15 border border-[#1e3a5f]/10 light:bg-[#121c2a]/5 light:border-[#1f78b4]/10",
+      pill: "bg-[#1d2d3e] text-[#5ebdff]",
+      cardBg: "bg-[#172433] hover:bg-[#1d2e42]",
+      cardBorder: "border-[#253950] hover:border-[#2f4866]",
+      btnText: "text-[#5ebdff] hover:text-[#8acaff]",
+      columnBg: "bg-[#141f2d]/50 border border-[#1d2d3e]/40",
     };
   }
   if (statusId === "com_ajustes" || normLabel.includes("ajuste") || normLabel.includes("pendente")) {
     return {
       dot: "bg-[#dfb22d]",
-      pill: "bg-[#3f381b] text-yellow-500 light:bg-[#faf4da] light:text-[#b0881b]",
-      cardBg: "bg-[#2c271e] hover:bg-[#342e23] light:bg-[#fdfbf3] light:hover:bg-[#faf4da]",
-      cardBorder: "border-[#443c2c] hover:border-[#524935] light:border-[#ebd79b] light:hover:border-[#dfb22d]/50",
-      btnText: "text-[#dfb22d] hover:text-[#ffd659]",
-      columnBg: "bg-[#232014]/10 border border-[#4d401a]/10 light:bg-[#232014]/5 light:border-[#dfb22d]/10",
+      pill: "bg-[#392f1d] text-[#dfab01]",
+      cardBg: "bg-[#252117] hover:bg-[#2d281b]",
+      cardBorder: "border-[#453921] hover:border-[#574829]",
+      btnText: "text-[#dfab01] hover:text-[#f3c833]",
+      columnBg: "bg-[#1f1b13]/40 border border-[#392f1d]/30",
     };
   }
   if (statusId === "concluido" || normLabel.includes("concluido") || normLabel.includes("finalizado") || normLabel.includes("sucesso")) {
     return {
       dot: "bg-[#0f7b4b]",
-      pill: "bg-[#1c3829] text-emerald-400 light:bg-[#e3f5eb] light:text-[#0f7b4b]",
-      cardBg: "bg-[#1d2b24] hover:bg-[#23342c] light:bg-[#f1faf5] light:hover:bg-[#e3f5eb]",
-      cardBorder: "border-[#293e34] hover:border-[#324b3f] light:border-[#bce8cf] light:hover:border-[#0f7b4b]/50",
-      btnText: "text-[#0f7b4b] hover:text-[#1cb370]",
-      columnBg: "bg-[#122218]/10 border border-[#1c4029]/10 light:bg-[#122218]/5 light:border-[#0f7b4b]/10",
+      pill: "bg-[#1e3626] text-[#4dab72]",
+      cardBg: "bg-[#17271d] hover:bg-[#1e3225]",
+      cardBorder: "border-[#274531] hover:border-[#32573e]",
+      btnText: "text-[#4dab72] hover:text-[#6ec690]",
+      columnBg: "bg-[#132219]/40 border border-[#1e3626]/30",
     };
   }
   
-  // Default/Grey (Aguardando material, Reuni├úo, etc.)
+  // Default/Grey (Aguardando material, Reunião, etc.)
   return {
-    dot: "bg-zinc-400 dark:bg-zinc-500",
-    pill: "bg-zinc-800/40 text-zinc-300 light:bg-zinc-200/60 light:text-zinc-700",
-    cardBg: "bg-[#252525] hover:bg-[#2d2d2d] light:bg-[#fafafa] light:hover:bg-[#f4f4f4]",
-    cardBorder: "border-[#373737] hover:border-[#444444] light:border-zinc-200 light:hover:border-zinc-300",
-    btnText: "text-zinc-400 hover:text-zinc-300",
-    columnBg: "bg-[#1c1c1c]/15 border border-zinc-800/10 light:bg-zinc-100/50 light:border-zinc-200/50",
+    dot: "bg-[#787878]",
+    pill: "bg-[#2b2b2b] text-[#a4a4a4]",
+    cardBg: "bg-[#222222] hover:bg-[#2a2a2a]",
+    cardBorder: "border-[#333333] hover:border-[#404040]",
+    btnText: "text-[#a4a4a4] hover:text-[#cccccc]",
+    columnBg: "bg-[#1c1c1c]/40 border border-[#2b2b2b]/30",
   };
 }
 
-
-
 const PRIORITY_CHIP: Record<string, string> = {
-  low:    "bg-zinc-500 dark:bg-zinc-700 text-white font-semibold",
-  medium: "bg-blue-500 dark:bg-blue-600 text-white font-semibold",
-  high:   "bg-amber-500 dark:bg-amber-600 text-white font-semibold",
-  urgent: "bg-red-500 dark:bg-red-650 text-white font-semibold",
+  low:    "bg-[#282828] text-[#a4a4a4] border border-[#383838]",
+  medium: "bg-[#392f1d] text-[#e0b338] border border-[#4d3e23]",
+  high:   "bg-[#481b1b] text-[#e56868] border border-[#5c2424]",
+  urgent: "bg-[#5c1d1d] text-[#f87171] border border-[#752424]",
 };
 
 export function KanbanBoard({
