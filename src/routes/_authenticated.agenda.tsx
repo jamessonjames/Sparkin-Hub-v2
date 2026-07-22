@@ -784,52 +784,6 @@ function AgendaPage() {
 
           <h2 className="text-sm md:text-base font-bold text-foreground capitalize">{headerLabel}</h2>
 
-          {/* User selector for admin/owner */}
-          {isAdminOrOwner && currentUser?.id && profiles.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-muted-foreground font-semibold uppercase">Usuário:</span>
-              <Select
-                value={selectedUserId ?? currentUser.id}
-                onValueChange={(val) => setSelectedUserId(val === currentUser.id ? null : val)}
-              >
-                <SelectTrigger className="h-8 text-xs bg-background border-border text-foreground w-auto min-w-[140px]">
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={currentUser.id} className="text-xs font-semibold">
-                    {profiles.find(p => p.id === currentUser.id)?.name ?? "Meu perfil"} (Eu)
-                  </SelectItem>
-                  {profiles.filter(p => p.id !== currentUser.id).map((p) => (
-                    <SelectItem key={p.id} value={p.id} className="text-xs">
-                      {p.name ?? p.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "h-8 w-8 text-muted-foreground hover:text-amber-500",
-                  isDefaultUser && "text-amber-500 hover:text-amber-600"
-                )}
-                title={isDefaultUser ? "Usuário padrão ativo" : "Definir como meu usuário padrão ao abrir o Hub"}
-                onClick={() => {
-                  if (isDefaultUser && defaultUserId) {
-                    setDefaultUserId(null);
-                    toast.info("Padrão removido. O sistema voltará a selecionar você.");
-                  } else {
-                    setDefaultUserId(activeUserId);
-                    const name = profiles.find((p) => p.id === activeUserId)?.name ?? "este perfil";
-                    toast.success(`"${name}" definido como usuário padrão ao abrir a Agenda e Kanban!`);
-                  }
-                }}
-              >
-                <Star className={cn("h-4 w-4", isDefaultUser && "fill-amber-500 text-amber-500")} />
-              </Button>
-            </div>
-          )}
-
           {/* View Mode Selector */}
           <div className="ml-auto flex items-center bg-muted/30 p-0.5 rounded-lg border border-border">
             {(["day", "week", "month"] as const).map((mode) => (

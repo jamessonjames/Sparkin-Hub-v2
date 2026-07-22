@@ -8,7 +8,9 @@ import { ClientFormDialog } from "@/components/client-form-dialog";
 import { UserProvider } from "@/contexts/user-context";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, UserCircle, ChevronDown, Download } from "lucide-react";
+import { LogOut, UserCircle, ChevronDown, Download, Eye, Star } from "lucide-react";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import { useUserContext } from "@/contexts/user-context";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -20,6 +22,66 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+
+function HeaderUserWorkSelector() {
+  const { currentUserRole, selectedUserId, setSelectedUserId, defaultUserId, setDefaultUserId, profiles, currentUser } = useUserContext();
+  const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
+
+  if (!isAdminOrOwner || !currentUser?.id || profiles.length === 0) return null;
+
+  const activeUserId = selectedUserId ?? currentUser.id;
+  const isDefaultUser = defaultUserId ? defaultUserId === activeUserId : activeUserId === currentUser.id;
+  const activeProfile = profiles.find((p) => p.id === activeUserId);
+
+  return (
+    <div className="flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs shadow-xs transition-colors mr-2">
+      <div className="flex items-center gap-1 text-zinc-400 select-none">
+        <Eye className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+        <span className="text-[11px] font-semibold tracking-tight text-zinc-400 hidden sm:inline uppercase">Visão:</span>
+      </div>
+
+      <Select
+        value={activeUserId}
+        onValueChange={(val) => setSelectedUserId(val === currentUser.id ? null : val)}
+      >
+        <SelectTrigger className="h-6 text-xs bg-transparent border-0 focus:ring-0 text-zinc-200 font-semibold py-0 px-1 hover:bg-zinc-800/50 rounded transition-colors w-auto min-w-[110px] shadow-none">
+          <SelectValue placeholder="Selecione..." />
+        </SelectTrigger>
+        <SelectContent align="end" className="bg-zinc-950 border border-zinc-800 text-zinc-200">
+          <SelectItem value={currentUser.id} className="text-xs font-semibold">
+            {profiles.find(p => p.id === currentUser.id)?.name ?? "Meu perfil"} (Eu)
+          </SelectItem>
+          {profiles.filter(p => p.id !== currentUser.id).map((p) => (
+            <SelectItem key={p.id} value={p.id} className="text-xs">
+              {p.name ?? p.email}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <button
+        type="button"
+        className={cn(
+          "p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-amber-400 transition-colors cursor-pointer ml-0.5",
+          isDefaultUser && "text-amber-400 hover:text-amber-500"
+        )}
+        title={isDefaultUser ? "Visão padrão ativa no Hub" : "Definir este usuário como meu padrão ao abrir o Hub"}
+        onClick={() => {
+          if (isDefaultUser && defaultUserId) {
+            setDefaultUserId(null);
+            toast.info("Padrão removido. O sistema voltará a selecionar você.");
+          } else {
+            setDefaultUserId(activeUserId);
+            const name = activeProfile?.name ?? "este perfil";
+            toast.success(`"${name}" definido como visão padrão ao abrir o Hub!`);
+          }
+        }}
+      >
+        <Star className={cn("h-3.5 w-3.5", isDefaultUser && "fill-amber-400 text-amber-400")} />
+      </button>
+    </div>
+  );
+}
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Proprietário",
@@ -102,6 +164,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               </div>
               
               <div className="flex items-center gap-1">
+                <HeaderUserWorkSelector />
                 {!isStandalone && (
                   <button
                     onClick={async () => {
