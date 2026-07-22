@@ -39,7 +39,7 @@ export function useAutoScheduler() {
       }
     }
 
-    const active = (demands as any[]).filter((d) => d.status !== "concluido");
+    const active = (demands as any[]).filter((d) => d.status !== "concluido" && d.status !== "para_analise");
     if (active.length === 0) return;
 
     const items = active.map((d: any) => ({
@@ -96,17 +96,8 @@ export function useAutoScheduler() {
         try {
           await batchFn({ data: { updates: currentUpdates } });
           
-          // Update the local query cache directly to keep UI fast and avoid refetch flicker
-          qc.setQueryData<any[]>(["demands"], (prev) => {
-            if (!prev) return [];
-            const updateMap = new Map(currentUpdates.map((u) => [u.id, u.due_date]));
-            return prev.map((d) => {
-              if (updateMap.has(d.id)) {
-                return { ...d, due_date: updateMap.get(d.id) };
-              }
-              return d;
-            });
-          });
+          // Invalidate all demands queries so every view updates smoothly
+          qc.invalidateQueries({ queryKey: ["demands"] });
 
           pendingUpdatesRef.current = null;
         } catch (e) {

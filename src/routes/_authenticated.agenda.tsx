@@ -383,7 +383,7 @@ function AgendaPage() {
       }
     }
 
-    qc.setQueryData<typeof demands>(["demands"], (prev) =>
+    qc.setQueryData<typeof demands>(["demands", selectedUserId], (prev) =>
       (prev ?? []).map((d) => (d.id === demandId ? { ...d, estimated_hours: hours } : d))
     );
 
@@ -400,6 +400,7 @@ function AgendaPage() {
           estimated_hours: hours,
         },
       });
+      qc.invalidateQueries({ queryKey: ["demands"] });
     } catch (e) {
       console.error(e);
       toast.error("Erro ao atualizar o tempo estimado.");
@@ -411,7 +412,7 @@ function AgendaPage() {
     const currentDemand = demands.find((d) => d.id === demandId) as AgendaDemand | undefined;
     const effectiveDueDate = currentDemand ? (scheduledMap[demandId] ?? currentDemand.due_date ?? null) : null;
 
-    qc.setQueryData<typeof demands>(["demands"], (prev) =>
+    qc.setQueryData<typeof demands>(["demands", selectedUserId], (prev) =>
       (prev ?? []).map((d) =>
         d.id === demandId
           ? ({ ...d, due_date: nextValue ? effectiveDueDate : null, is_manually_scheduled: nextValue } as any)
@@ -431,6 +432,7 @@ function AgendaPage() {
         },
       });
       toast.success(nextValue ? "Demanda fixada nesta posição." : "Demanda liberada — o sistema pode reagendar.");
+      qc.invalidateQueries({ queryKey: ["demands"] });
     } catch (err) {
       toast.error("Erro ao alterar o pin.");
       qc.invalidateQueries({ queryKey: ["demands"] });
@@ -491,6 +493,8 @@ function AgendaPage() {
     const targetEnd = addHours(targetDate, duration);
     for (const demand of demands as AgendaDemand[]) {
       if (demand.id === demandId) continue;
+      // Demands in concluido or para_analise do not occupy time grid slots
+      if (demand.status === "concluido" || demand.status === "para_analise") continue;
 
       const dueDate = getEffectiveDueDate(demand);
       if (!dueDate) continue;
@@ -531,13 +535,14 @@ function AgendaPage() {
 
     const formatted = formatTzString(targetDate);
 
-    qc.setQueryData<typeof demands>(["demands"], (prev) =>
+    qc.setQueryData<typeof demands>(["demands", selectedUserId], (prev) =>
       (prev ?? []).map((d) => (d.id === demandId ? { ...d, due_date: formatted, is_manually_scheduled: true } as any : d))
     );
 
     try {
       await batchUpdateFn({ data: { updates: [{ id: demandId, due_date: formatted, is_manually_scheduled: true }] } });
       toast.success("Demanda reagendada!");
+      qc.invalidateQueries({ queryKey: ["demands"] });
     } catch (err) {
       toast.error("Erro ao reagendar");
       qc.invalidateQueries({ queryKey: ["demands"] });

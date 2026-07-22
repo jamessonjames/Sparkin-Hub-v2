@@ -313,7 +313,7 @@ export function scheduleByPriority(
   // são tratadas como slots imutáveis. O auto-scheduler apenas distribui as demais
   // por prioridade nos slots livres restantes.
   const active = [..._fixed, ...demands]
-    .filter((d) => d.status !== "concluido")
+    .filter((d) => d.status !== "concluido" && d.status !== "para_analise")
     .filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i);
 
   const pinned = active.filter(
