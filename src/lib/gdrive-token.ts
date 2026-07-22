@@ -12,7 +12,7 @@ async function ensureGISLoaded(): Promise<void> {
   });
 }
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_ID) || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
 
 export async function getGDriveAccessToken(): Promise<string> {
   if (cachedToken && Date.now() < tokenExpiry - 60000) return cachedToken;

@@ -27,11 +27,23 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 
+function getEnvVar(key: string): string | undefined {
+  try {
+    if (typeof import.meta !== "undefined" && import.meta?.env) {
+      return import.meta.env[key];
+    }
+  } catch {}
+  try {
+    if (typeof process !== "undefined" && process?.env) {
+      return process.env[key];
+    }
+  } catch {}
+  return undefined;
+}
+
 function createSupabaseClient() {
-  // Use import.meta.env for client-side (Vite build-time replacement)
-  // Fall back to process.env for SSR (server-side rendering)
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+  const SUPABASE_URL = getEnvVar("VITE_SUPABASE_URL") || getEnvVar("SUPABASE_URL");
+  const SUPABASE_PUBLISHABLE_KEY = getEnvVar("VITE_SUPABASE_PUBLISHABLE_KEY") || getEnvVar("SUPABASE_PUBLISHABLE_KEY");
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [

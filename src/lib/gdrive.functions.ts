@@ -23,7 +23,7 @@ export async function getServerGDriveAccessToken(context: { supabase: any }): Pr
   // 2. If refresh_token is present, exchange for a new access token
   if (creds.refresh_token) {
     try {
-      const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
+      const GOOGLE_CLIENT_ID = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_ID) || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
       const params = new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
         grant_type: "refresh_token",
