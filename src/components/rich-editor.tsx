@@ -8,6 +8,7 @@ import Image from "@tiptap/extension-image";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Placeholder from "@tiptap/extension-placeholder";
+import Link from "@tiptap/extension-link";
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableHeader } from "@tiptap/extension-table-header";
@@ -265,6 +266,16 @@ export function RichEditor({
       TaskList,
       TaskItem.configure({ nested: true }),
       Placeholder.configure({ placeholder }),
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        linkOnPaste: true,
+        HTMLAttributes: {
+          class: "text-primary underline font-semibold hover:text-primary/80 cursor-pointer decoration-primary/60 underline-offset-2",
+          target: "_blank",
+          rel: "noopener noreferrer",
+        },
+      }),
       AttachmentCardExtension,
       ...(enableTables
         ? [
@@ -318,6 +329,14 @@ export function RichEditor({
           if (src && !src.startsWith("#")) {
             window.open(src, "_blank");
           }
+          return true;
+        }
+
+        const linkEl = target.closest("a[href]") as HTMLAnchorElement | null;
+        if (linkEl && linkEl.href && !linkEl.href.startsWith("#")) {
+          event.preventDefault();
+          event.stopPropagation();
+          window.open(linkEl.href, "_blank");
           return true;
         }
 

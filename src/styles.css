@@ -97,6 +97,19 @@
 
 
 /* Utilities */
+.tiptap a, .prose a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
+  cursor: pointer !important;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.tiptap a:hover, .prose a:hover {
+  opacity: 0.8;
+}
+
 @utility surface-card {
   background-color: var(--surface);
   border: 1px solid var(--border);
