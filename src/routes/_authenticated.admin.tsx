@@ -36,6 +36,7 @@ import {
   Pencil,
   Trash2,
   DollarSign,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -86,6 +87,7 @@ function AdminPage() {
 
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const [faviconProgress, setFaviconProgress] = useState(0);
   const uploadFn = useServerFn(uploadToGDrive);
 
   const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,6 +95,11 @@ function AdminPage() {
     if (!file) return;
 
     setUploadingFavicon(true);
+    setFaviconProgress(10);
+    const progressInterval = setInterval(() => {
+      setFaviconProgress((prev) => Math.min(prev + Math.floor(Math.random() * 15) + 5, 90));
+    }, 300);
+
     const reader = new FileReader();
     reader.onload = async (event) => {
       const base64 = (event.target?.result as string).split(",")[1];
@@ -123,7 +130,9 @@ function AdminPage() {
         setFaviconUrl(fallbackUrl);
         toast.warning(`Hospedagem falhou: ${error.message || error}. Usando fallback local.`);
       } finally {
+        clearInterval(progressInterval);
         setUploadingFavicon(false);
+        setFaviconProgress(0);
       }
     };
     reader.readAsDataURL(file);
@@ -527,8 +536,12 @@ function AdminPage() {
                           onClick={() => faviconInputRef.current?.click()}
                           className="border-border gap-1.5 text-xs text-foreground hover:bg-surface-2 h-9 cursor-pointer"
                         >
-                          <Upload className="h-3.5 w-3.5" />
-                          {uploadingFavicon ? "Subindo..." : "Subir"}
+                          {uploadingFavicon ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                          ) : (
+                            <Upload className="h-3.5 w-3.5" />
+                          )}
+                          {uploadingFavicon ? `Subindo (${faviconProgress}%)...` : "Subir"}
                         </Button>
                       </div>
                     </div>

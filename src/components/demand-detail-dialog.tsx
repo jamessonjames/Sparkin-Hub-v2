@@ -33,6 +33,7 @@ import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
 import { RichEditor } from "@/components/rich-editor";
 import { FileAttachments } from "@/components/file-attachments";
 import { uploadAttachment } from "@/lib/attachments.functions";
+import { uploadToGDrive } from "@/lib/gdrive.functions";
 import { getGDriveAccessToken } from "@/lib/gdrive-token";
 import { Trash2, Send, Calendar, X, Save, User, Loader2, Pencil, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -118,15 +119,40 @@ export function DemandDetailDialog({
   const uploadAttachmentFn = useServerFn(uploadAttachment);
   const qc = useQueryClient();
 
-  const [isDragging, setIsDragging] = useState(false);
-  const [isUploadingDroppedFile, setIsUploadingDroppedFile] = useState(false);
+  const [isDraggingDetails, setIsDraggingDetails] = useState(false);
+  const [isDraggingComments, setIsDraggingComments] = useState(false);
+  const [uploadingAttachments, setUploadingAttachments] = useState<any[]>([]);
+  const [isUploadingCommentFile, setIsUploadingCommentFile] = useState(false);
+  const [commentUploadProgress, setCommentUploadProgress] = useState(0);
+
+  const uploadToGDriveFn = useServerFn(uploadToGDrive);
+
+  const formatFileSizeLocal = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const handleAttachFile = async (file: File) => {
     if (isNew || id === "new") {
       toast.error("Por favor, salve a demanda antes de anexar arquivos.");
       return;
     }
-    setIsUploadingDroppedFile(true);
+    const tempId = Math.random().toString();
+    const newUpload = { id: tempId, name: file.name, size: file.size, progress: 10 };
+    setUploadingAttachments((prev) => [...prev, newUpload]);
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setUploadingAttachments((prev) =>
+        prev.map((item) =>
+          item.id === tempId
+            ? { ...item, progress: Math.min(item.progress + Math.floor(Math.random() * 15) + 5, 90) }
+            : item
+        )
+      );
+    }, 350);
+
     try {
       const reader = new FileReader();
       await new Promise<void>((resolve, reject) => {
@@ -166,7 +192,61 @@ export function DemandDetailDialog({
     } catch (err) {
       console.error(err);
     } finally {
-      setIsUploadingDroppedFile(false);
+      clearInterval(progressInterval);
+      setUploadingAttachments((prev) => prev.filter((item) => item.id !== tempId));
+    }
+  };
+
+  const handleAttachCommentFile = async (file: File) => {
+    setIsUploadingCommentFile(true);
+    setCommentUploadProgress(10);
+    const progressInterval = setInterval(() => {
+      setCommentUploadProgress((prev) => Math.min(prev + Math.floor(Math.random() * 15) + 5, 90));
+    }, 300);
+
+    try {
+      const reader = new FileReader();
+      await new Promise<void>((resolve, reject) => {
+        reader.onload = async (e) => {
+          const base64 = (e.target?.result as string).split(",")[1];
+          try {
+            const accessToken = await getGDriveAccessToken();
+            const res = await uploadToGDriveFn({
+              data: {
+                accessToken,
+                fileBase64: base64,
+                fileName: file.name,
+                mimeType: file.type || "application/octet-stream",
+                pathParts: gDrivePath,
+              },
+            });
+            if (res.success && res.url) {
+              let html = "";
+              if (file.type.startsWith("image/")) {
+                html = `<img src="${res.url}" alt="${file.name}" style="max-width: 100%; border-radius: 0.5rem;" /> `;
+              } else {
+                html = `<a href="${res.url}" target="_blank" rel="noopener noreferrer" class="comment-file-card"><span class="comment-file-card-content"><span class="comment-file-card-icon">📄</span><span class="comment-file-card-info"><span class="comment-file-card-name">${file.name}</span><span class="comment-file-card-size">${formatFileSizeLocal(file.size)}</span></span></span></a> `;
+              }
+              setComment((prev) => prev + html);
+              toast.success(`"${file.name}" anexado ao comentário!`);
+              resolve();
+            } else {
+              toast.error(res.error || "Erro ao subir arquivo para o comentário.");
+              reject(new Error(res.error));
+            }
+          } catch (err: any) {
+            toast.error(err.message || "Erro ao subir arquivo.");
+            reject(err);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      clearInterval(progressInterval);
+      setIsUploadingCommentFile(false);
+      setCommentUploadProgress(0);
     }
   };
 
@@ -757,35 +837,7 @@ export function DemandDetailDialog({
     >
       <div
         className="relative w-full max-w-[95vw] lg:max-w-5xl xl:max-w-6xl h-[90vh] bg-card border border-border rounded-2xl flex flex-col overflow-hidden shadow-2xl my-auto mx-auto animate-in fade-in zoom-in duration-200"
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setIsDragging(true);
-        }}
-        onDragLeave={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setIsDragging(false);
-        }}
-        onDrop={async (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setIsDragging(false);
-          const files = Array.from(e.dataTransfer.files);
-          if (files.length > 0) {
-            for (const file of files) {
-              await handleAttachFile(file);
-            }
-          }
-        }}
       >
-        {isDragging && (
-          <div className="absolute inset-0 bg-background/85 backdrop-blur-sm z-50 flex flex-col items-center justify-center border-2 border-dashed border-primary m-4 rounded-xl pointer-events-none animate-in fade-in duration-200">
-            <Upload className="h-10 w-10 text-primary mb-2 animate-bounce" />
-            <p className="text-sm font-bold text-foreground font-display">Solte os arquivos aqui</p>
-            <p className="text-xs text-muted-foreground mt-1">Eles serão anexados à demanda automaticamente.</p>
-          </div>
-        )}
 
         {(!isNew && !portalMode && isDemandLoading) ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">Carregando...</div>
@@ -849,7 +901,37 @@ export function DemandDetailDialog({
             <div className="flex flex-1 min-h-0">
 
               {/* Left Panel */}
-              <div className="flex-1 px-6 py-5 flex flex-col gap-4 min-h-0">
+              <div 
+                className="flex-1 px-6 py-5 flex flex-col gap-4 min-h-0 relative"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingDetails(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingDetails(false);
+                }}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingDetails(false);
+                  const files = Array.from(e.dataTransfer.files);
+                  if (files.length > 0) {
+                    for (const file of files) {
+                      await handleAttachFile(file);
+                    }
+                  }
+                }}
+              >
+                {isDraggingDetails && (
+                  <div className="absolute inset-0 bg-background/85 backdrop-blur-sm z-50 flex flex-col items-center justify-center border-2 border-dashed border-primary m-4 rounded-xl pointer-events-none animate-in fade-in duration-200">
+                    <Upload className="h-10 w-10 text-primary mb-2 animate-bounce" />
+                    <p className="text-sm font-bold text-foreground font-display">Solte os arquivos aqui</p>
+                    <p className="text-xs text-muted-foreground mt-1">Eles serão anexados à demanda automaticamente.</p>
+                  </div>
+                )}
 
                 {/* Meta fields row — flex-wrap so chips stay naturally sized (left-aligned) */}
                 <div className="flex flex-wrap gap-x-6 gap-y-3 bg-muted/20 p-4 rounded-xl border border-border/80 shrink-0">
@@ -1046,21 +1128,50 @@ export function DemandDetailDialog({
                     readOnly={!descriptionEditable}
                     placeholder="Descreva a demanda em detalhes..."
                     gDrivePath={gDrivePath}
-                    onAttachFile={handleAttachFile}
                   />
                 </div>
 
                 {/* Attachments Section — only for existing demands */}
                 {!isNew && !portalMode && id !== "new" && (
                   <div className="shrink-0 border-t border-border pt-3 px-0.5">
-                    <FileAttachments entityType="demand" entityId={id} hideUploadButton={true} />
+                    <FileAttachments entityType="demand" entityId={id} hideUploadButton={true} uploadingFiles={uploadingAttachments} />
                   </div>
                 )}
               </div>
 
               {/* Right Panel — Comments */}
               {!isNew && showComments && (
-                <div className="w-[360px] md:w-[400px] shrink-0 border-l border-border flex flex-col bg-muted/10">
+                <div 
+                  className="w-[360px] md:w-[400px] shrink-0 border-l border-border flex flex-col bg-muted/10 relative"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingComments(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingComments(false);
+                  }}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingComments(false);
+                    const files = Array.from(e.dataTransfer.files);
+                    if (files.length > 0) {
+                      for (const file of files) {
+                        await handleAttachCommentFile(file);
+                      }
+                    }
+                  }}
+                >
+                  {isDraggingComments && (
+                    <div className="absolute inset-0 bg-background/85 backdrop-blur-sm z-50 flex flex-col items-center justify-center border-2 border-dashed border-primary m-4 rounded-xl pointer-events-none animate-in fade-in duration-200">
+                      <Upload className="h-8 w-8 text-primary mb-2 animate-bounce" />
+                      <p className="text-xs font-bold text-foreground font-display">Solte para o comentário</p>
+                      <p className="text-[10px] text-muted-foreground mt-1 text-center px-4">O arquivo será anexado e inserido na sua mensagem.</p>
+                    </div>
+                  )}
                   <div className="px-3.5 py-2.5 border-b border-border shrink-0">
                     <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Comentários</h4>
                   </div>
@@ -1157,7 +1268,16 @@ export function DemandDetailDialog({
                   </div>
 
                   {/* Comment input */}
-                  <div className="px-3.5 py-2.5 border-t border-border bg-muted/10 shrink-0">
+                  <div className="px-3.5 py-2.5 border-t border-border bg-muted/10 shrink-0 relative">
+                    {isUploadingCommentFile && (
+                      <div className="absolute inset-x-0 -top-8 px-3.5 py-1.5 bg-background/95 border-t border-b border-border flex items-center justify-between text-[11px] text-muted-foreground z-10 animate-pulse">
+                        <span className="flex items-center gap-1.5 font-medium">
+                          <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                          Enviando para o comentário...
+                        </span>
+                        <span className="font-bold text-primary">{commentUploadProgress}%</span>
+                      </div>
+                    )}
                     <RichEditor
                       content={comment}
                       onChange={(html) => setComment(html)}

@@ -174,11 +174,23 @@ export function RichEditor({
   }
 
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const uploadFn = useServerFn(uploadToGDrive);
+
+  const formatFileSizeLocal = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const insertImage = useCallback(
     async (file: File) => {
       setUploading(true);
+      setUploadProgress(10);
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => Math.min(prev + Math.floor(Math.random() * 15) + 5, 90));
+      }, 300);
+
       const reader = new FileReader();
       reader.onload = async (e) => {
         const fullBase64 = e.target?.result as string;
@@ -207,7 +219,9 @@ export function RichEditor({
           editor?.chain().focus().setImage({ src: fullBase64 }).run();
           toast.warning("Falha ao subir para o Google Drive. Usando base64.");
         } finally {
+          clearInterval(progressInterval);
           setUploading(false);
+          setUploadProgress(0);
         }
       };
       reader.readAsDataURL(file);
@@ -228,6 +242,11 @@ export function RichEditor({
       }
 
       setUploading(true);
+      setUploadProgress(10);
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => Math.min(prev + Math.floor(Math.random() * 15) + 5, 90));
+      }, 300);
+
       try {
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -245,7 +264,8 @@ export function RichEditor({
             });
 
             if (response.success && response.url) {
-              editor?.chain().focus().insertContent(`<a href="${response.url}" target="_blank" rel="noopener noreferrer" class="text-primary underline font-medium hover:opacity-80">${file.name}</a> `).run();
+              const cardHtml = `<a href="${response.url}" target="_blank" rel="noopener noreferrer" class="comment-file-card"><span class="comment-file-card-content"><span class="comment-file-card-icon">📄</span><span class="comment-file-card-info"><span class="comment-file-card-name">${file.name}</span><span class="comment-file-card-size">${formatFileSizeLocal(file.size)}</span></span></span></a> `;
+              editor?.chain().focus().insertContent(cardHtml).run();
               toast.success(`Arquivo "${file.name}" anexado e link adicionado!`);
             } else {
               toast.error(response.error || "Erro ao carregar arquivo.");
@@ -254,13 +274,16 @@ export function RichEditor({
             console.error("Upload error:", error);
             toast.error("Erro ao subir arquivo.");
           } finally {
+            clearInterval(progressInterval);
             setUploading(false);
+            setUploadProgress(0);
           }
         };
         reader.readAsDataURL(file);
       } catch {
         toast.error("Erro ao ler o arquivo.");
         setUploading(false);
+        setUploadProgress(0);
       }
     },
     [onAttachFile, insertImage, uploadFn, gDrivePath, editor]
@@ -596,9 +619,9 @@ export function RichEditor({
           borderless ? "px-6" : "px-3"
         )}>
           {uploading && (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground mr-auto animate-pulse">
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground mr-auto animate-pulse font-medium">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-              Enviando para o Google Drive...
+              Enviando para o Google Drive ({uploadProgress}%)...
             </span>
           )}
           <button

@@ -34,11 +34,13 @@ export function FileAttachments({
   entityId,
   disabled,
   hideUploadButton,
+  uploadingFiles = [],
 }: {
   entityType: "client" | "demand";
   entityId: string;
   disabled?: boolean;
   hideUploadButton?: boolean;
+  uploadingFiles?: { id: string; name: string; size: number; progress: number }[];
 }) {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -141,10 +143,36 @@ export function FileAttachments({
         )}
       </div>
 
-      {files.length === 0 ? (
+      {files.length === 0 && uploadingFiles.length === 0 ? (
         <p className="text-[11px] text-muted-foreground/60 italic">Nenhum anexo.</p>
       ) : (
         <div className="flex flex-col gap-1.5">
+          {/* Uploading Files list */}
+          {uploadingFiles.map((file) => (
+            <div
+              key={file.id}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-border bg-muted/5 relative overflow-hidden animate-pulse"
+            >
+              <Loader2 className="h-4 w-4 shrink-0 text-primary animate-spin" />
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-baseline mb-1">
+                  <p className="text-xs font-medium text-foreground truncate">{file.name}</p>
+                  <span className="text-[10px] text-primary font-bold">{file.progress}%</span>
+                </div>
+                <div className="w-full bg-muted h-1 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-primary h-full transition-all duration-300"
+                    style={{ width: `${file.progress}%` }}
+                  />
+                </div>
+                <p className="text-[9px] text-muted-foreground mt-0.5">
+                  {formatFileSize(file.size)} • Enviando para o Google Drive...
+                </p>
+              </div>
+            </div>
+          ))}
+
+          {/* Completed Files list */}
           {files.map((file: any) => {
             const Icon = getFileIcon(file.file_type);
             return (
