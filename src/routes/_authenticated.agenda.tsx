@@ -1240,32 +1240,6 @@ function DraggableReminderCard({
 
   const style = COLOR_TAG[reminder.color] || COLOR_TAG.yellow;
 
-  if (hasDemandInSlot) {
-    return (
-      <div
-        ref={setNodeRef}
-        {...attributes}
-        {...listeners}
-        data-reminder-card="true"
-        onClick={(e) => { e.stopPropagation(); onClick(); }}
-        className={cn(
-          "absolute top-1 right-1 z-30 max-w-[55%] h-5 px-1.5 rounded-md border text-[9px] font-bold shadow-lg select-none flex items-center gap-1 cursor-grab active:cursor-grabbing hover:scale-105 transition-all truncate",
-          style.bg,
-          style.border,
-          style.text,
-          isDragging && "opacity-40 scale-95 shadow-2xl rotate-2 z-50"
-        )}
-        title={`Lembrete: ${reminder.title}`}
-      >
-        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0 animate-pulse", style.dot)} />
-        <span className="truncate">{reminder.title}</span>
-        {reminder.recurrence_type && reminder.recurrence_type !== "none" && (
-          <span className="text-[8px] opacity-70 shrink-0">↻</span>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div
       ref={setNodeRef}
@@ -1274,61 +1248,45 @@ function DraggableReminderCard({
       data-reminder-card="true"
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       className={cn(
-        "rounded-md border text-[10px] font-semibold shadow-sm select-none flex items-center justify-between px-2 py-0.5 h-6 my-1 z-20 relative cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-all",
+        "z-30 h-5.5 px-2 rounded-full border text-[9.5px] font-bold shadow-md select-none flex items-center gap-1.5 cursor-grab active:cursor-grabbing hover:scale-105 transition-all truncate",
+        hasDemandInSlot ? "absolute top-1 right-1 max-w-[55%]" : "relative my-1 float-right max-w-[90%]",
         style.bg,
         style.border,
         style.text,
         isDragging && "opacity-40 scale-95 shadow-2xl rotate-2 z-50"
       )}
+      title={`Lembrete: ${reminder.title}`}
     >
-      <div className="flex items-center gap-1.5 min-w-0 flex-1">
-        <span className={cn("h-2 w-2 rounded-full shrink-0", style.dot)} />
-        <span className="truncate font-medium">{reminder.title}</span>
-        {reminder.recurrence_type && reminder.recurrence_type !== "none" && (
-          <span className="text-[8px] opacity-70 shrink-0" title="Recorrente">↻</span>
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); onComplete(); }}
-        className="text-emerald-400 hover:text-emerald-300 p-0.5 rounded hover:bg-emerald-500/20 transition-colors shrink-0 cursor-pointer"
-        title="Concluir Lembrete"
-      >
-        <CheckCircle2 className="h-3 w-3" />
-      </button>
+      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0 animate-pulse", style.dot)} />
+      <span className="truncate">{reminder.title}</span>
+      {reminder.recurrence_type && reminder.recurrence_type !== "none" && (
+        <span className="text-[8px] opacity-75 shrink-0" title="Recorrente">↻</span>
+      )}
     </div>
   );
 }
 
 function ReminderPostItCardPreview({ reminder }: { reminder: ReminderData }) {
-  const COLOR_HEADER: Record<string, string> = {
-    yellow: "bg-[#d4a017] text-amber-950",
-    blue:   "bg-[#2383e2] text-white",
-    green:  "bg-[#0f9d58] text-white",
-    purple: "bg-[#ab47bc] text-white",
-    gray:   "bg-[#383838] text-white",
+  const COLOR_TAG: Record<string, { bg: string; border: string; text: string; dot: string }> = {
+    yellow: { bg: "bg-[#2b2416]", border: "border-[#d4a017]", text: "text-amber-300", dot: "bg-[#d4a017]" },
+    blue:   { bg: "bg-[#162436]", border: "border-[#2383e2]", text: "text-blue-300",  dot: "bg-[#2383e2]" },
+    green:  { bg: "bg-[#14291c]", border: "border-[#0f9d58]", text: "text-emerald-300", dot: "bg-[#0f9d58]" },
+    purple: { bg: "bg-[#27182e]", border: "border-[#ab47bc]", text: "text-purple-300", dot: "bg-[#ab47bc]" },
+    gray:   { bg: "bg-[#222222]", border: "border-[#666666]", text: "text-zinc-300",  dot: "bg-[#888888]" },
   };
-
-  const COLOR_BG: Record<string, string> = {
-    yellow: "bg-[#252219] border-[#d4a017]",
-    blue:   "bg-[#182330] border-[#2383e2]",
-    green:  "bg-[#15241b] border-[#0f9d58]",
-    purple: "bg-[#231828] border-[#ab47bc]",
-    gray:   "bg-[#202020] border-[#383838]",
-  };
+  const style = COLOR_TAG[reminder.color] || COLOR_TAG.yellow;
 
   return (
     <div
-      style={{ width: 170 }}
       className={cn(
-        "rounded-lg border text-[10px] font-medium shadow-2xl select-none flex flex-col justify-between overflow-hidden opacity-95 my-0.5 z-50",
-        COLOR_BG[reminder.color] || COLOR_BG.yellow
+        "h-5.5 px-2 rounded-full border text-[9.5px] font-bold shadow-2xl select-none flex items-center gap-1.5 opacity-95",
+        style.bg,
+        style.border,
+        style.text
       )}
     >
-      <div className={cn("h-1.5 w-full shrink-0", COLOR_HEADER[reminder.color] || COLOR_HEADER.yellow)} />
-      <div className="px-2 py-1 flex items-center justify-between gap-1 min-w-0">
-        <span className="font-bold text-foreground truncate">{reminder.title}</span>
-      </div>
+      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", style.dot)} />
+      <span className="truncate">{reminder.title}</span>
     </div>
   );
 }
