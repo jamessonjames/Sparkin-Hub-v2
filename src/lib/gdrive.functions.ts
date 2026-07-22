@@ -140,6 +140,107 @@ export const storeGoogleDriveToken = createServerFn({ method: "POST" })
     }
   });
 
+// Store Google Drive authorization code after GIS popup authorization code flow
+export const storeGoogleDriveCode = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator(z.object({
+    code: z.string(),
+  }))
+  .handler(async ({ data: { code }, context }) => {
+    try {
+      const GOOGLE_CLIENT_ID = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_ID) || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
+
+      const params = new URLSearchParams({
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        grant_type: "authorization_code",
+        redirect_uri: "postmessage",
+      });
+
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params.toString(),
+      });
+
+      if (!tokenRes.ok) {
+        const errText = await tokenRes.text();
+        console.error("Token exchange failed:", errText);
+        throw new Error(`Erro ao trocar código com o Google: ${errText}`);
+      }
+
+      const tokenData = await tokenRes.json();
+      const accessToken = tokenData.access_token;
+      const refreshToken = tokenData.refresh_token || null;
+      const expiresIn = tokenData.expires_in || 3600;
+      const expiresAt = Date.now() + expiresIn * 1000;
+
+      if (!accessToken) {
+        throw new Error("O Google não forneceu um token de acesso válido.");
+      }
+
+      // Fetch user email from Google Drive API
+      let userEmail = "Desconhecido";
+      try {
+        const driveAboutRes = await fetch("https://www.googleapis.com/drive/v3/about?fields=user", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (driveAboutRes.ok) {
+          const driveAbout = await driveAboutRes.json();
+          if (driveAbout?.user?.emailAddress) {
+            userEmail = driveAbout.user.emailAddress;
+          }
+        }
+        if (userEmail === "Desconhecido") {
+          const infoRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (infoRes.ok) {
+            const info = await infoRes.json();
+            if (info?.email) userEmail = info.email;
+          }
+        }
+      } catch (e) {
+        console.error("Error fetching email in storeGoogleDriveCode:", e);
+      }
+
+      // Read existing credentials to preserve root folder ID or existing refresh token if not re-issued
+      const { data: existingData } = await context.supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "google_drive_credentials")
+        .maybeSingle();
+
+      const existingVal = (existingData?.value as any) || {};
+      const finalRefreshToken = refreshToken || existingVal.refresh_token || null;
+
+      let rootFolderId = existingVal.folder_id;
+      if (!rootFolderId) {
+        rootFolderId = await getOrCreateFolderPath(accessToken, []);
+      }
+
+      const { error: dbError } = await context.supabase
+        .from("system_settings")
+        .upsert({
+          key: "google_drive_credentials",
+          value: {
+            account_email: userEmail !== "Desconhecido" ? userEmail : existingVal.account_email || "Conectado",
+            folder_id: rootFolderId,
+            access_token: accessToken,
+            refresh_token: finalRefreshToken,
+            expires_at: expiresAt,
+          },
+        });
+
+      if (dbError) throw new Error(`Erro ao salvar no banco de dados: ${dbError.message}`);
+
+      return { success: true, email: userEmail, hasRefreshToken: !!finalRefreshToken };
+    } catch (error: any) {
+      console.error("storeGoogleDriveCode error:", error);
+      return { success: false, error: error.message || "Erro desconhecido ao vincular conta." };
+    }
+  });
+
 // Get Google Drive connection status
 export const getGoogleDriveStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

@@ -40,6 +40,27 @@ export async function getGDriveAccessToken(): Promise<string> {
   });
 }
 
+export async function connectGDriveCode(): Promise<string> {
+  await ensureGISLoaded();
+  return new Promise((resolve, reject) => {
+    const codeClient = google.accounts.oauth2.initCodeClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email email",
+      ux_mode: "popup",
+      callback: (response: any) => {
+        if (response.code) {
+          resolve(response.code);
+        } else if (response.error) {
+          reject(new Error(response.error_description || response.error || "Falha ao obter código do Google Drive"));
+        } else {
+          reject(new Error("Autorização do Google cancelada ou não concluída."));
+        }
+      },
+    });
+    codeClient.requestCode();
+  });
+}
+
 export async function connectGDrive(): Promise<{ accessToken: string; email: string }> {
   await ensureGISLoaded();
   return new Promise((resolve, reject) => {

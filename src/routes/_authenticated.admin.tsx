@@ -3,8 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listUsersWithRoles, updateUserRole, createUserWithRole, updateUserAdmin, deleteUserAdmin, saveUserPreferences, getUserPreferences } from "@/lib/users.functions";
-import { storeGoogleDriveToken, getGoogleDriveStatus, disconnectGoogleDrive, uploadToGDrive } from "@/lib/gdrive.functions";
-import { connectGDrive, clearGDriveToken, getGDriveAccessToken } from "@/lib/gdrive-token";
+import { storeGoogleDriveToken, storeGoogleDriveCode, getGoogleDriveStatus, disconnectGoogleDrive, uploadToGDrive } from "@/lib/gdrive.functions";
+import { connectGDrive, connectGDriveCode, clearGDriveToken, getGDriveAccessToken } from "@/lib/gdrive-token";
 import { getPricingSettings, savePricingSettings } from "@/lib/pricing.functions";
 import { applyThemeAndHighlight, HIGHLIGHT_COLORS, type HighlightColor } from "@/utils/theme";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -171,6 +171,7 @@ function AdminPage() {
   const getStatusFn = useServerFn(getGoogleDriveStatus);
   const disconnectFn = useServerFn(disconnectGoogleDrive);
   const storeTokenFn = useServerFn(storeGoogleDriveToken);
+  const storeCodeFn = useServerFn(storeGoogleDriveCode);
 
   // Pricing settings state
   const [baseHourlyRate, setBaseHourlyRate] = useState<number>(80);
@@ -232,19 +233,38 @@ function AdminPage() {
       return;
     }
     try {
+      toast.loading("Conectando sua conta do Google Drive de forma permanente...");
+      
+      // 1. Try Code Client authorization flow first for permanent offline access
+      try {
+        const code = await connectGDriveCode();
+        const res = await storeCodeFn({ data: { code } });
+        toast.dismiss();
+        if (res.success) {
+          setGDriveConnected(true);
+          setGDriveExpired(false);
+          setGDriveEmail(res.email || "Conectado");
+          toast.success(`Google Drive vinculado com sucesso em modo PERMANENTE: ${res.email}`);
+          return;
+        }
+      } catch (codeErr: any) {
+        console.warn("Code client authorization fallback:", codeErr);
+      }
+
+      // 2. Fallback to token client authorization if code flow isn't supported by browser environment
       const { accessToken, email } = await connectGDrive();
-      toast.loading("Conectando sua conta do Google Drive...");
       const res = await storeTokenFn({ data: { accessToken, email } });
       toast.dismiss();
       if (res.success) {
         setGDriveConnected(true);
         setGDriveExpired(false);
         setGDriveEmail(email);
-        toast.success(`Google Drive conectado com sucesso: ${email}`);
+        toast.success(`Google Drive vinculado com sucesso: ${email}`);
       } else {
         toast.error(`Falha ao conectar Google Drive: ${res.error}`);
       }
     } catch (err: any) {
+      toast.dismiss();
       toast.error(err.message || "Falha ao conectar Google Drive.");
     }
   };
