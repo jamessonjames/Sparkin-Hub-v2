@@ -12,7 +12,7 @@ import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { useUserContext } from "@/contexts/user-context";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check } from "lucide-react";
 import { STATUS_LABELS } from "@/lib/demand-labels";
 import { cn } from "@/lib/utils";
 import {
@@ -996,20 +996,34 @@ function DaySummaryPill({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-muted/60 hover:bg-muted text-foreground border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer truncate max-w-[115px]"
+          className="mt-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#222222] hover:bg-[#2a2a2a] text-foreground border border-white/10 flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer truncate max-w-[95%]"
           title="Ver demandas concluídas e em análise do dia"
         >
           {summary.concluida.length > 0 && (
-            <span className="text-emerald-400 font-bold">✓ {summary.concluida.length}</span>
+            <span className="flex items-center gap-1 text-emerald-400 font-semibold truncate">
+              <Check className="h-3 w-3 text-emerald-400 shrink-0 stroke-[2.5]" />
+              <span>{summary.concluida.length} {summary.concluida.length === 1 ? "concluído" : "concluídos"}</span>
+            </span>
           )}
+
+          {summary.concluida.length > 0 && summary.para_analise.length > 0 && (
+            <span className="text-white/20 text-[9px]">•</span>
+          )}
+
           {summary.para_analise.length > 0 && (
-            <span className="text-purple-400 font-bold">⏳ {summary.para_analise.length}</span>
+            <span className="flex items-center gap-1 text-purple-400 font-semibold truncate">
+              <Clock className="h-3 w-3 text-purple-400 shrink-0 stroke-[2.5]" />
+              <span>{summary.para_analise.length} em análise</span>
+            </span>
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="center" className="w-60 p-2.5 bg-[#222222] border border-white/10 text-foreground rounded-xl shadow-2xl space-y-2 z-50">
-        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-0.5">Fora do Expediente</p>
-        <div className="space-y-1.5 max-h-52 overflow-y-auto pr-0.5">
+      <PopoverContent align="center" className="w-64 p-3 bg-[#222222] border border-white/10 text-foreground rounded-xl shadow-2xl space-y-2.5 z-50">
+        <div className="flex items-center justify-between border-b border-white/10 pb-1.5 px-0.5">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Fora da Grade</p>
+          <span className="text-[10px] text-muted-foreground font-medium">{totalCount} no total</span>
+        </div>
+        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5 scrollbar-thin">
           {summary.para_analise.map((d) => (
             <div
               key={d.id}
@@ -1017,7 +1031,10 @@ function DaySummaryPill({
               className="p-2 rounded-lg bg-[#2a2433] hover:bg-[#342b40] border border-purple-500/30 text-xs cursor-pointer transition-colors"
             >
               <p className="font-semibold text-purple-200 truncate">{d.title}</p>
-              <p className="text-[10px] text-purple-400 font-medium">⏳ Para Análise</p>
+              <div className="flex items-center gap-1 text-[10px] text-purple-400 font-medium mt-0.5">
+                <Clock className="h-3 w-3 shrink-0 stroke-[2]" />
+                <span>Em Análise</span>
+              </div>
             </div>
           ))}
           {summary.concluida.map((d) => (
@@ -1027,7 +1044,10 @@ function DaySummaryPill({
               className="p-2 rounded-lg bg-[#1a2820] hover:bg-[#203328] border border-emerald-500/30 text-xs cursor-pointer transition-colors"
             >
               <p className="font-semibold text-emerald-200 truncate line-through">{d.title}</p>
-              <p className="text-[10px] text-emerald-400 font-medium">✓ Concluída</p>
+              <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium mt-0.5">
+                <Check className="h-3 w-3 shrink-0 stroke-[2.5]" />
+                <span>Concluída</span>
+              </div>
             </div>
           ))}
         </div>
