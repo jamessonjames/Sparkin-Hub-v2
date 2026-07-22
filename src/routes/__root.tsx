@@ -38,6 +38,19 @@ function NotFoundComponent() {
   );
 }
 
+function safeReloadOnChunkError() {
+  if (typeof window === "undefined") return;
+  const KEY = "chunk_error_reload_ts";
+  const last = sessionStorage.getItem(KEY);
+  const now = Date.now();
+  if (!last || now - Number(last) > 20000) {
+    sessionStorage.setItem(KEY, String(now));
+    const url = new URL(window.location.href);
+    url.searchParams.set("_v", String(now));
+    window.location.href = url.toString();
+  }
+}
+
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
@@ -47,7 +60,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
       error?.message &&
       /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(error.message)
     ) {
-      window.location.reload();
+      safeReloadOnChunkError();
     }
   }, [error]);
 
@@ -63,7 +76,8 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
-              window.location.reload();
+              sessionStorage.removeItem("chunk_error_reload_ts");
+              window.location.href = window.location.pathname + "?_v=" + Date.now();
             }}
             className="btn-primary"
           >
@@ -135,15 +149,15 @@ function RootComponent() {
   const getPrefsFn = useServerFn(getUserPreferences);
 
   useEffect(() => {
-    const isChunkError = (msg: string) => /Failed to fetch dynamically imported module/.test(msg);
+    const isChunkError = (msg: string) => /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(msg);
 
     const onError = (e: ErrorEvent) => {
-      if (isChunkError(e.message)) window.location.reload();
+      if (isChunkError(e.message)) safeReloadOnChunkError();
     };
     const onRejection = (e: PromiseRejectionEvent) => {
-      if (isChunkError(e.reason?.message || "")) window.location.reload();
+      if (isChunkError(e.reason?.message || "")) safeReloadOnChunkError();
     };
-    const onPreloadError = () => window.location.reload();
+    const onPreloadError = () => safeReloadOnChunkError();
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
     window.addEventListener("vite:preloadError", onPreloadError);
