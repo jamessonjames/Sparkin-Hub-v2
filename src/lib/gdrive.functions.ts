@@ -171,7 +171,7 @@ export async function uploadFile(
   };
 
   const metadataPart = `Content-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}`;
-  const headerStr = `${firstDelimiter}${metadataPart}${partDelimiter}Content-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n`;
+  const headerStr = `${firstDelimiter}${metadataPart}${partDelimiter}Content-Type: ${mimeType}\r\n\r\n`;
   const footerStr = closeDelimiter;
 
   const headerBuffer = Buffer.from(headerStr, "utf8");
