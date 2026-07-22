@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState, useRef, useEffect } from "react";
 import { listDemands, batchUpdateDueDates, updateDemand } from "@/lib/demands.functions";
+import { listClients } from "@/lib/clients.functions";
 import { listReminders, upsertReminder, completeReminder, deleteReminder } from "@/lib/reminders.functions";
 import { ReminderDialog, type ReminderData } from "@/components/reminder-dialog";
 import { AgendaSlotModal } from "@/components/agenda-slot-modal";
@@ -188,6 +189,7 @@ const customCollisionDetection = (args: any) => {
 
 function AgendaPage() {
   const listFn = useServerFn(listDemands);
+  const clientsFn = useServerFn(listClients);
   const batchUpdateFn = useServerFn(batchUpdateDueDates);
   const updateFn = useServerFn(updateDemand);
   const overlay = useDemandOverlay();
@@ -199,6 +201,11 @@ function AgendaPage() {
   const { data: demands = [] } = useQuery({
     queryKey: ["demands", selectedUserId],
     queryFn: () => listFn({ data: isAdminOrOwner && selectedUserId ? { assigneeUserId: selectedUserId } : {} }),
+  });
+
+  const { data: allClients = [] } = useQuery({
+    queryKey: ["clients"],
+    queryFn: () => clientsFn(),
   });
 
   // Config State
@@ -602,14 +609,8 @@ function AgendaPage() {
   }, [config.startHour, viewMode]);
 
   const clientsForOverlay = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const d of demands) {
-      if (d.clients) {
-        map.set((d.clients as any).id, (d.clients as any).name);
-      }
-    }
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-  }, [demands]);
+    return allClients.map((c: any) => ({ id: c.id, name: c.name }));
+  }, [allClients]);
 
   return (
     <DndContext
