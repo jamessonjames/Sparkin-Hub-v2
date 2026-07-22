@@ -82,12 +82,29 @@ export const storeGoogleDriveToken = createServerFn({ method: "POST" })
       const rootFolderId = await getOrCreateFolderPath(accessToken, []);
       const expiresAt = Date.now() + (expiresIn || 3600) * 1000;
 
+      let finalEmail = email;
+      if (!finalEmail || finalEmail === "Desconhecido") {
+        try {
+          const driveAboutRes = await fetch("https://www.googleapis.com/drive/v3/about?fields=user", {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (driveAboutRes.ok) {
+            const driveAbout = await driveAboutRes.json();
+            if (driveAbout?.user?.emailAddress) {
+              finalEmail = driveAbout.user.emailAddress;
+            }
+          }
+        } catch (e) {
+          console.error("Error fetching email in storeGoogleDriveToken:", e);
+        }
+      }
+
       const { error: dbError } = await context.supabase
         .from("system_settings")
         .upsert({
           key: "google_drive_credentials",
           value: {
-            account_email: email,
+            account_email: finalEmail,
             folder_id: rootFolderId,
             access_token: accessToken,
             refresh_token: refreshToken || null,

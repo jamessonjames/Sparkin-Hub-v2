@@ -45,19 +45,37 @@ export async function connectGDrive(): Promise<{ accessToken: string; email: str
   return new Promise((resolve, reject) => {
     const tc = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive",
+      scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email email",
       callback: async (response: any) => {
         if (response.access_token) {
           cachedToken = response.access_token;
           tokenExpiry = Date.now() + (response.expires_in || 3600) * 1000;
+          let userEmail = "Desconhecido";
           try {
-            const info = await (await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+            // 1. Try Google Drive About API
+            const driveAboutRes = await fetch("https://www.googleapis.com/drive/v3/about?fields=user", {
               headers: { Authorization: `Bearer ${response.access_token}` },
-            })).json();
-            resolve({ accessToken: response.access_token, email: info.email || "Desconhecido" });
-          } catch {
-            resolve({ accessToken: response.access_token, email: "Desconhecido" });
+            });
+            if (driveAboutRes.ok) {
+              const driveAbout = await driveAboutRes.json();
+              if (driveAbout?.user?.emailAddress) {
+                userEmail = driveAbout.user.emailAddress;
+              }
+            }
+            if (userEmail === "Desconhecido") {
+              // 2. Fallback to UserInfo API
+              const infoRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+                headers: { Authorization: `Bearer ${response.access_token}` },
+              });
+              if (infoRes.ok) {
+                const info = await infoRes.json();
+                if (info?.email) userEmail = info.email;
+              }
+            }
+          } catch (e) {
+            console.error("Error fetching user email from Google:", e);
           }
+          resolve({ accessToken: response.access_token, email: userEmail });
         } else {
           reject(new Error(response.error || "Falha ao conectar Google Drive"));
         }
