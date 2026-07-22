@@ -132,36 +132,35 @@ export const getGoogleDriveStatus = createServerFn({ method: "GET" })
         .eq("key", "google_drive_credentials")
         .maybeSingle();
 
-      if (error) throw error;
-      if (!data?.value) {
-        return { connected: false };
+      if (error || !data?.value) {
+        return { connected: false, email: "" };
       }
 
       const val = data.value as any;
-      let email = val.account_email || "Desconhecido";
+      let email = val.account_email || "";
 
-      // If email stored as Desconhecido, auto-heal from Google Drive About API
-      if (email === "Desconhecido") {
+      // If email is missing or Desconhecido, attempt safe background auto-heal if access_token is present
+      if ((!email || email === "Desconhecido") && val.access_token) {
         try {
-          const accessToken = await getServerGDriveAccessToken(context);
-          if (accessToken) {
-            const driveAboutRes = await fetch("https://www.googleapis.com/drive/v3/about?fields=user", {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            });
-            if (driveAboutRes.ok) {
-              const driveAbout = await driveAboutRes.json();
-              if (driveAbout?.user?.emailAddress) {
-                email = driveAbout.user.emailAddress;
-                await context.supabase
-                  .from("system_settings")
-                  .update({
-                    value: {
-                      ...val,
-                      account_email: email,
-                    },
-                  })
-                  .eq("key", "google_drive_credentials");
-              }
+          const driveAboutRes = await fetch("https://www.googleapis.com/drive/v3/about?fields=user", {
+            headers: { Authorization: `Bearer ${val.access_token}` },
+          });
+          if (driveAboutRes.ok) {
+            const driveAbout = await driveAboutRes.json();
+            if (driveAbout?.user?.emailAddress) {
+              email = driveAbout.user.emailAddress;
+              // Silently update database
+              context.supabase
+                .from("system_settings")
+                .update({
+                  value: {
+                    ...val,
+                    account_email: email,
+                  },
+                })
+                .eq("key", "google_drive_credentials")
+                .then(() => {})
+                .catch(() => {});
             }
           }
         } catch (healErr) {
@@ -171,11 +170,11 @@ export const getGoogleDriveStatus = createServerFn({ method: "GET" })
 
       return {
         connected: true,
-        email,
+        email: email || "Conectado",
       };
     } catch (e) {
       console.error("getGoogleDriveStatus error:", e);
-      return { connected: false };
+      return { connected: false, email: "" };
     }
   });
 
