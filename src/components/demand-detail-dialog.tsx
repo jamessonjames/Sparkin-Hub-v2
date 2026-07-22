@@ -35,7 +35,7 @@ import { FileAttachments } from "@/components/file-attachments";
 import { uploadAttachment } from "@/lib/attachments.functions";
 import { uploadToGDrive } from "@/lib/gdrive.functions";
 import { getGDriveAccessToken } from "@/lib/gdrive-token";
-import { Trash2, Send, Calendar, X, Save, User, Loader2, Pencil, Upload } from "lucide-react";
+import { Trash2, Send, Calendar, X, Save, User, Loader2, Pencil, Upload, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STATUS_CHIP: Record<string, string> = {
@@ -122,6 +122,113 @@ export function DemandDetailDialog({
   const [isDraggingComments, setIsDraggingComments] = useState(false);
   const [isUploadingCommentFile, setIsUploadingCommentFile] = useState(false);
   const [commentUploadProgress, setCommentUploadProgress] = useState(0);
+
+  const [lightbox, setLightbox] = useState<{
+    src: string;
+    source: "description" | "comment";
+    commentId?: string;
+  } | null>(null);
+
+  const handleDialogClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === "IMG") {
+      const src = target.getAttribute("src");
+      if (!src) return;
+
+      // Determine the source by traversing up the DOM tree
+      let current: HTMLElement | null = target;
+      let source: "description" | "comment" = "description";
+      let commentId: string | undefined = undefined;
+
+      while (current) {
+        if (current.classList.contains("comment-body-wrapper") || current.dataset.commentId) {
+          source = "comment";
+          commentId = current.dataset.commentId;
+          break;
+        }
+        if (current.classList.contains("description-editor-wrapper")) {
+          source = "description";
+          break;
+        }
+        current = current.parentElement;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+      setLightbox({ src, source, commentId });
+    }
+  };
+
+  const handleDeleteLightboxImage = async () => {
+    if (!lightbox) return;
+    const { src, source, commentId } = lightbox;
+
+    if (source === "description") {
+      const cleanHtml = description.replace(new RegExp(`<img[^>]*src=["']${src}["'][^>]*>`, "g"), "");
+      setDescription(cleanHtml);
+
+      if (!isNew && id !== "new") {
+        try {
+          if (portalMode) {
+            await updatePortalDemandFn({
+              data: {
+                id,
+                description: cleanHtml || null,
+              }
+            });
+          } else {
+            await updateDemandFn({
+              data: {
+                id,
+                description: cleanHtml || null,
+              }
+            });
+          }
+          qc.invalidateQueries({ queryKey: ["demands"] });
+          qc.invalidateQueries({ queryKey: ["demand", id] });
+          toast.success("Imagem removida da descrição.");
+        } catch (err) {
+          console.error("Error deleting image:", err);
+          toast.error("Erro ao salvar alterações da descrição.");
+        }
+      } else {
+        toast.success("Imagem removida do rascunho da descrição.");
+      }
+    } else if (source === "comment" && commentId) {
+      const commentToEdit = comments.find(c => c.id === commentId);
+      if (commentToEdit) {
+        const cleanHtml = commentToEdit.body.replace(new RegExp(`<img[^>]*src=["']${src}["'][^>]*>`, "g"), "");
+        try {
+          await updateCommentFn({ data: { id: commentId, body: cleanHtml } });
+          qc.invalidateQueries({ queryKey: ["comments", id] });
+          toast.success("Imagem removida do comentário.");
+        } catch (err) {
+          console.error("Error deleting comment image:", err);
+          toast.error("Erro ao remover imagem do comentário.");
+        }
+      }
+    }
+    setLightbox(null);
+  };
+
+  const handleDownloadLightboxImage = async () => {
+    if (!lightbox) return;
+    try {
+      const response = await fetch(lightbox.src);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const fileName = lightbox.src.split("/").pop()?.split("?")[0] || "imagem-anexo.png";
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      window.open(lightbox.src, "_blank");
+    }
+  };
 
   const uploadToGDriveFn = useServerFn(uploadToGDrive);
 
@@ -769,7 +876,63 @@ export function DemandDetailDialog({
         overlayClickRef.current = false;
       }}
     >
+      {/* Lightbox Modal */}
+      {lightbox && (
+        <div 
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/95 animate-in fade-in duration-200"
+          onClick={() => setLightbox(null)}
+        >
+          {/* Close button top right */}
+          <button
+            onClick={() => setLightbox(null)}
+            className="absolute top-4 right-4 text-white/70 hover:text-white hover:bg-white/10 p-2.5 rounded-full transition-all cursor-pointer z-50 shadow-lg"
+            title="Fechar"
+          >
+            <X className="h-6 w-6" />
+          </button>
+
+          {/* Action bar top center/left */}
+          <div className="absolute top-4 left-4 flex items-center gap-2 z-50" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={handleDownloadLightboxImage}
+              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-lg backdrop-blur-sm"
+              title="Baixar imagem"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Baixar</span>
+            </button>
+
+            {/* Delete button (only if user has rights) */}
+            <button
+              onClick={() => {
+                if (confirm("Deseja realmente excluir esta imagem?")) {
+                  handleDeleteLightboxImage();
+                }
+              }}
+              className="flex items-center gap-1.5 bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-lg backdrop-blur-sm"
+              title="Excluir imagem definitivamente"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Excluir</span>
+            </button>
+          </div>
+
+          {/* Centered Image */}
+          <div 
+            className="relative max-w-[90vw] max-h-[80vh] flex items-center justify-center p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img 
+              src={lightbox.src} 
+              alt="Visualização" 
+              className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl border border-white/5 select-none"
+            />
+          </div>
+        </div>
+      )}
+
       <div
+        onClick={handleDialogClick}
         className="relative w-full max-w-[95vw] lg:max-w-5xl xl:max-w-6xl h-[90vh] bg-card border border-border rounded-2xl flex flex-col overflow-hidden shadow-2xl my-auto mx-auto animate-in fade-in zoom-in duration-200"
       >
 
@@ -1024,7 +1187,7 @@ export function DemandDetailDialog({
                 </div>
 
                 {/* Description editor */}
-                <div className="flex-1 flex flex-col min-h-0">
+                <div className="description-editor-wrapper flex-1 flex flex-col min-h-0">
                   <RichEditor
                     content={description}
                     onChange={(html) => setDescription(html)}
@@ -1160,7 +1323,8 @@ export function DemandDetailDialog({
                                 </div>
                               ) : (
                                 <div
-                                  className="text-xs text-foreground bg-muted/40 rounded-lg px-2.5 py-1.5 border border-border prose prose-invert prose-xs max-w-none break-words [&_p]:m-0"
+                                  className="comment-body-wrapper text-xs text-foreground bg-muted/40 rounded-lg px-2.5 py-1.5 border border-border prose prose-invert prose-xs max-w-none break-words [&_p]:m-0"
+                                  data-comment-id={c.id}
                                   dangerouslySetInnerHTML={{ __html: c.body }}
                                 />
                               )}

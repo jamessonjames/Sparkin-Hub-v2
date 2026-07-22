@@ -303,7 +303,14 @@ export function RichEditor({
     return (
       <div className="flex items-end gap-2 w-full">
         <div className="flex-1 rounded-xl border border-border bg-background py-1.5 px-3 relative min-w-0 shadow-sm focus-within:ring-1 focus-within:ring-ring focus-within:border-ring">
-          <TiptapBubbleMenu editor={editor}>
+          <TiptapBubbleMenu 
+            editor={editor}
+            shouldShow={({ editor, from, to }) => {
+              if (from === to) return false;
+              if (editor.isActive("image")) return false;
+              return true;
+            }}
+          >
             <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-border bg-popover shadow-2xl text-xs select-none">
               <>
                 <select
@@ -436,7 +443,14 @@ export function RichEditor({
           : "rounded-xl border border-border bg-background",
       )}
     >
-      <TiptapBubbleMenu editor={editor}>
+      <TiptapBubbleMenu 
+        editor={editor}
+        shouldShow={({ editor, from, to }) => {
+          if (from === to) return false;
+          if (editor.isActive("image")) return false;
+          return true;
+        }}
+      >
         <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-border bg-popover shadow-2xl text-xs select-none">
           <>
             <select
@@ -590,27 +604,7 @@ export function RichEditor({
         </TiptapBubbleMenu>
       )}
 
-      {/* Bubble menu for image controls (appears when an image is selected) */}
-      <TiptapBubbleMenu
-        editor={editor}
-        shouldShow={({ editor }) => editor.isActive("image")}
-        options={{ placement: "top" }}
-      >
-        <div className="flex items-center gap-1 px-2 py-1.5 rounded-xl border border-border bg-popover shadow-2xl text-xs select-none">
-          <button
-            type="button"
-            title="Excluir imagem"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              editor.chain().focus().deleteSelection().run();
-            }}
-            className="h-7 px-2 flex items-center gap-1 rounded text-xs text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-          >
-            <Trash className="h-3.5 w-3.5" />
-            Excluir imagem
-          </button>
-        </div>
-      </TiptapBubbleMenu>
+
 
       {/* Subtle top helper bar for images and lists — hidden in readOnly mode */}
       {!readOnly && (
