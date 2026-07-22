@@ -114,7 +114,6 @@ export function DemandDetailDialog({
   const deleteCommentFn = useServerFn(deleteComment);
   const updateCommentFn = useServerFn(updateComment);
   const listProfilesFn = useServerFn(listProfiles);
-  const uploadAttachmentFn = useServerFn(uploadAttachment);
   const qc = useQueryClient();
 
   const [isDraggingComments, setIsDraggingComments] = useState(false);
