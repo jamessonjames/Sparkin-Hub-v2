@@ -201,8 +201,8 @@ function AgendaPage() {
   const isDefaultUser = defaultUserId ? defaultUserId === activeUserId : activeUserId === currentUser?.id;
 
   const { data: demands = [] } = useQuery({
-    queryKey: ["demands", selectedUserId],
-    queryFn: () => listFn({ data: isAdminOrOwner && selectedUserId ? { assigneeUserId: selectedUserId } : {} }),
+    queryKey: ["demands", activeUserId],
+    queryFn: () => listFn({ data: isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId } : {} }),
   });
 
   const { data: allClients = [] } = useQuery({
@@ -252,8 +252,8 @@ function AgendaPage() {
   const deleteReminderFn = useServerFn(deleteReminder);
 
   const { data: reminders = [] } = useQuery({
-    queryKey: ["reminders", selectedUserId],
-    queryFn: () => listRemindersFn({ data: isAdminOrOwner && selectedUserId ? { assigneeUserId: selectedUserId } : {} }),
+    queryKey: ["reminders", activeUserId],
+    queryFn: () => listRemindersFn({ data: isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId } : {} }),
   });
 
   // Slot modal state (Choice between Nova Demanda or Novo Lembrete)
@@ -421,7 +421,7 @@ function AgendaPage() {
       }
     }
 
-    qc.setQueryData<typeof demands>(["demands", selectedUserId], (prev) =>
+    qc.setQueryData<typeof demands>(["demands", activeUserId], (prev) =>
       (prev ?? []).map((d) => (d.id === demandId ? { ...d, estimated_hours: hours } : d))
     );
 
@@ -450,7 +450,7 @@ function AgendaPage() {
     const currentDemand = demands.find((d) => d.id === demandId) as AgendaDemand | undefined;
     const effectiveDueDate = currentDemand ? (scheduledMap[demandId] ?? currentDemand.due_date ?? null) : null;
 
-    qc.setQueryData<typeof demands>(["demands", selectedUserId], (prev) =>
+    qc.setQueryData<typeof demands>(["demands", activeUserId], (prev) =>
       (prev ?? []).map((d) =>
         d.id === demandId
           ? ({ ...d, due_date: nextValue ? effectiveDueDate : null, is_manually_scheduled: nextValue } as any)
@@ -640,7 +640,7 @@ function AgendaPage() {
           targetDateTime: formattedTarget,
         });
       } else {
-        qc.setQueryData<typeof reminders>(["reminders", selectedUserId], (prev) =>
+        qc.setQueryData<typeof reminders>(["reminders", activeUserId], (prev) =>
           (prev ?? []).map((r) => (r.id === reminderId ? { ...r, date_time: formattedTarget } as any : r))
         );
         try {
@@ -676,7 +676,7 @@ function AgendaPage() {
 
     const formatted = formatTzString(targetDate);
 
-    qc.setQueryData<typeof demands>(["demands", selectedUserId], (prev) =>
+    qc.setQueryData<typeof demands>(["demands", activeUserId], (prev) =>
       (prev ?? []).map((d) => (d.id === demandId ? { ...d, due_date: formatted, is_manually_scheduled: true } as any : d))
     );
 
@@ -850,7 +850,7 @@ function AgendaPage() {
                 return (
                   <div
                     key={key}
-                    onClick={() => overlay.openNew(clientsForOverlay, iso, "nao_iniciado", undefined, isAdminOrOwner && selectedUserId ? selectedUserId : undefined)}
+                    onClick={() => overlay.openNew(clientsForOverlay, iso, "nao_iniciado", undefined, isAdminOrOwner && activeUserId ? activeUserId : undefined)}
                     className={cn(
                       "border-r border-b border-border/40 p-1 flex flex-col justify-start gap-1 overflow-hidden cursor-pointer hover:bg-muted/40 transition-colors",
                       isToday && "bg-primary/5"
@@ -1040,7 +1040,7 @@ function AgendaPage() {
               dateStr,
               "nao_iniciado",
               undefined,
-              isAdminOrOwner && selectedUserId ? selectedUserId : undefined
+              isAdminOrOwner && activeUserId ? activeUserId : undefined
             );
           }}
           onCreateReminder={() => {

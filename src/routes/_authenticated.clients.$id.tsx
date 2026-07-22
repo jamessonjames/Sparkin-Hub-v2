@@ -116,8 +116,8 @@ function ClientPage() {
     enabled: !!client?.parent_id,
   });
   const { data: allDemands = [] } = useQuery({
-    queryKey: ["demands", selectedUserId],
-    queryFn: () => demandsFn({ data: isAdminOrOwner && selectedUserId ? { assigneeUserId: selectedUserId } : {} }),
+    queryKey: ["demands", activeUserId],
+    queryFn: () => demandsFn({ data: isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId } : {} }),
   });
   const clientDemands = allDemands.filter((d) => d.client_id === id);
 
@@ -151,7 +151,7 @@ function ClientPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   async function handleMove(demandId: string, status: DemandStatus) {
-    qc.setQueryData<typeof allDemands>(["demands", selectedUserId], (prev) =>
+    qc.setQueryData<typeof allDemands>(["demands", activeUserId], (prev) =>
       (prev ?? []).map((d) => (d.id === demandId ? { ...d, status } : d)),
     );
     try {
@@ -159,7 +159,7 @@ function ClientPage() {
     } catch (e) {
       console.error("[handleMove] moveFn failed", e);
       toast.error(e instanceof Error ? e.message : "Erro ao mover");
-      qc.invalidateQueries({ queryKey: ["demands", selectedUserId] });
+      qc.invalidateQueries({ queryKey: ["demands", activeUserId] });
     }
   }
 
@@ -325,7 +325,7 @@ function ClientPage() {
                       client.id,
                       "nao_iniciado",
                       selectedEditionId === "all" ? undefined : selectedEditionId,
-                      isAdminOrOwner && selectedUserId ? selectedUserId : undefined
+                      isAdminOrOwner && activeUserId ? activeUserId : undefined
                     )
                   }
                   size="sm"
@@ -383,7 +383,7 @@ function ClientPage() {
                     client.id,
                     status,
                     selectedEditionId === "all" ? undefined : selectedEditionId,
-                    isAdminOrOwner && selectedUserId ? selectedUserId : undefined
+                    isAdminOrOwner && activeUserId ? activeUserId : undefined
                   )
                 }
                 showSearch={false}

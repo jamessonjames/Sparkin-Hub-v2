@@ -43,13 +43,13 @@ function DemandsPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: demands = [] } = useQuery({
-    queryKey: ["demands", selectedUserId],
-    queryFn: () => listFn({ data: isAdminOrOwner && selectedUserId ? { assigneeUserId: selectedUserId } : {} }),
+    queryKey: ["demands", activeUserId],
+    queryFn: () => listFn({ data: isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId } : {} }),
   });
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn() });
 
   async function handleMove(id: string, status: DemandStatus) {
-    qc.setQueryData<typeof demands>(["demands", selectedUserId], (prev) =>
+    qc.setQueryData<typeof demands>(["demands", activeUserId], (prev) =>
       (prev ?? []).map((d) => (d.id === id ? { ...d, status } : d)),
     );
     try {
@@ -57,12 +57,12 @@ function DemandsPage() {
     } catch (e) {
       console.error("[handleMove] moveFn failed", e);
       toast.error(e instanceof Error ? e.message : "Erro ao mover");
-      qc.invalidateQueries({ queryKey: ["demands", selectedUserId] });
+      qc.invalidateQueries({ queryKey: ["demands", activeUserId] });
     }
   }
 
   async function handleReorder(updates: { id: string; status: DemandStatus; sort_order: number }[]) {
-    qc.setQueryData<typeof demands>(["demands", selectedUserId], (prev) => {
+    qc.setQueryData<typeof demands>(["demands", activeUserId], (prev) => {
       if (!prev) return prev;
       const map = new Map(updates.map((u) => [u.id, u]));
       return prev.map((d) => {
@@ -74,7 +74,7 @@ function DemandsPage() {
       await reorderFn({ data: { updates } });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao reordenar");
-      qc.invalidateQueries({ queryKey: ["demands", selectedUserId] });
+      qc.invalidateQueries({ queryKey: ["demands", activeUserId] });
     }
   }
 
@@ -108,7 +108,7 @@ function DemandsPage() {
               )}
             </div>
             <Button
-              onClick={() => overlay.openNew(resolvedClients, undefined, undefined, undefined, isAdminOrOwner && selectedUserId ? selectedUserId : undefined)}
+              onClick={() => overlay.openNew(resolvedClients, undefined, undefined, undefined, isAdminOrOwner && activeUserId ? activeUserId : undefined)}
               disabled={clients.length === 0}
               style={{ backgroundColor: "#2783de" }}
               className="hover:opacity-90 border-0"
@@ -147,7 +147,7 @@ function DemandsPage() {
             }))}
             onMove={handleMove}
             onOpen={(id) => overlay.open(id, resolvedClients)}
-            onAdd={(status) => overlay.openNew(resolvedClients, undefined, status, undefined, isAdminOrOwner && selectedUserId ? selectedUserId : undefined)}
+            onAdd={(status) => overlay.openNew(resolvedClients, undefined, status, undefined, isAdminOrOwner && activeUserId ? activeUserId : undefined)}
             onReorder={handleReorder}
             showSearch={false}
             search={search}

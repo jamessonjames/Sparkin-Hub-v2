@@ -165,23 +165,6 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               
               <div className="flex items-center gap-1">
                 <HeaderUserWorkSelector />
-                {!isStandalone && (
-                  <button
-                    onClick={async () => {
-                      if (deferredInstallPrompt) {
-                        deferredInstallPrompt.prompt();
-                        const result = await deferredInstallPrompt.userChoice;
-                        if (result.outcome === "accepted") setIsStandalone(true);
-                      } else {
-                        toast.info("Disponível após interagir mais com o site.");
-                      }
-                    }}
-                    title="Instalar aplicativo"
-                    className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-zinc-800/40 transition-colors cursor-pointer"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                )}
                 {currentUser && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
