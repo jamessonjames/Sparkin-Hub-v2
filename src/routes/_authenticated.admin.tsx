@@ -226,6 +226,10 @@ function AdminPage() {
   };
 
   const handleConnectGDrive = async () => {
+    if (!isOwner) {
+      toast.error("Apenas o usuário proprietário pode conectar ou alterar as integrações.");
+      return;
+    }
     try {
       const { accessToken, email } = await connectGDrive();
       toast.loading("Conectando sua conta do Google Drive...");
@@ -244,6 +248,10 @@ function AdminPage() {
   };
 
   const handleDisconnectGDrive = async () => {
+    if (!isOwner) {
+      toast.error("Apenas o usuário proprietário pode alterar as integrações.");
+      return;
+    }
     if (!confirm("Tem certeza que deseja desconectar o Google Drive? Os novos uploads voltarão a ser salvos em base64 localmente.")) return;
     try {
       const res = await disconnectFn();
@@ -346,6 +354,10 @@ function AdminPage() {
   }
 
   async function handleSaveIntegrations() {
+    if (!isOwner) {
+      toast.error("Apenas o usuário proprietário pode alterar as integrações.");
+      return;
+    }
     localStorage.setItem("CF_Int_NotionEnabled", String(notionEnabled));
     localStorage.setItem("CF_Int_NotionToken", notionToken);
     localStorage.setItem("CF_Int_TrelloEnabled", String(trelloEnabled));
@@ -798,7 +810,13 @@ function AdminPage() {
               <CardDescription className="text-xs">Sincronize com ferramentas de produtividade para importar e resumir demandas automaticamente.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              
+              {!isOwner && (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs flex items-center gap-2">
+                  <Info className="h-4 w-4 shrink-0" />
+                  <span><strong>Modo de Visualização:</strong> Administradores podem visualizar as contas conectadas, mas apenas o usuário <strong>Proprietário</strong> possui permissão para conectar, desconectar ou alterar as integrações.</span>
+                </div>
+              )}
+
               {/* Notion Integration Card */}
               <div className="p-4 rounded-xl border border-border bg-surface-2/40 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
                 <div className="flex gap-3">
@@ -816,7 +834,7 @@ function AdminPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <Switch checked={notionEnabled} onCheckedChange={setNotionEnabled} />
+                  <Switch disabled={!isOwner} checked={notionEnabled} onCheckedChange={setNotionEnabled} />
                 </div>
               </div>
 
@@ -837,7 +855,7 @@ function AdminPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <Switch checked={trelloEnabled} onCheckedChange={setTrelloEnabled} />
+                  <Switch disabled={!isOwner} checked={trelloEnabled} onCheckedChange={setTrelloEnabled} />
                 </div>
               </div>
 
@@ -864,6 +882,7 @@ function AdminPage() {
                     <Button 
                       type="button" 
                       variant="destructive" 
+                      disabled={!isOwner}
                       onClick={handleDisconnectGDrive}
                       className="text-xs h-8 px-3 rounded-lg cursor-pointer"
                     >
@@ -872,6 +891,7 @@ function AdminPage() {
                   ) : (
                     <Button 
                       type="button" 
+                      disabled={!isOwner}
                       onClick={handleConnectGDrive}
                       className="text-xs h-8 px-4 bg-primary text-primary-foreground hover:bg-primary/95 rounded-lg cursor-pointer"
                     >
@@ -898,7 +918,7 @@ function AdminPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <Switch checked={googleCalendarEnabled} onCheckedChange={setGoogleCalendarEnabled} />
+                  <Switch disabled={!isOwner} checked={googleCalendarEnabled} onCheckedChange={setGoogleCalendarEnabled} />
                 </div>
               </div>
 
@@ -919,12 +939,12 @@ function AdminPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <Switch checked={whatsappEnabled} onCheckedChange={setWhatsappEnabled} />
+                  <Switch disabled={!isOwner} checked={whatsappEnabled} onCheckedChange={setWhatsappEnabled} />
                 </div>
               </div>
 
               <div className="pt-2 flex justify-end">
-                <Button onClick={handleSaveIntegrations} className="gap-2 px-6 text-xs h-9">
+                <Button disabled={!isOwner} onClick={handleSaveIntegrations} className="gap-2 px-6 text-xs h-9">
                   <Save className="h-4 w-4" /> Salvar Configuração de Integrações
                 </Button>
               </div>
