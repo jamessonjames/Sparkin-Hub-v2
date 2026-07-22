@@ -15,7 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useSidebar } from "@/components/ui/sidebar";
-import { Plus, Search, X } from "lucide-react";
+import { Plus, Search, X, Star } from "lucide-react";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { useUserContext } from "@/contexts/user-context";
 
@@ -31,8 +33,10 @@ function DemandsPage() {
   const reorderFn = useServerFn(updateDemandsOrder);
   const qc = useQueryClient();
   const overlay = useDemandOverlay();
-  const { currentUserRole, selectedUserId } = useUserContext();
+  const { currentUserRole, selectedUserId, setSelectedUserId, defaultUserId, setDefaultUserId, profiles, currentUser } = useUserContext();
   const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
+  const activeUserId = selectedUserId ?? currentUser?.id ?? null;
+  const isDefaultUser = defaultUserId ? defaultUserId === activeUserId : activeUserId === currentUser?.id;
   const { state: sidebarState } = useSidebar();
   const sidebarWidth = sidebarState === "collapsed" ? 48 : 256;
   const [search, setSearch] = useState("");
@@ -85,6 +89,51 @@ function DemandsPage() {
             <p className="text-sm text-muted-foreground">Arraste os cards entre as colunas para mover ou reordenar.</p>
           </div>
           <div className="flex items-center gap-3">
+            {/* User selector for admin/owner */}
+            {isAdminOrOwner && currentUser?.id && profiles.length > 0 && (
+              <div className="flex items-center gap-1.5 mr-2">
+                <span className="text-[10px] text-muted-foreground font-semibold uppercase">Usuário:</span>
+                <Select
+                  value={selectedUserId ?? currentUser.id}
+                  onValueChange={(val) => setSelectedUserId(val === currentUser.id ? null : val)}
+                >
+                  <SelectTrigger className="h-8 text-xs bg-background border-border text-foreground w-auto min-w-[140px]">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={currentUser.id} className="text-xs font-semibold">
+                      {profiles.find(p => p.id === currentUser.id)?.name ?? "Meu perfil"} (Eu)
+                    </SelectItem>
+                    {profiles.filter(p => p.id !== currentUser.id).map((p) => (
+                      <SelectItem key={p.id} value={p.id} className="text-xs">
+                        {p.name ?? p.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-8 w-8 text-muted-foreground hover:text-amber-500",
+                    isDefaultUser && "text-amber-500 hover:text-amber-600"
+                  )}
+                  title={isDefaultUser ? "Usuário padrão ativo" : "Definir como meu usuário padrão ao abrir o Hub"}
+                  onClick={() => {
+                    if (isDefaultUser && defaultUserId) {
+                      setDefaultUserId(null);
+                      toast.info("Padrão removido. O sistema voltará a selecionar você.");
+                    } else {
+                      setDefaultUserId(activeUserId);
+                      const name = profiles.find((p) => p.id === activeUserId)?.name ?? "este perfil";
+                      toast.success(`"${name}" definido como usuário padrão ao abrir a Agenda e Kanban!`);
+                    }
+                  }}
+                >
+                  <Star className={cn("h-4 w-4", isDefaultUser && "fill-amber-500 text-amber-500")} />
+                </Button>
+              </div>
+            )}
             <div className="relative w-56">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <input

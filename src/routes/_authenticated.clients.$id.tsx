@@ -36,7 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight, Search, X, Star } from "lucide-react";
 import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, DEFAULT_CREDIT_TIERS, type CreditTier } from "@/lib/credit-tiers";
 import { listProfiles } from "@/lib/users.functions";
 import { CreditProgressBar } from "@/components/credit-progress-bar";
@@ -101,8 +101,10 @@ function ClientPage() {
   const demandsFn = useServerFn(listDemands);
   const moveFn = useServerFn(moveDemandStatus);
   const createFn = useServerFn(createDemand);
-  const { currentUserRole, selectedUserId, setSelectedUserId, profiles, currentUser } = useUserContext();
+  const { currentUserRole, selectedUserId, setSelectedUserId, defaultUserId, setDefaultUserId, profiles, currentUser } = useUserContext();
   const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
+  const activeUserId = selectedUserId ?? currentUser?.id ?? null;
+  const isDefaultUser = defaultUserId ? defaultUserId === activeUserId : activeUserId === currentUser?.id;
 
   const { data: client } = useQuery({
     queryKey: ["client", id],
@@ -317,7 +319,7 @@ function ClientPage() {
               </div>
               <div className="flex items-center gap-3">
                 {isAdminOrOwner && currentUser?.id && profiles.length > 0 && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className="text-[10px] text-muted-foreground font-semibold uppercase">Usuário:</span>
                     <Select
                       value={selectedUserId ?? currentUser.id}
@@ -337,6 +339,27 @@ function ClientPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "h-8 w-8 text-muted-foreground hover:text-amber-500",
+                        isDefaultUser && "text-amber-500 hover:text-amber-600"
+                      )}
+                      title={isDefaultUser ? "Usuário padrão ativo" : "Definir como meu usuário padrão ao abrir o Hub"}
+                      onClick={() => {
+                        if (isDefaultUser && defaultUserId) {
+                          setDefaultUserId(null);
+                          toast.info("Padrão removido. O sistema voltará a selecionar você.");
+                        } else {
+                          setDefaultUserId(activeUserId);
+                          const name = profiles.find((p) => p.id === activeUserId)?.name ?? "este perfil";
+                          toast.success(`"${name}" definido como usuário padrão ao abrir a Agenda e Kanban!`);
+                        }
+                      }}
+                    >
+                      <Star className={cn("h-4 w-4", isDefaultUser && "fill-amber-500 text-amber-500")} />
+                    </Button>
                   </div>
                 )}
                 <Button

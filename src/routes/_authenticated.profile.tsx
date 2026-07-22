@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { User, Mail, Lock, Save } from "lucide-react";
+import { User, Mail, Lock, Save, Star } from "lucide-react";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import { useUserContext } from "@/contexts/user-context";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({ meta: [{ title: "Minha Conta — Creative Flow Hub" }] }),
@@ -14,6 +16,8 @@ export const Route = createFileRoute("/_authenticated/profile")({
 });
 
 function ProfilePage() {
+  const { defaultUserId, setDefaultUserId, profiles, currentUser, currentUserRole } = useUserContext();
+  const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
   const [userId, setUserId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -185,6 +189,52 @@ function ProfilePage() {
             </form>
           </CardContent>
         </Card>
+
+        {/* Work Preference Card */}
+        {isAdminOrOwner && profiles.length > 0 && (
+          <Card className="bg-zinc-900 border-zinc-800 md:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+                <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+                Usuário Padrão de Trabalho (Agenda & Demandas)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Escolha qual perfil deve ser selecionado automaticamente ao abrir a Agenda e o Kanban de Demandas. Novas demandas criadas também serão pré-atribuídas a este usuário.
+              </p>
+              <div className="flex items-center gap-3 max-w-md">
+                <Select
+                  value={defaultUserId ?? currentUser?.id ?? ""}
+                  onValueChange={(val) => {
+                    if (val === currentUser?.id) {
+                      setDefaultUserId(null);
+                      toast.info("Você mesmo (Eu) definido como padrão.");
+                    } else {
+                      setDefaultUserId(val);
+                      const name = profiles.find((p) => p.id === val)?.name ?? "este perfil";
+                      toast.success(`"${name}" definido como usuário padrão!`);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-xs bg-zinc-850 border-zinc-700 text-zinc-200 w-full">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={currentUser?.id ?? ""} className="text-xs font-semibold">
+                      {profiles.find((p) => p.id === currentUser?.id)?.name ?? "Meu perfil"} (Eu - Padrão)
+                    </SelectItem>
+                    {profiles.filter((p) => p.id !== currentUser?.id).map((p) => (
+                      <SelectItem key={p.id} value={p.id} className="text-xs">
+                        {p.name ?? p.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

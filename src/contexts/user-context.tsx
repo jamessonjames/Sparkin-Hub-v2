@@ -20,6 +20,8 @@ interface UserContextValue {
   currentUserRole: AppRole | null;
   selectedUserId: string | null;
   setSelectedUserId: (id: string | null) => void;
+  defaultUserId: string | null;
+  setDefaultUserId: (id: string | null) => void;
   profiles: Profile[];
   loading: boolean;
   refreshProfiles: () => Promise<void>;
@@ -32,6 +34,8 @@ const UserContext = createContext<UserContextValue>({
   currentUserRole: null,
   selectedUserId: null,
   setSelectedUserId: () => {},
+  defaultUserId: null,
+  setDefaultUserId: () => {},
   profiles: [],
   loading: true,
   refreshProfiles: async () => {},
@@ -43,10 +47,23 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [currentUserRole, setCurrentUserRole] = useState<AppRole | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [defaultUserId, setDefaultUserIdState] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [sidebarOrder, setSidebarOrder] = useState<string[] | null>(null);
   const listProfilesFn = useServerFn(listProfiles);
+
+  const setDefaultUserId = (id: string | null) => {
+    setDefaultUserIdState(id);
+    if (currentUser?.id && typeof window !== "undefined") {
+      const key = `CreativeFlow_DefaultUserId_${currentUser.id}`;
+      if (id) {
+        localStorage.setItem(key, id);
+      } else {
+        localStorage.removeItem(key);
+      }
+    }
+  };
 
   const refreshProfiles = async () => {
       try {
@@ -86,6 +103,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }
       setCurrentUser(user);
 
+      // Read saved default user from localStorage
+      if (typeof window !== "undefined") {
+        const savedDefault = localStorage.getItem(`CreativeFlow_DefaultUserId_${user.id}`);
+        if (savedDefault) {
+          setDefaultUserIdState(savedDefault);
+          setSelectedUserId(savedDefault);
+        }
+      }
+
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
@@ -117,6 +143,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         currentUserRole,
         selectedUserId,
         setSelectedUserId,
+        defaultUserId,
+        setDefaultUserId,
         profiles,
         loading,
         refreshProfiles,

@@ -13,7 +13,7 @@ import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { useUserContext } from "@/contexts/user-context";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check, Repeat } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check, Repeat, Star } from "lucide-react";
 import { STATUS_LABELS } from "@/lib/demand-labels";
 import { cn } from "@/lib/utils";
 import {
@@ -195,8 +195,10 @@ function AgendaPage() {
   const overlay = useDemandOverlay();
   const qc = useQueryClient();
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
-  const { currentUserRole, selectedUserId, setSelectedUserId, profiles, currentUser } = useUserContext();
+  const { currentUserRole, selectedUserId, setSelectedUserId, defaultUserId, setDefaultUserId, profiles, currentUser } = useUserContext();
   const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
+  const activeUserId = selectedUserId ?? currentUser?.id ?? null;
+  const isDefaultUser = defaultUserId ? defaultUserId === activeUserId : activeUserId === currentUser?.id;
 
   const { data: demands = [] } = useQuery({
     queryKey: ["demands", selectedUserId],
@@ -784,7 +786,7 @@ function AgendaPage() {
 
           {/* User selector for admin/owner */}
           {isAdminOrOwner && currentUser?.id && profiles.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-[10px] text-muted-foreground font-semibold uppercase">Usuário:</span>
               <Select
                 value={selectedUserId ?? currentUser.id}
@@ -804,6 +806,27 @@ function AgendaPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-8 w-8 text-muted-foreground hover:text-amber-500",
+                  isDefaultUser && "text-amber-500 hover:text-amber-600"
+                )}
+                title={isDefaultUser ? "Usuário padrão ativo" : "Definir como meu usuário padrão ao abrir o Hub"}
+                onClick={() => {
+                  if (isDefaultUser && defaultUserId) {
+                    setDefaultUserId(null);
+                    toast.info("Padrão removido. O sistema voltará a selecionar você.");
+                  } else {
+                    setDefaultUserId(activeUserId);
+                    const name = profiles.find((p) => p.id === activeUserId)?.name ?? "este perfil";
+                    toast.success(`"${name}" definido como usuário padrão ao abrir a Agenda e Kanban!`);
+                  }
+                }}
+              >
+                <Star className={cn("h-4 w-4", isDefaultUser && "fill-amber-500 text-amber-500")} />
+              </Button>
             </div>
           )}
 
