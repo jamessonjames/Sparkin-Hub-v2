@@ -12,12 +12,14 @@ async function ensureGISLoaded(): Promise<void> {
   });
 }
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
+
 export async function getGDriveAccessToken(): Promise<string> {
   if (cachedToken && Date.now() < tokenExpiry - 60000) return cachedToken;
   await ensureGISLoaded();
   if (!tokenClient) {
     tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+      client_id: GOOGLE_CLIENT_ID,
       scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive",
       callback: (response: any) => {
         if (response.access_token) {
@@ -42,7 +44,7 @@ export async function connectGDrive(): Promise<{ accessToken: string; email: str
   await ensureGISLoaded();
   return new Promise((resolve, reject) => {
     const tc = google.accounts.oauth2.initTokenClient({
-      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+      client_id: GOOGLE_CLIENT_ID,
       scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive",
       callback: async (response: any) => {
         if (response.access_token) {
