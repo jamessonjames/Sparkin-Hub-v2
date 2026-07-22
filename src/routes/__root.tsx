@@ -43,6 +43,12 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    if (
+      error?.message &&
+      /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(error.message)
+    ) {
+      window.location.reload();
+    }
   }, [error]);
 
   return (
@@ -137,8 +143,10 @@ function RootComponent() {
     const onRejection = (e: PromiseRejectionEvent) => {
       if (isChunkError(e.reason?.message || "")) window.location.reload();
     };
+    const onPreloadError = () => window.location.reload();
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
+    window.addEventListener("vite:preloadError", onPreloadError);
 
     // Apply global branding from localStorage (system name, favicon)
     applyThemeAndHighlight();
@@ -173,6 +181,7 @@ function RootComponent() {
     return () => {
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onRejection);
+      window.removeEventListener("vite:preloadError", onPreloadError);
       sub.subscription.unsubscribe();
     };
   }, [router, queryClient, getPrefsFn]);
