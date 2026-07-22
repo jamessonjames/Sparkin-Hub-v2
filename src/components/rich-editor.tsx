@@ -153,6 +153,23 @@ export function RichEditor({
         return false;
       },
       handlePaste: (view, event) => {
+        const text = event.clipboardData ? event.clipboardData.getData("text/plain") : "";
+        const html = event.clipboardData ? event.clipboardData.getData("text/html") : "";
+        
+        const containsGDriveFile = 
+          text.includes("lh3.googleusercontent.com/d/") || 
+          text.includes("drive.google.com/uc") || 
+          text.includes("drive.google.com/file/d/") ||
+          html.includes("lh3.googleusercontent.com/d/") || 
+          html.includes("drive.google.com/uc") || 
+          html.includes("drive.google.com/file/d/");
+
+        if (containsGDriveFile) {
+          event.preventDefault();
+          toast.warning("Não é permitido copiar e colar anexos do Google Drive para evitar links duplicados. Faça o upload novamente se precisar do arquivo.");
+          return true;
+        }
+
         if (event.clipboardData && event.clipboardData.files && event.clipboardData.files.length > 0) {
           event.preventDefault();
           event.stopPropagation();
