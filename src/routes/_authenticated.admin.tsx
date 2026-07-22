@@ -164,6 +164,7 @@ function AdminPage() {
 
   // Google Drive integration state
   const [gDriveConnected, setGDriveConnected] = useState(false);
+  const [gDriveExpired, setGDriveExpired] = useState(false);
   const [gDriveEmail, setGDriveEmail] = useState("");
   const [loadingGDriveStatus, setLoadingGDriveStatus] = useState(true);
 
@@ -237,6 +238,7 @@ function AdminPage() {
       toast.dismiss();
       if (res.success) {
         setGDriveConnected(true);
+        setGDriveExpired(false);
         setGDriveEmail(email);
         toast.success(`Google Drive conectado com sucesso: ${email}`);
       } else {
@@ -258,6 +260,7 @@ function AdminPage() {
       if (res.success) {
         clearGDriveToken();
         setGDriveConnected(false);
+        setGDriveExpired(false);
         setGDriveEmail("");
         toast.success("Google Drive desconectado.");
       } else {
@@ -307,6 +310,7 @@ function AdminPage() {
       getStatusFn()
         .then((res) => {
           setGDriveConnected(res.connected);
+          setGDriveExpired(!!res.expired);
           setGDriveEmail(res.email || "");
           setLoadingGDriveStatus(false);
         })
@@ -868,26 +872,41 @@ function AdminPage() {
                   <div>
                     <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
                       Google Drive
-                      {gDriveConnected && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                      {gDriveConnected && (
+                        <span className={cn("h-1.5 w-1.5 rounded-full animate-pulse", gDriveExpired ? "bg-amber-400" : "bg-emerald-500")} />
+                      )}
                     </h4>
                     <p className="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
                       {gDriveConnected 
-                        ? `Conectado à conta: ${gDriveEmail}. Todos os uploads serão organizados em pastas no seu Drive.`
+                        ? gDriveExpired
+                          ? `Conectado a: ${gDriveEmail} (Sessão Expirada). Clique em Reconectar para renovar o envio de anexos.`
+                          : `Conectado à conta: ${gDriveEmail}. Todos os uploads serão organizados em pastas no seu Drive.`
                         : "Hospede e organize todos os uploads do editor rico e favicons na sua própria conta do Google Drive automaticamente."}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   {gDriveConnected ? (
-                    <Button 
-                      type="button" 
-                      variant="destructive" 
-                      disabled={!isOwner}
-                      onClick={handleDisconnectGDrive}
-                      className="text-xs h-8 px-3 rounded-lg cursor-pointer"
-                    >
-                      Desconectar
-                    </Button>
+                    <>
+                      <Button 
+                        type="button" 
+                        disabled={!isOwner}
+                        onClick={handleConnectGDrive}
+                        variant={gDriveExpired ? "default" : "outline"}
+                        className="text-xs h-8 px-3 rounded-lg cursor-pointer"
+                      >
+                        {gDriveExpired ? "Reconectar" : "Renovar Conexão"}
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="destructive" 
+                        disabled={!isOwner}
+                        onClick={handleDisconnectGDrive}
+                        className="text-xs h-8 px-3 rounded-lg cursor-pointer"
+                      >
+                        Desconectar
+                      </Button>
+                    </>
                   ) : (
                     <Button 
                       type="button" 

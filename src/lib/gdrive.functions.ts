@@ -2,6 +2,17 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+function parseDriveError(resStatus: number, resText: string): string {
+  if (resStatus === 401 || resText.includes("UNAUTHENTICATED") || resText.includes("invalid authentication credentials") || resText.includes("Invalid Credentials")) {
+    return "A sessão do Google Drive expirou (token de 1 hora). Acesse Admin > Integrações para reconectar a conta.";
+  }
+  try {
+    const parsed = JSON.parse(resText);
+    if (parsed.error?.message) return parsed.error.message;
+  } catch (e) {}
+  return resText;
+}
+
 // Helper to get or refresh valid Google Drive access token on the server
 export async function getServerGDriveAccessToken(context: { supabase: any }): Promise<string> {
   const { data } = await (context.supabase as any)
@@ -60,7 +71,15 @@ export async function getServerGDriveAccessToken(context: { supabase: any }): Pr
     }
   }
 
-  // 3. Fallback to existing access_token if present
+  // 3. Check if access_token is expired and cannot be refreshed
+  if (creds.expires_at && Date.now() >= creds.expires_at - 60000) {
+    const accountEmail = creds.account_email && creds.account_email !== "Desconhecido" ? ` (${creds.account_email})` : "";
+    throw new Error(
+      `A sessão do Google Drive${accountEmail} expirou. Acesse Admin > Integrações para reconectar a conta.`
+    );
+  }
+
+  // 4. Fallback to existing access_token if present
   if (creds.access_token) {
     return creds.access_token;
   }
@@ -239,7 +258,7 @@ async function createFolder(accessToken: string, name: string, parentId?: string
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Erro ao criar pasta no Drive: ${err}`);
+    throw new Error(parseDriveError(res.status, err));
   }
 
   const data = await res.json();
@@ -311,7 +330,7 @@ export async function uploadFile(
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Erro de upload de arquivo: ${err}`);
+    throw new Error(parseDriveError(res.status, err));
   }
 
   const data = await res.json();
@@ -334,7 +353,7 @@ export async function makeFilePublic(accessToken: string, fileId: string): Promi
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Erro ao definir permissão pública do arquivo: ${err}`);
+    throw new Error(parseDriveError(res.status, err));
   }
 }
 
