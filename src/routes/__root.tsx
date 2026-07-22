@@ -166,9 +166,6 @@ function RootComponent() {
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });
     return () => {
-      window.removeEventListener("error", onError);
-      window.removeEventListener("unhandledrejection", onRejection);
-      window.removeEventListener("vite:preloadError", onPreloadError);
       sub.subscription.unsubscribe();
     };
   }, [router, queryClient, getPrefsFn]);
