@@ -103,7 +103,7 @@ function AdminPage() {
             accessToken,
             fileBase64: base64,
             fileName: file.name,
-            mimeType: file.type,
+            mimeType: file.type || "image/x-icon",
             pathParts: ["Branding"],
           },
         });
@@ -115,13 +115,13 @@ function AdminPage() {
           // Fallback if not configured
           const fallbackUrl = event.target?.result as string; // use base64 direct URL
           setFaviconUrl(fallbackUrl);
-          toast.warning("Hospedagem Google Drive indisponível. Favicon salvo localmente em base64.");
+          toast.warning(`Hospedagem falhou: ${response.error || 'Erro desconhecido'}. Usando fallback local.`);
         }
       } catch (error: any) {
         console.error("Favicon upload failed, using fallback:", error);
         const fallbackUrl = event.target?.result as string;
         setFaviconUrl(fallbackUrl);
-        toast.warning("Hospedagem falhou. Usando fallback local.");
+        toast.warning(`Hospedagem falhou: ${error.message || error}. Usando fallback local.`);
       } finally {
         setUploadingFavicon(false);
       }
