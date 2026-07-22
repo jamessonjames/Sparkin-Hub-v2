@@ -13,7 +13,7 @@ import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { useUserContext } from "@/contexts/user-context";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check, Repeat } from "lucide-react";
 import { STATUS_LABELS } from "@/lib/demand-labels";
 import { cn } from "@/lib/utils";
 import {
@@ -548,8 +548,68 @@ function AgendaPage() {
     return { ok: true as const };
   }
 
+  const [recurrenceDragState, setRecurrenceDragState] = useState<{
+    open: boolean;
+    reminder: ReminderData | null;
+    targetDateTime: string;
+  } | null>(null);
+
   function handleDragStart(e: DragStartEvent) {
     setActiveDragId(String(e.active.id));
+  }
+
+  async function handleConfirmSingleRecurrence() {
+    if (!recurrenceDragState?.reminder || !recurrenceDragState?.targetDateTime) return;
+    const rem = recurrenceDragState.reminder;
+    const targetDt = recurrenceDragState.targetDateTime;
+
+    try {
+      await upsertReminderFn({
+        data: {
+          title: rem.title,
+          content: rem.content || "",
+          color: rem.color,
+          date_time: targetDt,
+          recurrence_type: "none",
+          recurrence_interval: 1,
+          is_completed: false,
+        },
+      });
+      toast.success("Lembrete desta ocorrência movido!");
+      qc.invalidateQueries({ queryKey: ["reminders"] });
+    } catch (err: any) {
+      toast.error("Erro ao mover ocorrência");
+    } finally {
+      setRecurrenceDragState(null);
+    }
+  }
+
+  async function handleConfirmSeriesRecurrence() {
+    if (!recurrenceDragState?.reminder || !recurrenceDragState?.targetDateTime) return;
+    const rem = recurrenceDragState.reminder;
+    const targetDt = recurrenceDragState.targetDateTime;
+
+    try {
+      await upsertReminderFn({
+        data: {
+          id: rem.id,
+          title: rem.title,
+          content: rem.content || "",
+          color: rem.color,
+          date_time: targetDt,
+          recurrence_type: rem.recurrence_type,
+          recurrence_interval: rem.recurrence_interval || 1,
+          recurrence_end_date: rem.recurrence_end_date,
+          is_completed: rem.is_completed || false,
+        },
+      });
+      toast.success("Toda a série de lembretes foi movida!");
+      qc.invalidateQueries({ queryKey: ["reminders"] });
+    } catch (err: any) {
+      toast.error("Erro ao mover série de lembretes");
+    } finally {
+      setRecurrenceDragState(null);
+    }
   }
 
   async function handleDragEnd(e: DragEndEvent) {
@@ -559,10 +619,53 @@ function AgendaPage() {
     const targetSlotId = getSlotIdFromDragEnd(e);
     if (!targetSlotId) return;
 
-    const demandId = String(active.id);
+    const activeIdStr = String(active.id);
     const targetDate = parseSlotId(targetSlotId);
     if (!targetDate) return;
 
+    if (activeIdStr.startsWith("reminder:")) {
+      const parts = activeIdStr.split(":");
+      const reminderId = parts[1];
+      const rem = reminders.find((r) => r.id === reminderId);
+      if (!rem) return;
+
+      const formattedTarget = formatTzString(targetDate);
+
+      if (rem.recurrence_type && rem.recurrence_type !== "none") {
+        setRecurrenceDragState({
+          open: true,
+          reminder: rem as ReminderData,
+          targetDateTime: formattedTarget,
+        });
+      } else {
+        qc.setQueryData<typeof reminders>(["reminders", selectedUserId], (prev) =>
+          (prev ?? []).map((r) => (r.id === reminderId ? { ...r, date_time: formattedTarget } as any : r))
+        );
+        try {
+          await upsertReminderFn({
+            data: {
+              id: rem.id,
+              title: rem.title,
+              content: rem.content || "",
+              color: (rem.color as any) || "yellow",
+              date_time: formattedTarget,
+              recurrence_type: rem.recurrence_type as any,
+              recurrence_interval: rem.recurrence_interval || 1,
+              recurrence_end_date: rem.recurrence_end_date,
+              is_completed: rem.is_completed || false,
+            },
+          });
+          toast.success("Lembrete reagendado!");
+          qc.invalidateQueries({ queryKey: ["reminders"] });
+        } catch (err) {
+          toast.error("Erro ao reagendar lembrete");
+          qc.invalidateQueries({ queryKey: ["reminders"] });
+        }
+      }
+      return;
+    }
+
+    const demandId = activeIdStr;
     const conflict = findSchedulingConflict(demandId, targetDate);
     if (!conflict.ok) {
       toast.error(conflict.message);
@@ -586,11 +689,17 @@ function AgendaPage() {
   }
 
   const activeDragDemand = useMemo(() => {
-    if (!activeDragId) return null;
+    if (!activeDragId || activeDragId.startsWith("reminder:")) return null;
     const demand = demands.find((d) => d.id === activeDragId) as AgendaDemand | undefined;
     if (!demand) return null;
     return { ...demand, due_date: getEffectiveDueDate(demand) };
   }, [activeDragId, demands, scheduledMap]);
+
+  const activeDragReminder = useMemo(() => {
+    if (!activeDragId || !activeDragId.startsWith("reminder:")) return null;
+    const remId = activeDragId.split(":")[1];
+    return (reminders.find((r) => r.id === remId) as ReminderData) || null;
+  }, [activeDragId, reminders]);
 
   async function handleSaveReminder(data: ReminderData) {
     try {
@@ -892,9 +1001,10 @@ function AgendaPage() {
                             )}
 
                             {remindersInSlot.map((rem) => (
-                              <ReminderPostItCard
-                                key={rem.id}
+                              <DraggableReminderCard
+                                key={`${rem.id}_${slotKey}`}
                                 reminder={rem}
+                                slotDateTime={`${iso}T${hStr}:${mStr}:00`}
                                 onClick={() => {
                                   setEditingReminder(rem);
                                   setReminderDialogOpen(true);
@@ -933,7 +1043,11 @@ function AgendaPage() {
         </div>
 
         <DragOverlay dropAnimation={null}>
-          {activeDragDemand ? <AgendaDemandCardPreview demand={activeDragDemand} /> : null}
+          {activeDragDemand ? (
+            <AgendaDemandCardPreview demand={activeDragDemand} />
+          ) : activeDragReminder ? (
+            <ReminderPostItCardPreview reminder={activeDragReminder} />
+          ) : null}
         </DragOverlay>
 
         {/* Slot choice modal (Nova Demanda vs Novo Lembrete) */}
@@ -961,7 +1075,7 @@ function AgendaPage() {
           }}
         />
 
-        {/* Sticky Note Reminder Dialog */}
+        {/* Reminder dialog */}
         <ReminderDialog
           open={reminderDialogOpen}
           onOpenChange={setReminderDialogOpen}
@@ -970,6 +1084,17 @@ function AgendaPage() {
           onDelete={handleDeleteReminder}
           onComplete={handleCompleteReminder}
         />
+
+        {/* Recurrence drag modal */}
+        {recurrenceDragState && (
+          <RecurrenceDragModal
+            open={recurrenceDragState.open}
+            onOpenChange={(op) => !op && setRecurrenceDragState(null)}
+            reminderTitle={recurrenceDragState.reminder?.title || ""}
+            onConfirmSingle={handleConfirmSingleRecurrence}
+            onConfirmSeries={handleConfirmSeriesRecurrence}
+          />
+        )}
 
       </div>
     </DndContext>
@@ -1086,15 +1211,22 @@ function DaySummaryPill({
   );
 }
 
-function ReminderPostItCard({
+function DraggableReminderCard({
   reminder,
+  slotDateTime,
   onClick,
   onComplete,
 }: {
   reminder: ReminderData;
+  slotDateTime: string;
   onClick: () => void;
   onComplete: () => void;
 }) {
+  const dragId = `reminder:${reminder.id}:${slotDateTime}`;
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: dragId,
+  });
+
   const COLOR_HEADER: Record<string, string> = {
     yellow: "bg-[#d4a017] text-amber-950",
     blue:   "bg-[#2383e2] text-white",
@@ -1104,20 +1236,24 @@ function ReminderPostItCard({
   };
 
   const COLOR_BG: Record<string, string> = {
-    yellow: "bg-[#252219] border-[#d4a017]/40",
-    blue:   "bg-[#182330] border-[#2383e2]/40",
-    green:  "bg-[#15241b] border-[#0f9d58]/40",
-    purple: "bg-[#231828] border-[#ab47bc]/40",
-    gray:   "bg-[#202020] border-[#383838]/40",
+    yellow: "bg-[#252219] border-[#d4a017]/80",
+    blue:   "bg-[#182330] border-[#2383e2]/80",
+    green:  "bg-[#15241b] border-[#0f9d58]/80",
+    purple: "bg-[#231828] border-[#ab47bc]/80",
+    gray:   "bg-[#202020] border-[#383838]/80",
   };
 
   return (
     <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
       data-reminder-card="true"
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       className={cn(
-        "rounded-lg border text-[10px] font-medium shadow-md select-none flex flex-col justify-between overflow-hidden cursor-pointer hover:scale-[1.02] transition-all h-[36px] my-0.5 z-10 relative",
-        COLOR_BG[reminder.color] || COLOR_BG.yellow
+        "rounded-lg border text-[10px] font-medium shadow-xl select-none flex flex-col justify-between overflow-hidden cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-all h-[36px] my-0.5 z-30 relative",
+        COLOR_BG[reminder.color] || COLOR_BG.yellow,
+        isDragging && "opacity-40 scale-95 shadow-2xl rotate-2 z-50"
       )}
     >
       <div className={cn("h-1.5 w-full shrink-0", COLOR_HEADER[reminder.color] || COLOR_HEADER.yellow)} />
@@ -1138,6 +1274,95 @@ function ReminderPostItCard({
         </button>
       </div>
     </div>
+  );
+}
+
+function ReminderPostItCardPreview({ reminder }: { reminder: ReminderData }) {
+  const COLOR_HEADER: Record<string, string> = {
+    yellow: "bg-[#d4a017] text-amber-950",
+    blue:   "bg-[#2383e2] text-white",
+    green:  "bg-[#0f9d58] text-white",
+    purple: "bg-[#ab47bc] text-white",
+    gray:   "bg-[#383838] text-white",
+  };
+
+  const COLOR_BG: Record<string, string> = {
+    yellow: "bg-[#252219] border-[#d4a017]",
+    blue:   "bg-[#182330] border-[#2383e2]",
+    green:  "bg-[#15241b] border-[#0f9d58]",
+    purple: "bg-[#231828] border-[#ab47bc]",
+    gray:   "bg-[#202020] border-[#383838]",
+  };
+
+  return (
+    <div
+      style={{ width: 170 }}
+      className={cn(
+        "rounded-lg border text-[10px] font-medium shadow-2xl select-none flex flex-col justify-between overflow-hidden opacity-95 my-0.5 z-50",
+        COLOR_BG[reminder.color] || COLOR_BG.yellow
+      )}
+    >
+      <div className={cn("h-1.5 w-full shrink-0", COLOR_HEADER[reminder.color] || COLOR_HEADER.yellow)} />
+      <div className="px-2 py-1 flex items-center justify-between gap-1 min-w-0">
+        <span className="font-bold text-foreground truncate">{reminder.title}</span>
+      </div>
+    </div>
+  );
+}
+
+function RecurrenceDragModal({
+  open,
+  onOpenChange,
+  reminderTitle,
+  onConfirmSingle,
+  onConfirmSeries,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  reminderTitle: string;
+  onConfirmSingle: () => void;
+  onConfirmSeries: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[400px] p-5 bg-[#202020] border border-white/10 text-foreground rounded-2xl shadow-2xl space-y-4 [&>button.absolute]:hidden z-50">
+        <DialogHeader>
+          <DialogTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+            <Repeat className="h-4 w-4 text-amber-400" />
+            <span>Mover Lembrete Recorrente</span>
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground pt-1">
+            O lembrete <strong className="text-foreground">“{reminderTitle}”</strong> faz parte de uma série recorrente. Como deseja aplicar a mudança de horário?
+          </p>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => {
+              onOpenChange(false);
+              onConfirmSingle();
+            }}
+            className="flex flex-col p-3 rounded-xl border border-white/10 bg-[#262626] hover:bg-[#2e2e2e] hover:border-amber-400/40 transition-all text-left cursor-pointer group"
+          >
+            <span className="text-xs font-bold text-foreground group-hover:text-amber-400 transition-colors">Apenas esta ocorrência</span>
+            <span className="text-[11px] text-muted-foreground">Mover somente o lembrete deste dia para o novo horário</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onOpenChange(false);
+              onConfirmSeries();
+            }}
+            className="flex flex-col p-3 rounded-xl border border-white/10 bg-[#262626] hover:bg-[#2e2e2e] hover:border-primary/40 transition-all text-left cursor-pointer group"
+          >
+            <span className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">Todas as próximas ocorrências</span>
+            <span className="text-[11px] text-muted-foreground">Atualizar o horário padrão de toda a série recorrente</span>
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
