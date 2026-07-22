@@ -40,19 +40,36 @@ function NotFoundComponent() {
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
+  const isChunkError = Boolean(
+    error?.message &&
+      /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(error.message)
+  );
 
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
+    if (isChunkError && typeof window !== "undefined") {
+      const KEY = "last_chunk_error_reload";
+      const lastReload = sessionStorage.getItem(KEY);
+      const now = Date.now();
+      if (!lastReload || now - Number(lastReload) > 15000) {
+        sessionStorage.setItem(KEY, String(now));
+        const url = new URL(window.location.href);
+        url.searchParams.set("_v", String(now));
+        window.location.replace(url.toString());
+      }
+    }
+  }, [error, isChunkError]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center w-full">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Algo deu errado
+          {isChunkError ? "Nova versão disponível" : "Algo deu errado"}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Ocorreu um erro ao carregar esta página.
+          {isChunkError
+            ? "Uma nova versão do sistema foi publicada. Clique no botão abaixo para carregar as alterações."
+            : "Ocorreu um erro ao carregar esta página."}
         </p>
         <div className="mt-3 p-3 bg-muted/40 rounded text-left text-xs font-mono text-muted-foreground max-h-36 overflow-auto border border-border/50 break-all">
           {error?.message || String(error) || "Erro desconhecido"}
@@ -61,13 +78,15 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           <button
             onClick={() => {
               if (typeof window !== "undefined") {
-                sessionStorage.clear();
-                window.location.reload();
+                sessionStorage.removeItem("last_chunk_error_reload");
+                const url = new URL(window.location.href);
+                url.searchParams.set("_v", String(Date.now()));
+                window.location.replace(url.toString());
               }
             }}
             className="btn-primary"
           >
-            Tentar novamente
+            {isChunkError ? "Atualizar sistema" : "Tentar novamente"}
           </button>
           <Link to="/" className="btn-ghost">Início</Link>
         </div>
@@ -160,12 +179,27 @@ function RootComponent() {
       }).catch(() => {});
     });
 
+    const onPreloadError = (e: Event) => {
+      e.preventDefault();
+      const KEY = "last_chunk_error_reload";
+      const lastReload = sessionStorage.getItem(KEY);
+      const now = Date.now();
+      if (!lastReload || now - Number(lastReload) > 15000) {
+        sessionStorage.setItem(KEY, String(now));
+        const url = new URL(window.location.href);
+        url.searchParams.set("_v", String(now));
+        window.location.replace(url.toString());
+      }
+    };
+    window.addEventListener("vite:preloadError", onPreloadError);
+
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });
     return () => {
+      window.removeEventListener("vite:preloadError", onPreloadError);
       sub.subscription.unsubscribe();
     };
   }, [router, queryClient, getPrefsFn]);
