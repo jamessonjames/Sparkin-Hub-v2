@@ -163,7 +163,7 @@ export function scheduleDemands(
   demands: UnscheduledDemand[],
   config: SchedulingConfig = DEFAULT_CONFIG
 ): Record<string, string> {
-  const active = demands.filter(d => d.status !== "concluido");
+  const active = demands.filter(d => d.status !== "concluido" && d.status !== "para_analise");
   
   // Categorize demands
   const fixed = active.filter(d => d.due_date && d.due_date.length > 10);

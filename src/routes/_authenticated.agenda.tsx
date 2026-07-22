@@ -3,12 +3,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState, useRef, useEffect } from "react";
 import { listDemands, batchUpdateDueDates, updateDemand } from "@/lib/demands.functions";
+import { listReminders, upsertReminder, completeReminder, deleteReminder } from "@/lib/reminders.functions";
+import { ReminderDialog, type ReminderData } from "@/components/reminder-dialog";
+import { AgendaSlotModal } from "@/components/agenda-slot-modal";
 import { listProfiles } from "@/lib/users.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { useUserContext } from "@/contexts/user-context";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2 } from "lucide-react";
 import { STATUS_LABELS } from "@/lib/demand-labels";
 import { cn } from "@/lib/utils";
 import {
@@ -233,15 +237,33 @@ function AgendaPage() {
 
   // Persistence handled globally by useAutoScheduler hook (mounted in AppShell).
 
-  // Group demands by date/hour/minute slot for display
+  const listRemindersFn = useServerFn(listReminders);
+  const upsertReminderFn = useServerFn(upsertReminder);
+  const completeReminderFn = useServerFn(completeReminder);
+  const deleteReminderFn = useServerFn(deleteReminder);
+
+  const { data: reminders = [] } = useQuery({
+    queryKey: ["reminders", selectedUserId],
+    queryFn: () => listRemindersFn({ data: isAdminOrOwner && selectedUserId ? { assigneeUserId: selectedUserId } : {} }),
+  });
+
+  // Slot modal state (Choice between Nova Demanda or Novo Lembrete)
+  const [slotModalOpen, setSlotModalOpen] = useState(false);
+  const [selectedSlotDateTime, setSelectedSlotDateTime] = useState<string>("");
+
+  // Reminder dialog state
+  const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
+  const [editingReminder, setEditingReminder] = useState<Partial<ReminderData> | null>(null);
+
+  // Group demands by date/hour/minute slot for display (ACTIVE STATUSES ONLY)
   const demandsBySlot = useMemo(() => {
     const map = new Map<string, AgendaDemand>();
     for (const d of demands) {
-      const finalDate = d.status === "concluido" ? d.due_date : (scheduledMap[d.id] ?? d.due_date);
+      if (d.status === "concluido" || d.status === "para_analise") continue;
+      const finalDate = scheduledMap[d.id] ?? d.due_date;
       if (finalDate) {
         const dt = safeParseDate(finalDate);
         const hStr = String(dt.getHours()).padStart(2, "0");
-        // round to nearest 30-min block
         const mStr = dt.getMinutes() >= 30 ? "30" : "00";
         const key = `${toISO(dt)}_${hStr}_${mStr}`;
         map.set(key, { ...(d as AgendaDemand), due_date: finalDate });
@@ -249,6 +271,40 @@ function AgendaPage() {
     }
     return map;
   }, [demands, scheduledMap]);
+
+  // Group concluida & para_analise demands for day header summary pill (Option A)
+  const daySummaryDemands = useMemo(() => {
+    const map = new Map<string, { concluida: AgendaDemand[]; para_analise: AgendaDemand[] }>();
+    for (const d of demands) {
+      if (d.status === "concluido" || d.status === "para_analise") {
+        const dateKey = (d.due_date || toISO(new Date())).slice(0, 10);
+        const entry = map.get(dateKey) || { concluida: [], para_analise: [] };
+        if (d.status === "concluido") {
+          entry.conclvida.push(d as AgendaDemand);
+        } else {
+          entry.para_analise.push(d as AgendaDemand);
+        }
+        map.set(dateKey, entry);
+      }
+    }
+    return map;
+  }, [demands]);
+
+  // Group active reminders by slot
+  const remindersBySlot = useMemo(() => {
+    const map = new Map<string, ReminderData[]>();
+    for (const r of reminders) {
+      if (r.is_completed) continue;
+      const dt = new Date(r.date_time);
+      const hStr = String(dt.getHours()).padStart(2, "0");
+      const mStr = dt.getMinutes() >= 30 ? "30" : "00";
+      const key = `${toISO(dt)}_${hStr}_${mStr}`;
+      const arr = map.get(key) || [];
+      arr.push(r as ReminderData);
+      map.set(key, arr);
+    }
+    return map;
+  }, [reminders]);
 
   // Group demands by date only (for monthly view)
   const demandsByDate = useMemo(() => {
@@ -495,6 +551,42 @@ function AgendaPage() {
     return { ...demand, due_date: getEffectiveDueDate(demand) };
   }, [activeDragId, demands, scheduledMap]);
 
+  async function handleSaveReminder(data: ReminderData) {
+    try {
+      await upsertReminderFn({ data });
+      toast.success("Lembrete salvo com sucesso!");
+      qc.invalidateQueries({ queryKey: ["reminders"] });
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao salvar lembrete");
+    }
+  }
+
+  async function handleCompleteReminder(id: string) {
+    try {
+      await completeReminderFn({ data: { id } });
+      toast.success("Lembrete concluído!");
+      qc.invalidateQueries({ queryKey: ["reminders"] });
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao concluir lembrete");
+    }
+  }
+
+  async function handleDeleteReminder(id: string) {
+    try {
+      await deleteReminderFn({ data: { id } });
+      toast.success("Lembrete removido!");
+      qc.invalidateQueries({ queryKey: ["reminders"] });
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao remover lembrete");
+    }
+  }
+
+  function handleSlotClick(iso: string, hour: number, minute: number) {
+    const slotIso = `${iso}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    setSelectedSlotDateTime(slotIso);
+    setSlotModalOpen(true);
+  }
+
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scrollRef.current && viewMode !== "month") {
@@ -685,17 +777,24 @@ function AgendaPage() {
               {weekDays.map((day) => {
                 const iso = toISO(day);
                 const isToday = iso === todayISO;
+                const summary = daySummaryDemands.get(iso);
                 return (
-                  <div key={iso} className="flex-1 text-center py-2 border-l border-border/40 min-w-[120px]">
+                  <div key={iso} className="flex-1 text-center py-1.5 border-l border-border/40 min-w-[120px] flex flex-col items-center">
                     <div className="text-[10px] font-bold text-muted-foreground tracking-wider">
                       {viewMode === "day" ? WEEKDAY_NAMES[day.getDay()] : DAYS_SHORT[day.getDay()]}
                     </div>
                     <div className={cn(
-                      "mx-auto mt-1 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold",
+                      "mx-auto mt-0.5 h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold",
                       isToday ? "bg-primary text-primary-foreground font-black" : "text-foreground"
                     )}>
                       {day.getDate()}
                     </div>
+                    {summary && (summary.conclvida.length > 0 || summary.para_analise.length > 0) && (
+                      <DaySummaryPill
+                        summary={summary}
+                        onOpenDemand={(id) => overlay.open(id, clientsForOverlay)}
+                      />
+                    )}
                   </div>
                 );
               })}
@@ -705,7 +804,7 @@ function AgendaPage() {
             <div ref={scrollRef} className="flex-1 overflow-y-auto">
               <div className="flex relative">
                 
-                {/* Hour labels (Only printed on the hour, every 2 slots) */}
+                {/* Hour labels */}
                 <div className="w-[60px] shrink-0 select-none bg-muted/5 border-r border-border/40 z-10">
                   {SLOTS.map((slot, index) => (
                     <div key={index} className="h-10 relative flex items-start justify-end pr-2.5">
@@ -738,6 +837,7 @@ function AgendaPage() {
                         const mStr = String(slot.m).padStart(2, "0");
                         const slotKey = `${iso}_${hStr}_${mStr}`;
                         const demand = demandsBySlot.get(slotKey);
+                        const remindersInSlot = remindersBySlot.get(slotKey) || [];
                         const isBusiness = isValidSlot(new Date(`${iso}T${hStr}:${mStr}:00`), config);
 
                         return (
@@ -745,6 +845,7 @@ function AgendaPage() {
                             key={index}
                             id={`slot_${iso}_${hStr}_${mStr}`}
                             isBusiness={isBusiness}
+                            onClick={() => handleSlotClick(iso, slot.h, slot.m)}
                           >
                             {demand && (
                               <DraggableDemandCard
@@ -754,6 +855,18 @@ function AgendaPage() {
                                 onClick={() => overlay.open(demand.id, clientsForOverlay)}
                               />
                             )}
+
+                            {remindersInSlot.map((rem) => (
+                              <ReminderPostItCard
+                                key={rem.id}
+                                reminder={rem}
+                                onClick={() => {
+                                  setEditingReminder(rem);
+                                  setReminderDialogOpen(true);
+                                }}
+                                onComplete={() => handleCompleteReminder(rem.id!)}
+                              />
+                            ))}
                           </DroppableHourCell>
                         );
                       })}
@@ -788,6 +901,41 @@ function AgendaPage() {
           {activeDragDemand ? <AgendaDemandCardPreview demand={activeDragDemand} /> : null}
         </DragOverlay>
 
+        {/* Slot choice modal (Nova Demanda vs Novo Lembrete) */}
+        <AgendaSlotModal
+          open={slotModalOpen}
+          onOpenChange={setSlotModalOpen}
+          slotDateTime={selectedSlotDateTime}
+          onCreateDemand={() => {
+            const dateStr = selectedSlotDateTime.slice(0, 10);
+            overlay.openNew(
+              clientsForOverlay,
+              dateStr,
+              "nao_iniciado",
+              undefined,
+              isAdminOrOwner && selectedUserId ? selectedUserId : undefined
+            );
+          }}
+          onCreateReminder={() => {
+            setEditingReminder({
+              date_time: selectedSlotDateTime,
+              color: "yellow",
+              recurrence_type: "none",
+            });
+            setReminderDialogOpen(true);
+          }}
+        />
+
+        {/* Sticky Note Reminder Dialog */}
+        <ReminderDialog
+          open={reminderDialogOpen}
+          onOpenChange={setReminderDialogOpen}
+          initialData={editingReminder}
+          onSave={handleSaveReminder}
+          onDelete={handleDeleteReminder}
+          onComplete={handleCompleteReminder}
+        />
+
       </div>
     </DndContext>
   );
@@ -796,10 +944,12 @@ function AgendaPage() {
 function DroppableHourCell({
   id,
   isBusiness,
+  onClick,
   children,
 }: {
   id: string;
   isBusiness: boolean;
+  onClick?: (e: React.MouseEvent) => void;
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
@@ -807,13 +957,131 @@ function DroppableHourCell({
     <div
       ref={setNodeRef}
       data-agenda-slot-id={id}
+      onClick={(e) => {
+        const target = e.target as HTMLElement;
+        if (target.closest("[data-demand-card]") || target.closest("[data-reminder-card]")) {
+          return;
+        }
+        if (onClick) onClick(e);
+      }}
       className={cn(
-        "h-10 border-t border-border/15 p-0.5 relative transition-colors duration-150",
+        "h-10 border-t border-border/15 p-0.5 relative transition-colors duration-150 cursor-pointer hover:bg-white/5",
         !isBusiness && "bg-muted/30 opacity-70",
         isOver && (isBusiness ? "bg-primary/25 border-t-primary" : "bg-red-500/10 border-t-red-700")
       )}
     >
       {children}
+    </div>
+  );
+}
+
+function DaySummaryPill({
+  summary,
+  onOpenDemand,
+}: {
+  summary: { concluida: AgendaDemand[]; para_analise: AgendaDemand[] };
+  onOpenDemand: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const totalCount = summary.conclvida.length + summary.para_analise.length;
+  if (totalCount === 0) return null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-muted/60 hover:bg-muted text-foreground border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer truncate max-w-[115px]"
+          title="Ver demandas concluídas e em análise do dia"
+        >
+          {summary.conclvida.length > 0 && (
+            <span className="text-emerald-400 font-bold">✓ {summary.conclvida.length}</span>
+          )}
+          {summary.para_analise.length > 0 && (
+            <span className="text-purple-400 font-bold">⏳ {summary.para_analise.length}</span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="center" className="w-60 p-2.5 bg-[#222222] border border-white/10 text-foreground rounded-xl shadow-2xl space-y-2 z-50">
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-0.5">Fora do Expediente</p>
+        <div className="space-y-1.5 max-h-52 overflow-y-auto pr-0.5">
+          {summary.para_analise.map((d) => (
+            <div
+              key={d.id}
+              onClick={() => { setOpen(false); onOpenDemand(d.id); }}
+              className="p-2 rounded-lg bg-[#2a2433] hover:bg-[#342b40] border border-purple-500/30 text-xs cursor-pointer transition-colors"
+            >
+              <p className="font-semibold text-purple-200 truncate">{d.title}</p>
+              <p className="text-[10px] text-purple-400 font-medium">⏳ Para Análise</p>
+            </div>
+          ))}
+          {summary.conclvida.map((d) => (
+            <div
+              key={d.id}
+              onClick={() => { setOpen(false); onOpenDemand(d.id); }}
+              className="p-2 rounded-lg bg-[#1a2820] hover:bg-[#203328] border border-emerald-500/30 text-xs cursor-pointer transition-colors"
+            >
+              <p className="font-semibold text-emerald-200 truncate line-through">{d.title}</p>
+              <p className="text-[10px] text-emerald-400 font-medium">✓ Concluída</p>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function ReminderPostItCard({
+  reminder,
+  onClick,
+  onComplete,
+}: {
+  reminder: ReminderData;
+  onClick: () => void;
+  onComplete: () => void;
+}) {
+  const COLOR_HEADER: Record<string, string> = {
+    yellow: "bg-[#d4a017] text-amber-950",
+    blue:   "bg-[#2383e2] text-white",
+    green:  "bg-[#0f9d58] text-white",
+    purple: "bg-[#ab47bc] text-white",
+    gray:   "bg-[#383838] text-white",
+  };
+
+  const COLOR_BG: Record<string, string> = {
+    yellow: "bg-[#252219] border-[#d4a017]/40",
+    blue:   "bg-[#182330] border-[#2383e2]/40",
+    green:  "bg-[#15241b] border-[#0f9d58]/40",
+    purple: "bg-[#231828] border-[#ab47bc]/40",
+    gray:   "bg-[#202020] border-[#383838]/40",
+  };
+
+  return (
+    <div
+      data-reminder-card="true"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className={cn(
+        "rounded-lg border text-[10px] font-medium shadow-md select-none flex flex-col justify-between overflow-hidden cursor-pointer hover:scale-[1.02] transition-all h-[36px] my-0.5 z-10 relative",
+        COLOR_BG[reminder.color] || COLOR_BG.yellow
+      )}
+    >
+      <div className={cn("h-1.5 w-full shrink-0", COLOR_HEADER[reminder.color] || COLOR_HEADER.yellow)} />
+      <div className="px-2 py-0.5 flex items-center justify-between gap-1 min-w-0">
+        <div className="flex items-center gap-1 min-w-0 flex-1">
+          <span className="font-bold text-foreground truncate">{reminder.title}</span>
+          {reminder.recurrence_type && reminder.recurrence_type !== "none" && (
+            <span className="text-[8px] px-1 rounded bg-white/10 text-muted-foreground shrink-0" title="Recorrente">↻</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onComplete(); }}
+          className="text-emerald-400 hover:text-emerald-300 p-0.5 rounded hover:bg-emerald-500/20 transition-colors shrink-0 cursor-pointer"
+          title="Concluir Lembrete"
+        >
+          <CheckCircle2 className="h-3 w-3" />
+        </button>
+      </div>
     </div>
   );
 }
