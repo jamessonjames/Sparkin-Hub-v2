@@ -31,6 +31,9 @@ export const AttachmentCardExtension = Node.create({
       fileName: { default: "" },
       fileSize: { default: "" },
       fileExt: { default: "" },
+      isUploading: { default: "false" },
+      uploadId: { default: "" },
+      progress: { default: 0 },
     };
   },
 
@@ -44,6 +47,57 @@ export const AttachmentCardExtension = Node.create({
 
   renderHTML({ HTMLAttributes }) {
     const ext = (HTMLAttributes.fileExt || "FILE").toUpperCase();
+    const isUploading = HTMLAttributes.isUploading === true || HTMLAttributes.isUploading === "true";
+    const uploadId = HTMLAttributes.uploadId || "";
+
+    if (isUploading) {
+      return [
+        "div",
+        mergeAttributes(HTMLAttributes, {
+          "data-type": "attachment-card",
+          class: "attachment-card-box not-prose my-2.5 p-3 rounded-xl border border-primary/40 bg-primary/5 flex items-center justify-between gap-3 shadow-sm select-none animate-pulse",
+        }),
+        [
+          "div",
+          { class: "flex items-center gap-3 min-w-0" },
+          [
+            "div",
+            { class: "h-9 w-9 rounded-lg bg-primary/20 text-primary flex items-center justify-center font-extrabold text-[11px] tracking-wider uppercase shrink-0 border border-primary/30" },
+            ext,
+          ],
+          [
+            "div",
+            { class: "min-w-0 flex flex-col justify-center" },
+            [
+              "span",
+              { class: "text-xs font-bold text-foreground truncate" },
+              HTMLAttributes.fileName || "Enviando arquivo...",
+            ],
+            [
+              "span",
+              {
+                id: `upload-status-${uploadId}`,
+                class: "text-[10px] text-primary font-medium mt-0.5",
+              },
+              `Fazendo upload (${HTMLAttributes.progress || 10}%)...`,
+            ],
+          ],
+        ],
+        [
+          "div",
+          { class: "flex items-center gap-2 shrink-0" },
+          [
+            "span",
+            {
+              id: `upload-percent-${uploadId}`,
+              class: "px-2.5 py-1 text-xs font-bold text-primary bg-primary/10 rounded-lg border border-primary/20",
+            },
+            `${HTMLAttributes.progress || 10}%`,
+          ],
+        ],
+      ];
+    }
+
     return [
       "div",
       mergeAttributes(HTMLAttributes, {
@@ -470,19 +524,31 @@ export function RichEditor({
       }
 
       const tempId = Math.random().toString(36).substring(2, 9);
-      editor?.chain().focus().insertContent(`<a href="#upload-${tempId}" class="text-primary animate-pulse font-medium">⏳ Enviando "${file.name}" (10%)...</a> `).run();
+      const ext = file.name.split(".").pop() || "file";
+
+      editor?.chain().focus().insertContent({
+        type: "attachmentCard",
+        attrs: {
+          src: `#upload-${tempId}`,
+          fileName: file.name,
+          fileExt: ext,
+          isUploading: "true",
+          uploadId: tempId,
+          progress: 10,
+        },
+      }).run();
 
       setUploading(true);
       setUploadProgress(10);
-      
+
       let currentProgress = 10;
       const progressInterval = setInterval(() => {
         currentProgress = Math.min(currentProgress + Math.floor(Math.random() * 15) + 5, 90);
         setUploadProgress(currentProgress);
-        const el = document.querySelector(`a[href="#upload-${tempId}"]`);
-        if (el) {
-          el.innerHTML = `⏳ Enviando "${file.name}" (${currentProgress}%)...`;
-        }
+        const statusEl = document.getElementById(`upload-status-${tempId}`);
+        const percentEl = document.getElementById(`upload-percent-${tempId}`);
+        if (statusEl) statusEl.textContent = `Fazendo upload (${currentProgress}%)...`;
+        if (percentEl) percentEl.textContent = `${currentProgress}%`;
       }, 300);
 
       try {
@@ -505,13 +571,12 @@ export function RichEditor({
 
             let foundRange: { from: number; to: number } | null = null;
             editor?.state.doc.descendants((node, pos) => {
-              if (node.marks) {
-                for (const mark of node.marks) {
-                  if (mark.type.name === "link" && mark.attrs.href === `#upload-${tempId}`) {
-                    foundRange = { from: pos, to: pos + node.nodeSize };
-                    return false;
-                  }
-                }
+              if (
+                node.type.name === "attachmentCard" &&
+                (node.attrs.uploadId === tempId || node.attrs.src === `#upload-${tempId}`)
+              ) {
+                foundRange = { from: pos, to: pos + node.nodeSize };
+                return false;
               }
               return true;
             });
@@ -523,7 +588,8 @@ export function RichEditor({
                   src: response.url,
                   fileName: file.name,
                   fileSize: formatFileSizeLocal(file.size),
-                  fileExt: file.name.split(".").pop() || "file",
+                  fileExt: ext,
+                  isUploading: "false",
                 },
               };
               if (foundRange) {
@@ -542,13 +608,12 @@ export function RichEditor({
             clearInterval(progressInterval);
             let foundRange: { from: number; to: number } | null = null;
             editor?.state.doc.descendants((node, pos) => {
-              if (node.marks) {
-                for (const mark of node.marks) {
-                  if (mark.type.name === "link" && mark.attrs.href === `#upload-${tempId}`) {
-                    foundRange = { from: pos, to: pos + node.nodeSize };
-                    return false;
-                  }
-                }
+              if (
+                node.type.name === "attachmentCard" &&
+                (node.attrs.uploadId === tempId || node.attrs.src === `#upload-${tempId}`)
+              ) {
+                foundRange = { from: pos, to: pos + node.nodeSize };
+                return false;
               }
               return true;
             });
@@ -567,13 +632,12 @@ export function RichEditor({
         clearInterval(progressInterval);
         let foundRange: { from: number; to: number } | null = null;
         editor?.state.doc.descendants((node, pos) => {
-          if (node.marks) {
-            for (const mark of node.marks) {
-              if (mark.type.name === "link" && mark.attrs.href === `#upload-${tempId}`) {
-                foundRange = { from: pos, to: pos + node.nodeSize };
-                return false;
-              }
-            }
+          if (
+            node.type.name === "attachmentCard" &&
+            (node.attrs.uploadId === tempId || node.attrs.src === `#upload-${tempId}`)
+          ) {
+            foundRange = { from: pos, to: pos + node.nodeSize };
+            return false;
           }
           return true;
         });
