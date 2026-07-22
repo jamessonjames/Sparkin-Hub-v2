@@ -228,10 +228,6 @@ function AdminPage() {
   };
 
   const handleConnectGDrive = async () => {
-    if (!import.meta.env.VITE_GOOGLE_CLIENT_ID) {
-      toast.error("VITE_GOOGLE_CLIENT_ID não configurado no arquivo .env");
-      return;
-    }
     try {
       const { accessToken, email } = await connectGDrive();
       toast.loading("Conectando sua conta do Google Drive...");
