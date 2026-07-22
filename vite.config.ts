@@ -17,5 +17,16 @@ export default defineConfig({
       port: 8080,
       host: true,
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes("/src/routes/")) {
+              return "app-routes";
+            }
+          },
+        },
+      },
+    },
   },
 });
