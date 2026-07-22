@@ -40,42 +40,34 @@ function NotFoundComponent() {
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
-  const router = useRouter();
-  const isChunkError = Boolean(
-    error?.message &&
-      /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(error.message)
-  );
 
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
-    if (isChunkError) {
-      if (!sessionStorage.getItem("chunk_auto_reloaded")) {
-        sessionStorage.setItem("chunk_auto_reloaded", "true");
-        window.location.reload();
-      }
-    }
-  }, [error, isChunkError]);
+  }, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
+      <div className="max-w-md text-center w-full">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          {isChunkError ? "Nova versão disponível" : "Algo deu errado"}
+          Algo deu errado
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {isChunkError
-            ? "O sistema foi atualizado com novas melhorias. Clique no botão abaixo para carregar a versão mais recente."
-            : error.message || "Tente novamente ou volte ao início."}
+          Ocorreu um erro ao carregar esta página.
         </p>
+        <div className="mt-3 p-3 bg-muted/40 rounded text-left text-xs font-mono text-muted-foreground max-h-36 overflow-auto border border-border/50 break-all">
+          {error?.message || String(error) || "Erro desconhecido"}
+        </div>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
-              sessionStorage.removeItem("chunk_auto_reloaded");
-              window.location.href = window.location.origin + window.location.pathname;
+              if (typeof window !== "undefined") {
+                sessionStorage.clear();
+                window.location.reload();
+              }
             }}
             className="btn-primary"
           >
-            {isChunkError ? "Atualizar sistema" : "Tentar novamente"}
+            Tentar novamente
           </button>
           <Link to="/" className="btn-ghost">Início</Link>
         </div>
@@ -143,26 +135,6 @@ function RootComponent() {
   const getPrefsFn = useServerFn(getUserPreferences);
 
   useEffect(() => {
-    const isChunkError = (msg: string) => /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(msg);
-
-    const reloadOnce = () => {
-      if (!sessionStorage.getItem("chunk_auto_reloaded")) {
-        sessionStorage.setItem("chunk_auto_reloaded", "true");
-        window.location.reload();
-      }
-    };
-
-    const onError = (e: ErrorEvent) => {
-      if (isChunkError(e.message)) reloadOnce();
-    };
-    const onRejection = (e: PromiseRejectionEvent) => {
-      if (isChunkError(e.reason?.message || "")) reloadOnce();
-    };
-    const onPreloadError = () => reloadOnce();
-    window.addEventListener("error", onError);
-    window.addEventListener("unhandledrejection", onRejection);
-    window.addEventListener("vite:preloadError", onPreloadError);
-
     // Apply global branding from localStorage (system name, favicon)
     applyThemeAndHighlight();
 
