@@ -46,6 +46,18 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
       /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(error.message)
   );
 
+  useEffect(() => {
+    if (isChunkError && typeof window !== "undefined") {
+      const KEY = "last_chunk_auto_reload";
+      const last = sessionStorage.getItem(KEY);
+      const now = Date.now();
+      if (!last || now - Number(last) > 10000) {
+        sessionStorage.setItem(KEY, String(now));
+        window.location.href = window.location.origin + window.location.pathname + "?_r=" + now;
+      }
+    }
+  }, [isChunkError]);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center w-full">
@@ -54,7 +66,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {isChunkError
-            ? "O sistema foi atualizado no servidor. Clique no botão abaixo para carregar a versão mais recente."
+            ? "Atualizando para a versão mais recente do sistema..."
             : "Ocorreu um erro inesperado nesta página."}
         </p>
         {error?.message && (
