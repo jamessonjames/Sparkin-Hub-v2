@@ -72,3 +72,34 @@ export function clearGDriveToken() {
   tokenExpiry = 0;
   tokenClient = null;
 }
+
+export function getFileIdFromUrl(url: string): string | null {
+  if (!url) return null;
+  // If it's a direct viewer link: https://lh3.googleusercontent.com/d/{fileId}
+  if (url.includes("lh3.googleusercontent.com/d/")) {
+    const parts = url.split("/d/");
+    if (parts.length > 1) {
+      return parts[1].split(/[?#]/)[0];
+    }
+  }
+  // If it's a uc link: https://drive.google.com/uc?export=view&id={fileId}
+  if (url.includes("drive.google.com/")) {
+    try {
+      const urlObj = new URL(url);
+      const id = urlObj.searchParams.get("id");
+      if (id) return id;
+      // Or view link: https://drive.google.com/file/d/{fileId}/view
+      if (url.includes("/file/d/")) {
+        const parts = url.split("/file/d/");
+        if (parts.length > 1) {
+          return parts[1].split("/")[0];
+        }
+      }
+    } catch {
+      // Fallback regex
+      const match = url.match(/[?&]id=([^&]+)/);
+      if (match) return match[1];
+    }
+  }
+  return null;
+}

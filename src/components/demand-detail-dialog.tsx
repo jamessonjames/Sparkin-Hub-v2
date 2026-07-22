@@ -31,7 +31,8 @@ import {
 } from "@/components/ui/select";
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
 import { RichEditor } from "@/components/rich-editor";
-import { getGDriveAccessToken } from "@/lib/gdrive-token";
+import { deleteFromGDrive } from "@/lib/gdrive.functions";
+import { getGDriveAccessToken, getFileIdFromUrl } from "@/lib/gdrive-token";
 import { Trash2, Send, Calendar, X, Save, User, Loader2, Pencil, Upload, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -108,6 +109,7 @@ export function DemandDetailDialog({
   const createFn = useServerFn(createDemand);
   const updateFn = useServerFn(updateDemand);
   const deleteFn = useServerFn(deleteDemand);
+  const deleteFromGDriveFn = useServerFn(deleteFromGDrive);
   const listCommentsFn = useServerFn(listComments);
   const addCommentFn = useServerFn(addComment);
   const deleteCommentFn = useServerFn(deleteComment);
@@ -156,6 +158,17 @@ export function DemandDetailDialog({
   const handleDeleteLightboxImage = async () => {
     if (!lightbox) return;
     const { src, source, commentId } = lightbox;
+
+    const fileId = getFileIdFromUrl(src);
+    if (fileId) {
+      try {
+        const accessToken = await getGDriveAccessToken();
+        await deleteFromGDriveFn({ data: { accessToken, fileId } });
+      } catch (err) {
+        console.error("Could not delete from Google Drive:", err);
+        toast.warning("Imagem removida do painel, mas não pôde ser excluída do Google Drive (permissão expirada).");
+      }
+    }
 
     if (source === "description") {
       const cleanHtml = description.replace(new RegExp(`<img[^>]*src=["']${src}["'][^>]*>`, "g"), "");
@@ -721,9 +734,50 @@ export function DemandDetailDialog({
     }
   }
 
+  function extractAllGDriveUrls(htmls: string[]): string[] {
+    const urls: string[] = [];
+    const regexes = [
+      /https:\/\/lh3\.googleusercontent\.com\/d\/[a-zA-Z0-9_-]+/g,
+      /https:\/\/drive\.google\.com\/uc\?[^"'\s<>]+/g,
+      /https:\/\/drive\.google\.com\/file\/d\/[a-zA-Z0-9_-]+/g
+    ];
+
+    for (const html of htmls) {
+      if (!html) continue;
+      for (const regex of regexes) {
+        const matches = html.match(regex);
+        if (matches) {
+          for (const match of matches) {
+            const url = match.replace(/&amp;/g, "&");
+            urls.push(url);
+          }
+        }
+      }
+    }
+    return Array.from(new Set(urls));
+  }
+
   async function handleDelete() {
     if (!confirm("Excluir esta demanda permanentemente?")) return;
     try {
+      const htmls = [description, ...comments.map((c) => c.body)];
+      const gDriveUrls = extractAllGDriveUrls(htmls);
+      
+      if (gDriveUrls.length > 0) {
+        try {
+          const accessToken = await getGDriveAccessToken();
+          for (const url of gDriveUrls) {
+            const fileId = getFileIdFromUrl(url);
+            if (fileId) {
+              await deleteFromGDriveFn({ data: { accessToken, fileId } });
+            }
+          }
+        } catch (err) {
+          console.error("Erro ao excluir arquivos do Google Drive:", err);
+          toast.warning("Demanda excluída do painel, mas alguns anexos não puderam ser apagados do Google Drive.");
+        }
+      }
+
       await deleteFn({ data: { id } });
       toast.success("Excluída.");
       qc.invalidateQueries({ queryKey: ["demands"] });

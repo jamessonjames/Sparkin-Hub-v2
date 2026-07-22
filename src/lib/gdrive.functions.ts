@@ -256,3 +256,29 @@ export const uploadToGDrive = createServerFn({ method: "POST" })
       return { success: false, error: error.message || "Erro durante o upload ao Google Drive." };
     }
   });
+
+// Server function to delete a file from Google Drive
+export const deleteFromGDrive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator(z.object({
+    accessToken: z.string(),
+    fileId: z.string(),
+  }))
+  .handler(async ({ data: { accessToken, fileId } }) => {
+    try {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Erro ao deletar arquivo do Drive: ${err}`);
+      }
+      return { success: true };
+    } catch (error: any) {
+      console.error("deleteFromGDrive error:", error);
+      return { success: false, error: error.message || "Erro ao deletar do Google Drive." };
+    }
+  });
