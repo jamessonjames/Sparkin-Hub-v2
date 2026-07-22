@@ -872,9 +872,9 @@ export function RichEditor({
               }}
               className="bg-background border border-border rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none cursor-pointer h-7"
             >
-              <option value="p">Parágrafo</option>
               <option value="h1">Título 1</option>
               <option value="h2">Título 2</option>
+              <option value="p">Parágrafo</option>
             </select>
 
             <span className="w-px h-5 bg-border mx-1 shrink-0" />
