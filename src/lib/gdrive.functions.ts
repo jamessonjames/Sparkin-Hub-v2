@@ -246,7 +246,9 @@ export const uploadToGDrive = createServerFn({ method: "POST" })
       const folderId = await getOrCreateFolderPath(accessToken, pathParts, rootFolderId || undefined);
       const fileId = await uploadFile(accessToken, fileBase64, fileName, mimeType, folderId);
       await makeFilePublic(accessToken, fileId);
-      const viewUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+      const viewUrl = mimeType.startsWith("image/")
+        ? `https://lh3.googleusercontent.com/d/${fileId}`
+        : `https://drive.google.com/uc?export=view&id=${fileId}`;
 
       return { success: true, fileId, url: viewUrl };
     } catch (error: any) {
