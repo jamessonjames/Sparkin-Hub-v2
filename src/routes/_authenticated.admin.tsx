@@ -104,10 +104,8 @@ function AdminPage() {
     reader.onload = async (event) => {
       const base64 = (event.target?.result as string).split(",")[1];
       try {
-        const accessToken = await getGDriveAccessToken();
         const response = await uploadFn({
           data: {
-            accessToken,
             fileBase64: base64,
             fileName: file.name,
             mimeType: file.type || "image/x-icon",

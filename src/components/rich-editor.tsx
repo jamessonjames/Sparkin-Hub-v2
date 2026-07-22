@@ -580,10 +580,8 @@ export function RichEditor({
         reader.onload = async (e) => {
           const base64 = (e.target?.result as string).split(",")[1];
           try {
-            const accessToken = await getGDriveAccessToken();
             const response = await uploadFn({
               data: {
-                accessToken,
                 fileBase64: base64,
                 fileName: file.name,
                 mimeType: file.type || "application/octet-stream",

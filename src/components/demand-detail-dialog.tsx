@@ -32,7 +32,7 @@ import {
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
 import { RichEditor } from "@/components/rich-editor";
 import { deleteFromGDrive } from "@/lib/gdrive.functions";
-import { getGDriveAccessToken, getFileIdFromUrl } from "@/lib/gdrive-token";
+import { getFileIdFromUrl } from "@/lib/gdrive-token";
 import { Trash2, Send, Calendar, X, Save, User, Loader2, Pencil, Upload, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -162,8 +162,7 @@ export function DemandDetailDialog({
     const fileId = getFileIdFromUrl(src);
     if (fileId) {
       try {
-        const accessToken = await getGDriveAccessToken();
-        await deleteFromGDriveFn({ data: { accessToken, fileId } });
+        await deleteFromGDriveFn({ data: { fileId } });
       } catch (err) {
         console.error("Could not delete from Google Drive:", err);
         toast.warning("Imagem removida do painel, mas não pôde ser excluída do Google Drive (permissão expirada).");
@@ -765,11 +764,10 @@ export function DemandDetailDialog({
       
       if (gDriveUrls.length > 0) {
         try {
-          const accessToken = await getGDriveAccessToken();
           for (const url of gDriveUrls) {
             const fileId = getFileIdFromUrl(url);
             if (fileId) {
-              await deleteFromGDriveFn({ data: { accessToken, fileId } });
+              await deleteFromGDriveFn({ data: { fileId } });
             }
           }
         } catch (err) {
