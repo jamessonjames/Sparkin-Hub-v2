@@ -43,7 +43,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 
   const isChunkError = Boolean(
     error?.message &&
-      /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk|Cannot read properties of undefined/i.test(error.message)
+      /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(error.message)
   );
 
   return (
@@ -57,7 +57,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             ? "O sistema foi atualizado no servidor. Clique no botão abaixo para carregar a versão mais recente."
             : "Ocorreu um erro inesperado nesta página."}
         </p>
-        {!isChunkError && error?.message && (
+        {error?.message && (
           <div className="mt-3 p-3 bg-muted/40 rounded text-left text-xs font-mono text-muted-foreground max-h-36 overflow-auto border border-border/50 break-all">
             {error.message}
           </div>

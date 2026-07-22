@@ -783,21 +783,21 @@ function AgendaPage() {
           <h2 className="text-sm md:text-base font-bold text-foreground capitalize">{headerLabel}</h2>
 
           {/* User selector for admin/owner */}
-          {isAdminOrOwner && profiles.length > 0 && (
+          {isAdminOrOwner && currentUser?.id && profiles.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-muted-foreground font-semibold uppercase">Usuário:</span>
               <Select
-                value={selectedUserId ?? currentUser?.id ?? ""}
-                onValueChange={(val) => setSelectedUserId(val === currentUser?.id ? null : val)}
+                value={selectedUserId ?? currentUser.id}
+                onValueChange={(val) => setSelectedUserId(val === currentUser.id ? null : val)}
               >
                 <SelectTrigger className="h-8 text-xs bg-background border-border text-foreground w-auto min-w-[140px]">
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={currentUser?.id ?? ""} className="text-xs font-semibold">
-                    {profiles.find(p => p.id === currentUser?.id)?.name ?? "Meu perfil"} (Eu)
+                  <SelectItem value={currentUser.id} className="text-xs font-semibold">
+                    {profiles.find(p => p.id === currentUser.id)?.name ?? "Meu perfil"} (Eu)
                   </SelectItem>
-                  {profiles.filter(p => p.id !== currentUser?.id).map((p) => (
+                  {profiles.filter(p => p.id !== currentUser.id).map((p) => (
                     <SelectItem key={p.id} value={p.id} className="text-xs">
                       {p.name ?? p.email}
                     </SelectItem>
