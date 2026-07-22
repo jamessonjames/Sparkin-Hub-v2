@@ -297,18 +297,47 @@ function AgendaPage() {
     return map;
   }, [demands]);
 
-  // Group active reminders by slot
+  // Group active reminders by slot (including recurring occurrences)
   const remindersBySlot = useMemo(() => {
     const map = new Map<string, ReminderData[]>();
     for (const r of reminders) {
       if (r.is_completed) continue;
-      const dt = new Date(r.date_time);
-      const hStr = String(dt.getHours()).padStart(2, "0");
-      const mStr = dt.getMinutes() >= 30 ? "30" : "00";
-      const key = `${toISO(dt)}_${hStr}_${mStr}`;
-      const arr = map.get(key) || [];
-      arr.push(r as ReminderData);
-      map.set(key, arr);
+      
+      const startDt = new Date(r.date_time);
+      const hStr = String(startDt.getHours()).padStart(2, "0");
+      const mStr = startDt.getMinutes() >= 30 ? "30" : "00";
+
+      if (!r.recurrence_type || r.recurrence_type === "none") {
+        const key = `${toISO(startDt)}_${hStr}_${mStr}`;
+        const arr = map.get(key) || [];
+        arr.push(r as ReminderData);
+        map.set(key, arr);
+      } else {
+        const endLimit = r.recurrence_end_date ? new Date(r.recurrence_end_date) : new Date(startDt.getTime() + 90 * 86400000);
+        const curr = new Date(startDt);
+        const interval = r.recurrence_interval || 1;
+        let safetyCounter = 0;
+
+        while (curr <= endLimit && safetyCounter < 120) {
+          safetyCounter++;
+          const key = `${toISO(curr)}_${hStr}_${mStr}`;
+          const arr = map.get(key) || [];
+          arr.push(r as ReminderData);
+          map.set(key, arr);
+
+          if (r.recurrence_type === "daily") {
+            curr.setDate(curr.getDate() + interval);
+          } else if (r.recurrence_type === "weekly") {
+            curr.setDate(curr.getDate() + 7 * interval);
+          } else if (r.recurrence_type === "monthly") {
+            curr.setMonth(curr.getMonth() + interval);
+          } else if (r.recurrence_type === "yearly") {
+            curr.setFullYear(curr.getFullYear() + interval);
+          } else {
+            break;
+          }
+        }
+      }
     }
     return map;
   }, [reminders]);

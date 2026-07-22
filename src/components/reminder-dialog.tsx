@@ -76,6 +76,9 @@ export function ReminderDialog({
   const [dateTime, setDateTime] = useState("");
   const [recurrenceType, setRecurrenceType] = useState<ReminderData["recurrence_type"]>("none");
   const [recurrenceInterval, setRecurrenceInterval] = useState(1);
+  const [endMode, setEndMode] = useState<"never" | "count" | "date">("never");
+  const [repeatCount, setRepeatCount] = useState(5);
+  const [endDateStr, setEndDateStr] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -85,6 +88,18 @@ export function ReminderDialog({
       setColor(initialData?.color || "yellow");
       setRecurrenceType(initialData?.recurrence_type || "none");
       setRecurrenceInterval(initialData?.recurrence_interval || 1);
+
+      if (initialData?.recurrence_end_date) {
+        setEndMode("date");
+        const dtEnd = new Date(initialData.recurrence_end_date);
+        const y = dtEnd.getFullYear();
+        const m = String(dtEnd.getMonth() + 1).padStart(2, "0");
+        const d = String(dtEnd.getDate()).padStart(2, "0");
+        setEndDateStr(`${y}-${m}-${d}`);
+      } else {
+        setEndMode("never");
+        setEndDateStr("");
+      }
 
       if (initialData?.date_time) {
         // Format ISO for datetime-local input
@@ -110,6 +125,29 @@ export function ReminderDialog({
   async function handleSave() {
     if (!title.trim()) return;
     setIsSaving(true);
+
+    let finalEndDate: string | null = null;
+    if (recurrenceType !== "none") {
+      if (endMode === "date" && endDateStr) {
+        finalEndDate = new Date(`${endDateStr}T23:59:59`).toISOString();
+      } else if (endMode === "count" && repeatCount > 0) {
+        const dt = new Date(dateTime);
+        const times = Math.max(1, repeatCount - 1);
+        const interval = recurrenceInterval || 1;
+        if (recurrenceType === "daily") {
+          dt.setDate(dt.getDate() + times * interval);
+        } else if (recurrenceType === "weekly") {
+          dt.setDate(dt.getDate() + 7 * times * interval);
+        } else if (recurrenceType === "monthly") {
+          dt.setMonth(dt.getMonth() + times * interval);
+        } else if (recurrenceType === "yearly") {
+          dt.setFullYear(dt.getFullYear() + times * interval);
+        }
+        dt.setHours(23, 59, 59, 999);
+        finalEndDate = dt.toISOString();
+      }
+    }
+
     try {
       await onSave({
         id: initialData?.id,
@@ -119,6 +157,7 @@ export function ReminderDialog({
         date_time: new Date(dateTime).toISOString(),
         recurrence_type: recurrenceType,
         recurrence_interval: recurrenceInterval,
+        recurrence_end_date: finalEndDate,
         is_completed: initialData?.is_completed || false,
       });
       onOpenChange(false);
@@ -130,7 +169,7 @@ export function ReminderDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(
-        "sm:max-w-[440px] p-0 overflow-hidden border shadow-2xl rounded-2xl bg-[#1e1e1e] text-foreground transition-all duration-200",
+        "sm:max-w-[440px] p-0 overflow-hidden border shadow-2xl rounded-2xl bg-[#1e1e1e] text-foreground transition-all duration-200 [&>button:last-child]:hidden",
         COLOR_BORDER[color]
       )}>
         <DialogHeader className="sr-only">
@@ -159,7 +198,7 @@ export function ReminderDialog({
                   <MoreHorizontal className="h-4 w-4" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-64 p-3 bg-[#262626] border border-white/10 text-foreground rounded-xl shadow-xl space-y-3">
+              <PopoverContent align="end" className="w-72 p-3 bg-[#262626] border border-white/10 text-foreground rounded-xl shadow-xl space-y-3 z-50">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cor do Post-it</Label>
                   <div className="flex items-center gap-2 pt-1">
@@ -178,7 +217,7 @@ export function ReminderDialog({
                   </div>
                 </div>
 
-                <div className="border-t border-white/10 pt-2 space-y-1.5">
+                <div className="border-t border-white/10 pt-2 space-y-2">
                   <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recorrência</Label>
                   <select
                     value={recurrenceType}
@@ -191,10 +230,74 @@ export function ReminderDialog({
                       </option>
                     ))}
                   </select>
+
+                  {recurrenceType !== "none" && (
+                    <div className="space-y-2 pt-2 border-t border-white/5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-muted-foreground font-medium">Repetir a cada:</span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={1}
+                            max={365}
+                            value={recurrenceInterval}
+                            onChange={(e) => setRecurrenceInterval(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-14 bg-[#1e1e1e] border border-white/10 rounded px-2 py-1 text-xs text-center text-foreground"
+                          />
+                          <span className="text-[11px] text-muted-foreground">
+                            {recurrenceType === "daily" ? "dia(s)" : recurrenceType === "weekly" ? "semana(s)" : recurrenceType === "monthly" ? "mês(es)" : "ano(s)"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] text-muted-foreground font-medium">Término da Repetição:</span>
+                        <select
+                          value={endMode}
+                          onChange={(e) => setEndMode(e.target.value as any)}
+                          className="w-full bg-[#1e1e1e] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-foreground"
+                        >
+                          <option value="never">Sem término (Sempre repete)</option>
+                          <option value="count">Repetir por X dias / vezes</option>
+                          <option value="date">Até uma data específica</option>
+                        </select>
+
+                        {endMode === "count" && (
+                          <div className="flex items-center justify-between gap-2 pt-1">
+                            <span className="text-[11px] text-muted-foreground">Repetir por:</span>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min={1}
+                                max={365}
+                                value={repeatCount}
+                                onChange={(e) => setRepeatCount(Math.max(1, parseInt(e.target.value) || 1))}
+                                className="w-16 bg-[#1e1e1e] border border-white/10 rounded px-2 py-1 text-xs text-center text-foreground"
+                              />
+                              <span className="text-[11px] text-muted-foreground">
+                                {recurrenceType === "daily" ? "dias" : recurrenceType === "weekly" ? "semanas" : recurrenceType === "monthly" ? "meses" : "anos"}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {endMode === "date" && (
+                          <div className="pt-1">
+                            <Input
+                              type="date"
+                              value={endDateStr}
+                              onChange={(e) => setEndDateStr(e.target.value)}
+                              className="bg-[#1e1e1e] border-white/10 text-xs h-8"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-t border-white/10 pt-2 space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Data e Horário</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Data e Horário Inicial</Label>
                   <Input
                     type="datetime-local"
                     value={dateTime}
