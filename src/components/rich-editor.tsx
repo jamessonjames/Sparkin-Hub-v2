@@ -185,10 +185,20 @@ export function RichEditor({
 
   const insertImage = useCallback(
     async (file: File) => {
+      const tempId = Math.random().toString(36).substring(2, 9);
+      editor?.chain().focus().insertContent(`<a href="#upload-${tempId}" class="text-primary animate-pulse font-medium">⏳ Enviando "${file.name}" (10%)...</a> `).run();
+
       setUploading(true);
       setUploadProgress(10);
+      
+      let currentProgress = 10;
       const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => Math.min(prev + Math.floor(Math.random() * 15) + 5, 90));
+        currentProgress = Math.min(currentProgress + Math.floor(Math.random() * 15) + 5, 90);
+        setUploadProgress(currentProgress);
+        const el = document.querySelector(`a[href="#upload-${tempId}"]`);
+        if (el) {
+          el.innerHTML = `⏳ Enviando "${file.name}" (${currentProgress}%)...`;
+        }
       }, 300);
 
       const reader = new FileReader();
@@ -207,19 +217,58 @@ export function RichEditor({
             },
           });
 
+          clearInterval(progressInterval);
+
+          let foundRange: { from: number; to: number } | null = null;
+          editor?.state.doc.descendants((node, pos) => {
+            if (node.marks) {
+              for (const mark of node.marks) {
+                if (mark.type.name === "link" && mark.attrs.href === `#upload-${tempId}`) {
+                  foundRange = { from: pos, to: pos + node.nodeSize };
+                  return false;
+                }
+              }
+            }
+            return true;
+          });
+
           if (response.success && response.url) {
-            editor?.chain().focus().setImage({ src: response.url }).run();
+            if (foundRange) {
+              editor?.chain().focus().deleteRange(foundRange).setImage({ src: response.url }).run();
+            } else {
+              editor?.chain().focus().setImage({ src: response.url }).run();
+            }
             toast.success("Imagem enviada para o Google Drive com sucesso!");
           } else {
-            editor?.chain().focus().setImage({ src: fullBase64 }).run();
+            if (foundRange) {
+              editor?.chain().focus().deleteRange(foundRange).setImage({ src: fullBase64 }).run();
+            } else {
+              editor?.chain().focus().setImage({ src: fullBase64 }).run();
+            }
             toast.warning("Hospedagem Google Drive indisponível. Salvo em base64.");
           }
         } catch (error) {
           console.error("Upload error, using fallback:", error);
-          editor?.chain().focus().setImage({ src: fullBase64 }).run();
+          clearInterval(progressInterval);
+          let foundRange: { from: number; to: number } | null = null;
+          editor?.state.doc.descendants((node, pos) => {
+            if (node.marks) {
+              for (const mark of node.marks) {
+                if (mark.type.name === "link" && mark.attrs.href === `#upload-${tempId}`) {
+                  foundRange = { from: pos, to: pos + node.nodeSize };
+                  return false;
+                }
+              }
+            }
+            return true;
+          });
+          if (foundRange) {
+            editor?.chain().focus().deleteRange(foundRange).setImage({ src: fullBase64 }).run();
+          } else {
+            editor?.chain().focus().setImage({ src: fullBase64 }).run();
+          }
           toast.warning("Falha ao subir para o Google Drive. Usando base64.");
         } finally {
-          clearInterval(progressInterval);
           setUploading(false);
           setUploadProgress(0);
         }
@@ -241,10 +290,20 @@ export function RichEditor({
         return;
       }
 
+      const tempId = Math.random().toString(36).substring(2, 9);
+      editor?.chain().focus().insertContent(`<a href="#upload-${tempId}" class="text-primary animate-pulse font-medium">⏳ Enviando "${file.name}" (10%)...</a> `).run();
+
       setUploading(true);
       setUploadProgress(10);
+      
+      let currentProgress = 10;
       const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => Math.min(prev + Math.floor(Math.random() * 15) + 5, 90));
+        currentProgress = Math.min(currentProgress + Math.floor(Math.random() * 15) + 5, 90);
+        setUploadProgress(currentProgress);
+        const el = document.querySelector(`a[href="#upload-${tempId}"]`);
+        if (el) {
+          el.innerHTML = `⏳ Enviando "${file.name}" (${currentProgress}%)...`;
+        }
       }, 300);
 
       try {
@@ -263,24 +322,77 @@ export function RichEditor({
               },
             });
 
+            clearInterval(progressInterval);
+
+            let foundRange: { from: number; to: number } | null = null;
+            editor?.state.doc.descendants((node, pos) => {
+              if (node.marks) {
+                for (const mark of node.marks) {
+                  if (mark.type.name === "link" && mark.attrs.href === `#upload-${tempId}`) {
+                    foundRange = { from: pos, to: pos + node.nodeSize };
+                    return false;
+                  }
+                }
+              }
+              return true;
+            });
+
             if (response.success && response.url) {
               const linkHtml = `<a href="${response.url}" target="_blank" rel="noopener noreferrer" class="text-primary underline font-semibold hover:text-primary/80 cursor-pointer">${file.name}</a> `;
-              editor?.chain().focus().insertContent(linkHtml).run();
+              if (foundRange) {
+                editor?.chain().focus().deleteRange(foundRange).insertContent(linkHtml).run();
+              } else {
+                editor?.chain().focus().insertContent(linkHtml).run();
+              }
               toast.success(`Arquivo "${file.name}" anexado e link adicionado!`);
             } else {
+              if (foundRange) {
+                editor?.chain().focus().deleteRange(foundRange).run();
+              }
               toast.error(response.error || "Erro ao carregar arquivo.");
             }
           } catch (error: any) {
+            clearInterval(progressInterval);
+            let foundRange: { from: number; to: number } | null = null;
+            editor?.state.doc.descendants((node, pos) => {
+              if (node.marks) {
+                for (const mark of node.marks) {
+                  if (mark.type.name === "link" && mark.attrs.href === `#upload-${tempId}`) {
+                    foundRange = { from: pos, to: pos + node.nodeSize };
+                    return false;
+                  }
+                }
+              }
+              return true;
+            });
+            if (foundRange) {
+              editor?.chain().focus().deleteRange(foundRange).run();
+            }
             console.error("Upload error:", error);
             toast.error("Erro ao subir arquivo.");
           } finally {
-            clearInterval(progressInterval);
             setUploading(false);
             setUploadProgress(0);
           }
         };
         reader.readAsDataURL(file);
       } catch {
+        clearInterval(progressInterval);
+        let foundRange: { from: number; to: number } | null = null;
+        editor?.state.doc.descendants((node, pos) => {
+          if (node.marks) {
+            for (const mark of node.marks) {
+              if (mark.type.name === "link" && mark.attrs.href === `#upload-${tempId}`) {
+                foundRange = { from: pos, to: pos + node.nodeSize };
+                return false;
+              }
+            }
+          }
+          return true;
+        });
+        if (foundRange) {
+          editor?.chain().focus().deleteRange(foundRange).run();
+        }
         toast.error("Erro ao ler o arquivo.");
         setUploading(false);
         setUploadProgress(0);
