@@ -16,8 +16,85 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { uploadToGDrive, deleteFromGDrive } from "@/lib/gdrive.functions";
 import { getGDriveAccessToken, getFileIdFromUrl } from "@/lib/gdrive-token";
+import { Node, mergeAttributes } from "@tiptap/core";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+export const AttachmentCardExtension = Node.create({
+  name: "attachmentCard",
+  group: "block",
+  atom: true,
+
+  addAttributes() {
+    return {
+      src: { default: null },
+      fileName: { default: "" },
+      fileSize: { default: "" },
+      fileExt: { default: "" },
+    };
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: 'div[data-type="attachment-card"]',
+      },
+    ];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    const ext = (HTMLAttributes.fileExt || "FILE").toUpperCase();
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, {
+        "data-type": "attachment-card",
+        class: "attachment-card-box not-prose my-2.5 p-3 rounded-xl border border-border/80 bg-card/80 backdrop-blur-sm flex items-center justify-between gap-3 shadow-sm group transition-all hover:border-primary/50 select-none",
+      }),
+      [
+        "div",
+        { class: "flex items-center gap-3 min-w-0" },
+        [
+          "div",
+          { class: "h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-extrabold text-[11px] tracking-wider uppercase shrink-0 border border-primary/20" },
+          ext,
+        ],
+        [
+          "div",
+          { class: "min-w-0 flex flex-col justify-center" },
+          [
+            "a",
+            {
+              href: HTMLAttributes.src,
+              target: "_blank",
+              rel: "noopener noreferrer",
+              class: "text-xs font-bold text-foreground truncate hover:underline hover:text-primary transition-colors cursor-pointer",
+            },
+            HTMLAttributes.fileName || "Arquivo",
+          ],
+          [
+            "span",
+            { class: "text-[10px] text-muted-foreground font-medium mt-0.5" },
+            HTMLAttributes.fileSize ? `${HTMLAttributes.fileSize} • Google Drive` : "Google Drive",
+          ],
+        ],
+      ],
+      [
+        "div",
+        { class: "flex items-center gap-2 shrink-0" },
+        [
+          "a",
+          {
+            href: HTMLAttributes.src,
+            target: "_blank",
+            rel: "noopener noreferrer",
+            class: "px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-1 cursor-pointer no-underline shadow-sm",
+          },
+          "Abrir Arquivo",
+        ],
+      ],
+    ];
+  },
+});
 import {
   Bold,
   Italic,
@@ -107,6 +184,7 @@ export function RichEditor({
       TaskList,
       TaskItem.configure({ nested: true }),
       Placeholder.configure({ placeholder }),
+      AttachmentCardExtension,
       ...(enableTables
         ? [
             Table.configure({ resizable: true, HTMLAttributes: { class: "rich-table" } }),
@@ -417,13 +495,21 @@ export function RichEditor({
             });
 
             if (response.success && response.url) {
-              const linkHtml = `<a href="${response.url}" target="_blank" rel="noopener noreferrer" class="text-primary underline font-semibold hover:text-primary/80 cursor-pointer">${file.name}</a> `;
+              const cardData = {
+                type: "attachmentCard",
+                attrs: {
+                  src: response.url,
+                  fileName: file.name,
+                  fileSize: formatFileSizeLocal(file.size),
+                  fileExt: file.name.split(".").pop() || "file",
+                },
+              };
               if (foundRange) {
-                editor?.chain().focus().deleteRange(foundRange).insertContent(linkHtml).run();
+                editor?.chain().focus().deleteRange(foundRange).insertContent(cardData).run();
               } else {
-                editor?.chain().focus().insertContent(linkHtml).run();
+                editor?.chain().focus().insertContent(cardData).run();
               }
-              toast.success(`Arquivo "${file.name}" anexado e link adicionado!`);
+              toast.success(`Arquivo "${file.name}" anexado no destaque!`);
             } else {
               if (foundRange) {
                 editor?.chain().focus().deleteRange(foundRange).run();
