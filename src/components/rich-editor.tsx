@@ -56,14 +56,14 @@ export const AttachmentCardExtension = Node.create({
         "div",
         mergeAttributes(HTMLAttributes, {
           "data-type": "attachment-card",
-          class: "attachment-card-box not-prose my-2.5 p-3 rounded-xl border border-primary/40 bg-primary/5 flex items-center justify-between gap-3 shadow-sm select-none animate-pulse",
+          class: "attachment-card-box not-prose my-2.5 p-3 rounded-xl border border-zinc-700/80 bg-zinc-900/60 flex items-center justify-between gap-3 shadow-sm select-none animate-pulse",
         }),
         [
           "div",
           { class: "flex items-center gap-3 min-w-0" },
           [
             "div",
-            { class: "h-9 w-9 rounded-lg bg-primary/20 text-primary flex items-center justify-center font-extrabold text-[11px] tracking-wider uppercase shrink-0 border border-primary/30" },
+            { class: "h-9 w-9 rounded-lg bg-zinc-800 text-zinc-400 flex items-center justify-center font-extrabold text-[11px] tracking-wider uppercase shrink-0 border border-zinc-700" },
             ext,
           ],
           [
@@ -71,14 +71,14 @@ export const AttachmentCardExtension = Node.create({
             { class: "min-w-0 flex flex-col justify-center" },
             [
               "span",
-              { class: "text-xs font-bold text-foreground truncate" },
+              { class: "text-xs font-bold text-zinc-200 truncate" },
               HTMLAttributes.fileName || "Enviando arquivo...",
             ],
             [
               "span",
               {
                 id: `upload-status-${uploadId}`,
-                class: "text-[10px] text-primary font-medium mt-0.5",
+                class: "text-[10px] text-zinc-400 font-medium mt-0.5",
               },
               `Fazendo upload (${HTMLAttributes.progress || 10}%)...`,
             ],
@@ -91,7 +91,7 @@ export const AttachmentCardExtension = Node.create({
             "span",
             {
               id: `upload-percent-${uploadId}`,
-              class: "px-2.5 py-1 text-xs font-bold text-primary bg-primary/10 rounded-lg border border-primary/20",
+              class: "px-2.5 py-1 text-xs font-bold text-zinc-300 bg-zinc-800 rounded-lg border border-zinc-700",
             },
             `${HTMLAttributes.progress || 10}%`,
           ],
@@ -103,7 +103,7 @@ export const AttachmentCardExtension = Node.create({
       "div",
       mergeAttributes(HTMLAttributes, {
         "data-type": "attachment-card",
-        class: "attachment-card-box not-prose my-2.5 p-3 rounded-xl border border-border/80 bg-card/80 backdrop-blur-sm flex items-center justify-between gap-3 shadow-sm group transition-all hover:border-primary/50 select-none",
+        class: "attachment-card-box not-prose my-2.5 p-3 rounded-xl border border-zinc-700/80 bg-zinc-900/80 backdrop-blur-sm flex items-center justify-between gap-3 shadow-sm group transition-all hover:border-zinc-500 select-none",
       }),
       [
         "div",
@@ -113,7 +113,7 @@ export const AttachmentCardExtension = Node.create({
         },
         [
           "div",
-          { class: "h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-extrabold text-[11px] tracking-wider uppercase shrink-0 border border-primary/20" },
+          { class: "h-9 w-9 rounded-lg bg-zinc-800 text-zinc-300 flex items-center justify-center font-extrabold text-[11px] tracking-wider uppercase shrink-0 border border-zinc-700" },
           ext,
         ],
         [
@@ -122,13 +122,13 @@ export const AttachmentCardExtension = Node.create({
           [
             "span",
             {
-              class: "text-xs font-bold text-foreground truncate hover:underline hover:text-primary transition-colors cursor-pointer",
+              class: "text-xs font-bold text-zinc-200 truncate hover:underline transition-colors cursor-pointer",
             },
             HTMLAttributes.fileName || "Arquivo",
           ],
           [
             "span",
-            { class: "text-[10px] text-muted-foreground font-medium mt-0.5" },
+            { class: "text-[10px] text-zinc-400 font-medium mt-0.5" },
             HTMLAttributes.fileSize ? `${HTMLAttributes.fileSize} • Google Drive` : "Google Drive",
           ],
         ],
@@ -142,7 +142,7 @@ export const AttachmentCardExtension = Node.create({
             type: "button",
             "data-action": "download-attachment",
             title: "Baixar anexo",
-            class: "h-8 w-8 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all flex items-center justify-center cursor-pointer border border-primary/20 shadow-sm",
+            class: "h-8 w-8 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-all flex items-center justify-center cursor-pointer border border-zinc-700 shadow-sm",
           },
           [
             "svg",
@@ -156,11 +156,9 @@ export const AttachmentCardExtension = Node.create({
               "stroke-width": "2.5",
               "stroke-linecap": "round",
               "stroke-linejoin": "round",
-              class: "shrink-0 pointer-events-none",
+              class: "shrink-0 text-zinc-300 pointer-events-none",
             },
-            ["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }],
-            ["polyline", { points: "7 10 12 15 17 10" }],
-            ["line", { x1: "12", x2: "12", y1: "15", y2: "3" }],
+            ["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" }],
           ],
         ],
         [
@@ -169,7 +167,7 @@ export const AttachmentCardExtension = Node.create({
             type: "button",
             "data-action": "delete-attachment",
             title: "Excluir anexo permanentemente",
-            class: "h-8 w-8 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all flex items-center justify-center cursor-pointer border border-destructive/20 font-bold text-xs shadow-sm",
+            class: "h-8 w-8 rounded-lg bg-zinc-800/80 text-zinc-400 hover:bg-rose-950/60 hover:text-rose-400 hover:border-rose-800/50 transition-all flex items-center justify-center cursor-pointer border border-zinc-700/80 font-bold text-xs shadow-sm",
           },
           "✕",
         ],
