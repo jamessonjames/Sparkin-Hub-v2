@@ -12,10 +12,10 @@ import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TableCell } from "@tiptap/extension-table-cell";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { uploadToGDrive } from "@/lib/gdrive.functions";
-import { getGDriveAccessToken } from "@/lib/gdrive-token";
+import { uploadToGDrive, deleteFromGDrive } from "@/lib/gdrive.functions";
+import { getGDriveAccessToken, getFileIdFromUrl } from "@/lib/gdrive-token";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -176,6 +176,68 @@ export function RichEditor({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const uploadFn = useServerFn(uploadToGDrive);
+  const deleteFromGDriveFn = useServerFn(deleteFromGDrive);
+
+  const knownFileIdsRef = useRef<string[]>([]);
+  const isInitializedRef = useRef(false);
+
+  const extractFileIds = (html: string): string[] => {
+    if (!html) return [];
+    const ids: string[] = [];
+    const matches = html.match(/(https:\/\/lh3\.googleusercontent\.com\/d\/[a-zA-Z0-9_-]+|https:\/\/drive\.google\.com\/uc\?[^"'\s<>]+|https:\/\/drive\.google\.com\/file\/d\/[a-zA-Z0-9_-]+)/g);
+    if (matches) {
+      for (const match of matches) {
+        const id = getFileIdFromUrl(match.replace(/&amp;/g, "&"));
+        if (id) ids.push(id);
+      }
+    }
+    return Array.from(new Set(ids));
+  };
+
+  if (!isInitializedRef.current && content) {
+    knownFileIdsRef.current = extractFileIds(content);
+    isInitializedRef.current = true;
+  }
+
+  useEffect(() => {
+    if (!isInitializedRef.current && content) {
+      knownFileIdsRef.current = extractFileIds(content);
+      isInitializedRef.current = true;
+    }
+
+    const timer = setTimeout(async () => {
+      const currentIds = extractFileIds(content);
+      const deletedIds = knownFileIdsRef.current.filter((id) => !currentIds.includes(id));
+
+      if (deletedIds.length > 0) {
+        try {
+          const accessToken = await getGDriveAccessToken();
+          for (const fileId of deletedIds) {
+            await deleteFromGDriveFn({ data: { accessToken, fileId } });
+            console.log("Auto-deleted from GDrive:", fileId);
+          }
+          knownFileIdsRef.current = currentIds;
+        } catch (err) {
+          console.error("Auto-delete error:", err);
+        }
+      } else {
+        knownFileIdsRef.current = currentIds;
+      }
+    }, 3000);
+
+    return () => {
+      clearTimeout(timer);
+      const currentIds = extractFileIds(content);
+      const deletedIds = knownFileIdsRef.current.filter((id) => !currentIds.includes(id));
+      if (deletedIds.length > 0) {
+        getGDriveAccessToken().then((accessToken) => {
+          for (const fileId of deletedIds) {
+            deleteFromGDriveFn({ data: { accessToken, fileId } }).catch(console.error);
+          }
+        }).catch(console.error);
+      }
+    };
+  }, [content, deleteFromGDriveFn]);
 
   const formatFileSizeLocal = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
