@@ -36,7 +36,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight, Search, X, Star } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight, Search, X, Star, MoreHorizontal, Pencil, ExternalLink, Copy, Phone, Mail, User, DollarSign, FileText, CheckCircle2, Clock } from "lucide-react";
 import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, DEFAULT_CREDIT_TIERS, type CreditTier } from "@/lib/credit-tiers";
 import { listProfiles } from "@/lib/users.functions";
 import { CreditProgressBar } from "@/components/credit-progress-bar";
@@ -144,6 +151,8 @@ function ClientPage() {
   }, [clientDemands, client, selectedEditionId]);
 
   const [saving, setSaving] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const overlay = useDemandOverlay();
   const { state: sidebarState } = useSidebar();
   const sidebarWidth = sidebarState === "collapsed" ? 48 : 256;
@@ -270,13 +279,62 @@ function ClientPage() {
                   navigator.clipboard.writeText(url);
                   toast.success("Link do portal copiado!");
                 }}
+                className="gap-1.5 text-xs font-medium"
               >
-                Copiar link do portal
+                <Copy className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Copiar link do portal</span>
               </Button>
             )}
-            <Button variant="destructive" size="sm" onClick={handleDelete}>
-              <Trash2 className="h-4 w-4 mr-1" /> Excluir
-            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 w-8 p-0 cursor-pointer">
+                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border border-zinc-800 text-zinc-200">
+                <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)} className="cursor-pointer">
+                  <Pencil className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                  Editar dados do cliente
+                </DropdownMenuItem>
+
+                {client.slug && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        const url = `${window.location.origin}/portal/${client.slug}`;
+                        navigator.clipboard.writeText(url);
+                        toast.success("Link do portal copiado!");
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <Copy className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                      Copiar link do portal
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        const url = `${window.location.origin}/portal/${client.slug}`;
+                        window.open(url, "_blank");
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                      Visualizar como cliente
+                    </DropdownMenuItem>
+                  </>
+                )}
+
+                <DropdownMenuSeparator className="bg-zinc-800" />
+
+                <DropdownMenuItem
+                  className="text-red-400 focus:text-red-400 focus:bg-red-500/10 cursor-pointer"
+                  onClick={() => setIsConfirmDeleteOpen(true)}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                  Excluir cliente
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
@@ -396,30 +454,138 @@ function ClientPage() {
         </TabsContent>
 
         <TabsContent value="overview" className="mt-4 overflow-y-auto pb-8">
-          <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
+          <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 space-y-6">
+            {/* Overview Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-foreground">Visão Geral do Cliente</h3>
+                <p className="text-xs text-muted-foreground">Resumo do contrato, contatos e métricas operacionais.</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditDialogOpen(true)}
+                className="gap-1.5 text-xs font-semibold cursor-pointer"
+              >
+                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                Editar dados
+              </Button>
+            </div>
+
+            {/* Dashboard Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Card 1: Cobrança / Contrato */}
+              <Card className="p-4 border-border/60 bg-zinc-900/50 flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <DollarSign className="h-3.5 w-3.5 text-emerald-400" /> Contrato & Cobrança
+                  </span>
+                  <Badge variant={client.access_active ? "default" : "secondary"} className="text-[10px]">
+                    {client.access_active ? "Acesso Ativo" : "Inativo"}
+                  </Badge>
+                </div>
+                <div className="mt-3 space-y-1.5">
+                  <div className="text-xl font-bold text-foreground">
+                    {client.monthly_value
+                      ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(client.monthly_value)
+                      : "Sem valor cadastrado"}
+                  </div>
+                  <p className="text-xs text-muted-foreground font-medium">
+                    Modelo:{" "}
+                    <span className="text-foreground">
+                      {client.billing_model === "credits"
+                        ? "Mensal com Créditos"
+                        : client.billing_model === "seasonal"
+                          ? "Por Temporada (Eventos)"
+                          : client.fixed_type === "one_off"
+                            ? "Por Projeto"
+                            : "Pagamento Mensal Fixo"}
+                    </span>
+                  </p>
+                </div>
+              </Card>
+
+              {/* Card 2: Resumo de Demandas */}
+              <Card className="p-4 border-border/60 bg-zinc-900/50 flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" /> Demandas do Cliente
+                  </span>
+                  <span className="text-xs font-bold text-foreground">{clientDemands.length} total</span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-zinc-950/50 p-2 rounded-lg border border-border/40">
+                    <span className="text-muted-foreground text-[11px] block">Concluídas</span>
+                    <span className="text-base font-bold text-emerald-400">
+                      {clientDemands.filter(d => d.status === "concluido").length}
+                    </span>
+                  </div>
+                  <div className="bg-zinc-950/50 p-2 rounded-lg border border-border/40">
+                    <span className="text-muted-foreground text-[11px] block">Em Andamento</span>
+                    <span className="text-base font-bold text-amber-400">
+                      {clientDemands.filter(d => d.status !== "concluido").length}
+                    </span>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Card 3: Contatos Diretos */}
+              <Card className="p-4 border-border/60 bg-zinc-900/50 flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5 text-purple-400" /> Contatos
+                  </span>
+                </div>
+                <div className="mt-3 space-y-2 text-xs">
+                  {client.contact_name && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Contato:</span>
+                      <span className="font-semibold text-foreground">{client.contact_name}</span>
+                    </div>
+                  )}
+                  {client.email && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">E-mail:</span>
+                      <a href={`mailto:${client.email}`} className="font-medium text-blue-400 hover:underline truncate max-w-[170px]">
+                        {client.email}
+                      </a>
+                    </div>
+                  )}
+                  {client.phone && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">WhatsApp:</span>
+                      <a
+                        href={`https://wa.me/${client.phone.replace(/\D/g, "")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-emerald-400 hover:underline flex items-center gap-1"
+                      >
+                        <Phone className="h-3 w-3" /> {client.phone}
+                      </a>
+                    </div>
+                  )}
+                  {!client.contact_name && !client.email && !client.phone && (
+                    <p className="text-xs text-muted-foreground italic">Nenhum contato cadastrado.</p>
+                  )}
+                </div>
+              </Card>
+            </div>
+
+            {/* Notes & Credit Tiers Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               <div className="lg:col-span-2">
-                <Card className="p-6">
-                  <ClientForm
-                    initial={{
-                      name: client.name,
-                      contact_name: client.contact_name,
-                      email: client.email,
-                      phone: client.phone,
-                      billing_model: client.billing_model,
-                      fixed_type: client.fixed_type,
-                      monthly_value: client.monthly_value,
-                      commercial_notes: client.commercial_notes,
-                      internal_notes: client.internal_notes,
-                      access_active: client.access_active,
-                      color: client.color,
-                    }}
-                    onSubmit={handleSave}
-                    submitting={saving}
-                    hideBilling={client.is_project}
-                  />
+                <Card className="p-5 border-border/60 bg-zinc-900/50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-zinc-400" /> Notas Internas
+                    </h4>
+                  </div>
+                  <p className="text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed">
+                    {client.internal_notes || "Nenhuma nota interna cadastrada para este cliente."}
+                  </p>
                 </Card>
               </div>
+
               {!client.is_project && client.billing_model === "credits" && (
                 <div className="lg:col-span-1">
                   <CreditTiersEditor
@@ -432,6 +598,66 @@ function ClientPage() {
             </div>
           </div>
         </TabsContent>
+
+        {/* Client Edit Dialog Modal */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-zinc-950 border-zinc-800">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-foreground">
+                <Pencil className="h-4 w-4 text-primary" /> Editar dados do cliente
+              </DialogTitle>
+            </DialogHeader>
+            <ClientForm
+              initial={{
+                name: client.name,
+                contact_name: client.contact_name,
+                email: client.email,
+                phone: client.phone,
+                billing_model: client.billing_model,
+                fixed_type: client.fixed_type,
+                monthly_value: client.monthly_value,
+                commercial_notes: client.commercial_notes,
+                internal_notes: client.internal_notes,
+                access_active: client.access_active,
+              }}
+              onSubmit={async (values) => {
+                await handleSave(values);
+                setIsEditDialogOpen(false);
+              }}
+              submitting={saving}
+              hideBilling={client.is_project}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Confirm Delete Client Dialog Modal */}
+        <Dialog open={isConfirmDeleteOpen} onOpenChange={setIsConfirmDeleteOpen}>
+          <DialogContent className="max-w-md bg-zinc-950 border-zinc-800">
+            <DialogHeader>
+              <DialogTitle className="text-red-400 flex items-center gap-2">
+                <Trash2 className="h-5 w-5" /> Excluir Cliente
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-zinc-300 py-2">
+              Tem certeza que deseja excluir o cliente <strong>{client.name}</strong>? Esta ação removerá o cliente e suas demandas do sistema.
+            </p>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="ghost" size="sm" onClick={() => setIsConfirmDeleteOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  setIsConfirmDeleteOpen(false);
+                  handleDelete();
+                }}
+              >
+                Confirmar Exclusão
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <TabsContent value="notes" className="mt-4 overflow-y-auto">
           <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">

@@ -5,7 +5,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ClientColorPicker } from "@/components/client-color-picker";
 
 export type ClientFormValues = {
   id?: string;
@@ -154,11 +153,7 @@ export function ClientForm({
       </div>
 
       <div className="flex items-center gap-6">
-        <ClientColorPicker
-          value={v.color ?? ""}
-          onChange={(color) => setV({ ...v, color })}
-        />
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
           <Switch
             checked={v.access_active}
             onCheckedChange={(c) => setV({ ...v, access_active: c })}
