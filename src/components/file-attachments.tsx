@@ -33,10 +33,12 @@ export function FileAttachments({
   entityType,
   entityId,
   disabled,
+  hideUploadButton,
 }: {
   entityType: "client" | "demand";
   entityId: string;
   disabled?: boolean;
+  hideUploadButton?: boolean;
 }) {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -108,7 +110,7 @@ export function FileAttachments({
         <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
           Anexos ({files.length})
         </h4>
-        {!disabled && (
+        {!disabled && !hideUploadButton && (
           <>
             <input
               ref={fileInputRef}

@@ -36,6 +36,7 @@ import {
   Columns3,
   Trash,
   Loader2,
+  Paperclip,
 } from "lucide-react";
 
 interface RichEditorProps {
@@ -48,6 +49,7 @@ interface RichEditorProps {
   readOnly?: boolean;
   enableTables?: boolean;
   gDrivePath?: string[];
+  onAttachFile?: (file: File) => Promise<void> | void;
 }
 
 function ToolbarBtn({
@@ -91,8 +93,10 @@ export function RichEditor({
   readOnly = false,
   enableTables = false,
   gDrivePath = [],
+  onAttachFile,
 }: RichEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const attachmentFileRef = useRef<HTMLInputElement>(null);
 
   const editor = useTiptapEditor({
     extensions: [
@@ -135,6 +139,30 @@ export function RichEditor({
             ? "min-h-[40px] p-4 text-sm cursor-default"
             : "min-h-[180px] p-4 text-sm",
         ),
+      },
+      handleDrop: (view, event, slice, moved) => {
+        if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          const files = Array.from(event.dataTransfer.files);
+          for (const file of files) {
+            handleEditorFileDropOrUpload(file);
+          }
+          return true;
+        }
+        return false;
+      },
+      handlePaste: (view, event) => {
+        if (event.clipboardData && event.clipboardData.files && event.clipboardData.files.length > 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          const files = Array.from(event.clipboardData.files);
+          for (const file of files) {
+            handleEditorFileDropOrUpload(file);
+          }
+          return true;
+        }
+        return false;
       },
     },
     immediatelyRender: false,
@@ -185,6 +213,57 @@ export function RichEditor({
       reader.readAsDataURL(file);
     },
     [editor, uploadFn, gDrivePath]
+  );
+
+  const handleEditorFileDropOrUpload = useCallback(
+    async (file: File) => {
+      if (onAttachFile) {
+        await onAttachFile(file);
+        return;
+      }
+
+      if (file.type.startsWith("image/")) {
+        await insertImage(file);
+        return;
+      }
+
+      setUploading(true);
+      try {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const base64 = (e.target?.result as string).split(",")[1];
+          try {
+            const accessToken = await getGDriveAccessToken();
+            const response = await uploadFn({
+              data: {
+                accessToken,
+                fileBase64: base64,
+                fileName: file.name,
+                mimeType: file.type || "application/octet-stream",
+                pathParts: gDrivePath,
+              },
+            });
+
+            if (response.success && response.url) {
+              editor?.chain().focus().insertContent(`<a href="${response.url}" target="_blank" rel="noopener noreferrer" class="text-primary underline font-medium hover:opacity-80">${file.name}</a> `).run();
+              toast.success(`Arquivo "${file.name}" anexado e link adicionado!`);
+            } else {
+              toast.error(response.error || "Erro ao carregar arquivo.");
+            }
+          } catch (error: any) {
+            console.error("Upload error:", error);
+            toast.error("Erro ao subir arquivo.");
+          } finally {
+            setUploading(false);
+          }
+        };
+        reader.readAsDataURL(file);
+      } catch {
+        toast.error("Erro ao ler o arquivo.");
+        setUploading(false);
+      }
+    },
+    [onAttachFile, insertImage, uploadFn, gDrivePath, editor]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -533,6 +612,15 @@ export function RichEditor({
           </button>
           <button
             type="button"
+            disabled={uploading}
+            title="Anexar arquivo"
+            onClick={() => attachmentFileRef.current?.click()}
+            className="text-muted-foreground hover:text-foreground hover:bg-accent/65 p-1 rounded transition-colors cursor-pointer"
+          >
+            <Paperclip className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
             title="Lista de tarefas"
             onClick={() => editor.chain().focus().toggleTaskList().run()}
             className="text-muted-foreground hover:text-foreground hover:bg-accent/65 p-1 rounded transition-colors cursor-pointer"
@@ -566,6 +654,19 @@ export function RichEditor({
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) insertImage(file);
+          e.target.value = "";
+        }}
+      />
+
+      <input
+        ref={attachmentFileRef}
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file && onAttachFile) {
+            onAttachFile(file);
+          }
           e.target.value = "";
         }}
       />

@@ -32,7 +32,9 @@ import {
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
 import { RichEditor } from "@/components/rich-editor";
 import { FileAttachments } from "@/components/file-attachments";
-import { Trash2, Send, Calendar, X, Save, User, Loader2, Pencil } from "lucide-react";
+import { uploadAttachment } from "@/lib/attachments.functions";
+import { getGDriveAccessToken } from "@/lib/gdrive-token";
+import { Trash2, Send, Calendar, X, Save, User, Loader2, Pencil, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STATUS_CHIP: Record<string, string> = {
@@ -113,7 +115,60 @@ export function DemandDetailDialog({
   const deleteCommentFn = useServerFn(deleteComment);
   const updateCommentFn = useServerFn(updateComment);
   const listProfilesFn = useServerFn(listProfiles);
+  const uploadAttachmentFn = useServerFn(uploadAttachment);
   const qc = useQueryClient();
+
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploadingDroppedFile, setIsUploadingDroppedFile] = useState(false);
+
+  const handleAttachFile = async (file: File) => {
+    if (isNew || id === "new") {
+      toast.error("Por favor, salve a demanda antes de anexar arquivos.");
+      return;
+    }
+    setIsUploadingDroppedFile(true);
+    try {
+      const reader = new FileReader();
+      await new Promise<void>((resolve, reject) => {
+        reader.onload = async (e) => {
+          const base64 = (e.target?.result as string).split(",")[1];
+          try {
+            const accessToken = await getGDriveAccessToken();
+            const res = await uploadAttachmentFn({
+              data: {
+                accessToken,
+                entityType: "demand",
+                entityId: id,
+                fileBase64: base64,
+                fileName: file.name,
+                mimeType: file.type || "application/octet-stream",
+              },
+            });
+            if (res.success) {
+              toast.success(`"${file.name}" anexado com sucesso!`);
+              qc.invalidateQueries({ queryKey: ["attachments", "demand", id] });
+              resolve();
+            } else {
+              toast.error(res.error || "Erro ao anexar arquivo.");
+              reject(new Error(res.error));
+            }
+          } catch (err: any) {
+            toast.error(err.message || "Erro ao anexar arquivo.");
+            reject(err);
+          }
+        };
+        reader.onerror = () => {
+          toast.error("Erro ao ler o arquivo.");
+          reject(new Error("Erro de leitura"));
+        };
+        reader.readAsDataURL(file);
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUploadingDroppedFile(false);
+    }
+  };
 
   // ── Portal server functions (also declared unconditionally) ──
   const getPortalCommentsFn = useServerFn(getPortalDemandComments);
@@ -700,7 +755,37 @@ export function DemandDetailDialog({
         overlayClickRef.current = false;
       }}
     >
-      <div className="relative w-full max-w-[95vw] lg:max-w-5xl xl:max-w-6xl h-[90vh] bg-card border border-border rounded-2xl flex flex-col overflow-hidden shadow-2xl my-auto mx-auto animate-in fade-in zoom-in duration-200">
+      <div
+        className="relative w-full max-w-[95vw] lg:max-w-5xl xl:max-w-6xl h-[90vh] bg-card border border-border rounded-2xl flex flex-col overflow-hidden shadow-2xl my-auto mx-auto animate-in fade-in zoom-in duration-200"
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragging(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragging(false);
+        }}
+        onDrop={async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragging(false);
+          const files = Array.from(e.dataTransfer.files);
+          if (files.length > 0) {
+            for (const file of files) {
+              await handleAttachFile(file);
+            }
+          }
+        }}
+      >
+        {isDragging && (
+          <div className="absolute inset-0 bg-background/85 backdrop-blur-sm z-50 flex flex-col items-center justify-center border-2 border-dashed border-primary m-4 rounded-xl pointer-events-none animate-in fade-in duration-200">
+            <Upload className="h-10 w-10 text-primary mb-2 animate-bounce" />
+            <p className="text-sm font-bold text-foreground font-display">Solte os arquivos aqui</p>
+            <p className="text-xs text-muted-foreground mt-1">Eles serão anexados à demanda automaticamente.</p>
+          </div>
+        )}
 
         {(!isNew && !portalMode && isDemandLoading) ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">Carregando...</div>
@@ -961,13 +1046,14 @@ export function DemandDetailDialog({
                     readOnly={!descriptionEditable}
                     placeholder="Descreva a demanda em detalhes..."
                     gDrivePath={gDrivePath}
+                    onAttachFile={handleAttachFile}
                   />
                 </div>
 
                 {/* Attachments Section — only for existing demands */}
                 {!isNew && !portalMode && id !== "new" && (
                   <div className="shrink-0 border-t border-border pt-3 px-0.5">
-                    <FileAttachments entityType="demand" entityId={id} />
+                    <FileAttachments entityType="demand" entityId={id} hideUploadButton={true} />
                   </div>
                 )}
               </div>
