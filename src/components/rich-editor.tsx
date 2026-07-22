@@ -106,7 +106,10 @@ export const AttachmentCardExtension = Node.create({
       }),
       [
         "div",
-        { class: "flex items-center gap-3 min-w-0" },
+        {
+          class: "flex items-center gap-3 min-w-0 cursor-pointer hover:opacity-80 transition-opacity",
+          "data-action": "download-attachment",
+        },
         [
           "div",
           { class: "h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-extrabold text-[11px] tracking-wider uppercase shrink-0 border border-primary/20" },
@@ -116,11 +119,8 @@ export const AttachmentCardExtension = Node.create({
           "div",
           { class: "min-w-0 flex flex-col justify-center" },
           [
-            "a",
+            "span",
             {
-              href: HTMLAttributes.src,
-              target: "_blank",
-              rel: "noopener noreferrer",
               class: "text-xs font-bold text-foreground truncate hover:underline hover:text-primary transition-colors cursor-pointer",
             },
             HTMLAttributes.fileName || "Arquivo",
@@ -136,14 +136,14 @@ export const AttachmentCardExtension = Node.create({
         "div",
         { class: "flex items-center gap-2 shrink-0" },
         [
-          "a",
+          "button",
           {
-            href: HTMLAttributes.src,
-            target: "_blank",
-            rel: "noopener noreferrer",
-            class: "px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex items-center gap-1 cursor-pointer no-underline",
+            type: "button",
+            "data-action": "download-attachment",
+            title: "Baixar anexo",
+            class: "px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex items-center gap-1.5 cursor-pointer border border-primary/20",
           },
-          "Abrir",
+          "⬇ Baixar",
         ],
         [
           "button",
@@ -283,15 +283,27 @@ export function RichEditor({
         ),
       },
       handleClickOn: (view, pos, node, nodePos, event) => {
-        if (!view.editable) return false;
         const target = event.target as HTMLElement;
+
         if (target.closest("[data-action='delete-attachment']")) {
+          if (!view.editable) return false;
           event.preventDefault();
           event.stopPropagation();
           view.dispatch(view.state.tr.delete(nodePos, nodePos + node.nodeSize));
           toast.success("Anexo removido da demanda.");
           return true;
         }
+
+        if (target.closest("[data-action='download-attachment']")) {
+          event.preventDefault();
+          event.stopPropagation();
+          const src = node.attrs?.src;
+          if (src && !src.startsWith("#")) {
+            window.open(src, "_blank");
+          }
+          return true;
+        }
+
         return false;
       },
       handleDrop: (view, event, slice, moved) => {
