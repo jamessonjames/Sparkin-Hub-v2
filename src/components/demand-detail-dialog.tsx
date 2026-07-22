@@ -31,8 +31,6 @@ import {
 } from "@/components/ui/select";
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
 import { RichEditor } from "@/components/rich-editor";
-import { FileAttachments } from "@/components/file-attachments";
-import { uploadAttachment } from "@/lib/attachments.functions";
 import { uploadToGDrive } from "@/lib/gdrive.functions";
 import { getGDriveAccessToken } from "@/lib/gdrive-token";
 import { Trash2, Send, Calendar, X, Save, User, Loader2, Pencil, Upload, Download } from "lucide-react";
@@ -266,7 +264,7 @@ export function DemandDetailDialog({
               if (file.type.startsWith("image/")) {
                 html = `<img src="${res.url}" alt="${file.name}" style="max-width: 100%; border-radius: 0.5rem;" /> `;
               } else {
-                html = `<a href="${res.url}" target="_blank" rel="noopener noreferrer" class="comment-file-card"><span class="comment-file-card-content"><span class="comment-file-card-icon">📄</span><span class="comment-file-card-info"><span class="comment-file-card-name">${file.name}</span><span class="comment-file-card-size">${formatFileSizeLocal(file.size)}</span></span></span></a> `;
+                html = `<a href="${res.url}" target="_blank" rel="noopener noreferrer" class="text-primary underline font-semibold hover:text-primary/80 cursor-pointer">${file.name}</a> `;
               }
               setComment((prev) => prev + html);
               toast.success(`"${file.name}" anexado ao comentário!`);
@@ -1198,12 +1196,7 @@ export function DemandDetailDialog({
                   />
                 </div>
 
-                {/* Attachments Section — only for existing demands */}
-                {!isNew && !portalMode && id !== "new" && (
-                  <div className="shrink-0 border-t border-border pt-3 px-0.5">
-                    <FileAttachments entityType="demand" entityId={id} hideUploadButton={true} />
-                  </div>
-                )}
+
               </div>
 
               {/* Right Panel — Comments */}

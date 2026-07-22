@@ -264,8 +264,8 @@ export function RichEditor({
             });
 
             if (response.success && response.url) {
-              const cardHtml = `<a href="${response.url}" target="_blank" rel="noopener noreferrer" class="comment-file-card"><span class="comment-file-card-content"><span class="comment-file-card-icon">📄</span><span class="comment-file-card-info"><span class="comment-file-card-name">${file.name}</span><span class="comment-file-card-size">${formatFileSizeLocal(file.size)}</span></span></span></a> `;
-              editor?.chain().focus().insertContent(cardHtml).run();
+              const linkHtml = `<a href="${response.url}" target="_blank" rel="noopener noreferrer" class="text-primary underline font-semibold hover:text-primary/80 cursor-pointer">${file.name}</a> `;
+              editor?.chain().focus().insertContent(linkHtml).run();
               toast.success(`Arquivo "${file.name}" anexado e link adicionado!`);
             } else {
               toast.error(response.error || "Erro ao carregar arquivo.");
