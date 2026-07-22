@@ -280,7 +280,7 @@ function AgendaPage() {
         const dateKey = (d.due_date || toISO(new Date())).slice(0, 10);
         const entry = map.get(dateKey) || { concluida: [], para_analise: [] };
         if (d.status === "concluido") {
-          entry.conclvida.push(d as AgendaDemand);
+          entry.concluida.push(d as AgendaDemand);
         } else {
           entry.para_analise.push(d as AgendaDemand);
         }
@@ -789,7 +789,7 @@ function AgendaPage() {
                     )}>
                       {day.getDate()}
                     </div>
-                    {summary && (summary.conclvida.length > 0 || summary.para_analise.length > 0) && (
+                    {summary && (summary.concluida.length > 0 || summary.para_analise.length > 0) && (
                       <DaySummaryPill
                         summary={summary}
                         onOpenDemand={(id) => overlay.open(id, clientsForOverlay)}
@@ -983,7 +983,7 @@ function DaySummaryPill({
   onOpenDemand: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const totalCount = summary.conclvida.length + summary.para_analise.length;
+  const totalCount = summary.concluida.length + summary.para_analise.length;
   if (totalCount === 0) return null;
 
   return (
@@ -994,8 +994,8 @@ function DaySummaryPill({
           className="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-muted/60 hover:bg-muted text-foreground border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer truncate max-w-[115px]"
           title="Ver demandas concluídas e em análise do dia"
         >
-          {summary.conclvida.length > 0 && (
-            <span className="text-emerald-400 font-bold">✓ {summary.conclvida.length}</span>
+          {summary.concluida.length > 0 && (
+            <span className="text-emerald-400 font-bold">✓ {summary.concluida.length}</span>
           )}
           {summary.para_analise.length > 0 && (
             <span className="text-purple-400 font-bold">⏳ {summary.para_analise.length}</span>
@@ -1015,7 +1015,7 @@ function DaySummaryPill({
               <p className="text-[10px] text-purple-400 font-medium">⏳ Para Análise</p>
             </div>
           ))}
-          {summary.conclvida.map((d) => (
+          {summary.concluida.map((d) => (
             <div
               key={d.id}
               onClick={() => { setOpen(false); onOpenDemand(d.id); }}
