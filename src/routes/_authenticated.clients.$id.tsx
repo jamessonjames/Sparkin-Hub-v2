@@ -122,18 +122,11 @@ function ClientPage() {
     queryFn: () => getFn({ data: { id: client!.parent_id! } }),
     enabled: !!client?.parent_id,
   });
-  const { data: allClientDemands = [] } = useQuery({
-    queryKey: ["client-demands", id],
-    queryFn: () => demandsFn({ data: { clientId: id } }),
-    enabled: !!id,
+  const { data: allDemands = [] } = useQuery({
+    queryKey: ["demands", activeUserId],
+    queryFn: () => demandsFn({ data: isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId } : {} }),
   });
-
-  const clientDemands = useMemo(() => {
-    if (isAdminOrOwner && activeUserId) {
-      return allClientDemands.filter((d) => d.assignee_user_id === activeUserId);
-    }
-    return allClientDemands;
-  }, [allClientDemands, isAdminOrOwner, activeUserId]);
+  const clientDemands = allDemands.filter((d) => d.client_id === id);
 
   const editionsFn = useServerFn(listClientEditions);
   const { data: clientEditions = [], refetch: refetchEditions } = useQuery({
@@ -273,20 +266,6 @@ function ClientPage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            )}
-
-            {allClientDemands.length > clientDemands.length && (
-              <div className="mt-2.5 flex flex-wrap items-center gap-2 p-2 px-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
-                <span>🎯 <strong>Filtro ativo:</strong> Exibindo {clientDemands.length} de {allClientDemands.length} demandas deste cliente.</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedUserId(null)}
-                  className="h-6 px-2 text-[11px] text-amber-300 hover:text-amber-100 hover:bg-amber-500/20 underline cursor-pointer"
-                >
-                  Ver todas ({allClientDemands.length})
-                </Button>
               </div>
             )}
           </div>

@@ -401,7 +401,8 @@ export function DemandDetailDialog({
       setStatus((defaultStatus as DemandStatus) || "nao_iniciado");
       setPriority("medium");
       setDueDate("");
-      setAssigneeId(defaultAssigneeId || "");
+      const jamessonId = profiles.find((p) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || "";
+      setAssigneeId(defaultAssigneeId || activeUserId || jamessonId);
       setEstimatedHours(1.0);
       setEstimatedCredits(0);
       setPrice(null);
@@ -424,7 +425,8 @@ export function DemandDetailDialog({
       setStatus(demand.status as DemandStatus);
       setPriority(demand.priority as "low" | "medium" | "high" | "urgent");
       setDueDate(demand.due_date ? demand.due_date.slice(0, 10) : "");
-      setAssigneeId(demand.assignee_user_id || "");
+      const jamessonId = profiles.find((p) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || "";
+      setAssigneeId(demand.assignee_user_id || jamessonId);
       setEstimatedHours(demand.estimated_hours ? Number(demand.estimated_hours) : 1.0);
       setEstimatedCredits(demand.estimated_credits ? Number(demand.estimated_credits) : 0);
       setClientEditionId(demand.client_edition_id || "");
@@ -696,7 +698,7 @@ export function DemandDetailDialog({
             due_date: finalDueDate,
             estimated_credits: estimatedCredits,
             estimated_hours: estimatedHours,
-            assignee_user_id: assigneeId || null,
+            assignee_user_id: assigneeId || activeUserId || profiles.find((p) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
             client_edition_id: clientEditionId || null,
             price: price ?? null,
           },
@@ -717,7 +719,7 @@ export function DemandDetailDialog({
             estimated_credits: estimatedCredits,
             estimated_hours: estimatedHours,
             internal_notes: demand?.internal_notes,
-            assignee_user_id: assigneeId || null,
+            assignee_user_id: assigneeId || activeUserId || profiles.find((p) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
             client_edition_id: clientEditionId || null,
             price: price ?? null,
           },
@@ -1081,7 +1083,6 @@ export function DemandDetailDialog({
                           <SelectValue placeholder="Selecione um responsável..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none" className="text-xs text-muted-foreground italic">Sem responsável</SelectItem>
                           {profiles.map((p) => (
                             <SelectItem key={p.id} value={p.id} className="text-xs">
                               {p.name}
