@@ -39,7 +39,7 @@ export function useAutoScheduler() {
       }
     }
 
-    const active = (demands as any[]).filter((d) => d.status !== "concluido" && d.status !== "para_analise");
+    const active = (demands as any[]).filter((d) => d.status === "nao_iniciado" || d.status === "fazendo" || d.status === "com_ajustes");
     if (active.length === 0) return;
 
     const items = active.map((d: any) => ({

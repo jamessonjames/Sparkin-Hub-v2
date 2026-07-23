@@ -268,7 +268,7 @@ function AgendaPage() {
   const demandsBySlot = useMemo(() => {
     const map = new Map<string, AgendaDemand>();
     for (const d of demands) {
-      if (d.status === "concluido" || d.status === "para_analise") continue;
+      if (d.status !== "nao_iniciado" && d.status !== "fazendo" && d.status !== "com_ajustes") continue;
       const finalDate = scheduledMap[d.id] ?? d.due_date;
       if (finalDate) {
         const dt = safeParseDate(finalDate);

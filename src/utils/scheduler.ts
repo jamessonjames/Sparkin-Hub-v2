@@ -163,7 +163,7 @@ export function scheduleDemands(
   demands: UnscheduledDemand[],
   config: SchedulingConfig = DEFAULT_CONFIG
 ): Record<string, string> {
-  const active = demands.filter(d => d.status !== "concluido" && d.status !== "para_analise");
+  const active = demands.filter(d => d.status === "nao_iniciado" || d.status === "fazendo" || d.status === "com_ajustes");
   
   // Categorize demands
   const fixed = active.filter(d => d.due_date && d.due_date.length > 10);
@@ -311,7 +311,7 @@ export function scheduleByPriority(
   _fixed: UnscheduledDemand[] = []
 ): Record<string, string> {
   const active = [..._fixed, ...demands]
-    .filter((d) => d.status !== "concluido" && d.status !== "para_analise")
+    .filter((d) => d.status === "nao_iniciado" || d.status === "fazendo" || d.status === "com_ajustes")
     .filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i);
 
   // 1) Pinned demands (is_manually_scheduled = true and due_date exists)
