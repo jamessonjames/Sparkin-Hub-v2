@@ -43,10 +43,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight, Search, X, Star, MoreHorizontal, Pencil, ExternalLink, Copy, Phone, Mail, User, DollarSign, FileText, CheckCircle2, Clock } from "lucide-react";
-import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, DEFAULT_CREDIT_TIERS, type CreditTier } from "@/lib/credit-tiers";
-import { listProfiles } from "@/lib/users.functions";
+import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight, Search, X, Star, MoreHorizontal, Pencil, ExternalLink, Copy, Phone, Mail, User, DollarSign, FileText, CheckCircle2, Clock, Sparkles } from "lucide-react";
 import { CreditProgressBar } from "@/components/credit-progress-bar";
+import { ClientGemsTab } from "@/components/client-gems-tab";
 
 export const Route = createFileRoute("/_authenticated/clients/$id")({
   head: () => ({ meta: [{ title: "Cliente" }] }),
@@ -348,6 +347,10 @@ function ClientPage() {
             {client.billing_model === "seasonal" && (
               <TabsTrigger value="editions">Edições</TabsTrigger>
             )}
+            <TabsTrigger value="ai_agents" className="gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+              IA / Agentes
+            </TabsTrigger>
             <TabsTrigger value="overview">Visão geral</TabsTrigger>
             <TabsTrigger value="notes">Notas</TabsTrigger>
             {!client.is_project && <TabsTrigger value="reports">Relatórios</TabsTrigger>}
@@ -597,6 +600,10 @@ function ClientPage() {
               )}
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="ai_agents" className="flex-1 w-full max-w-[1400px] mx-auto px-4 md:px-6">
+          <ClientGemsTab clientId={id} />
         </TabsContent>
 
         {/* Client Edit Dialog Modal */}

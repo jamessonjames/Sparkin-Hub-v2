@@ -32,9 +32,16 @@ import {
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
 import { RichEditor } from "@/components/rich-editor";
-import { deleteFromGDrive } from "@/lib/gdrive.functions";
-import { getFileIdFromUrl } from "@/lib/gdrive-token";
-import { Trash2, Send, Calendar, X, Save, User, Users, Loader2, Pencil, Upload, Download, Lock, Share2, MoreVertical, Building2, Sparkles, AlertCircle, Clock, Coins, Layers, DollarSign } from "lucide-react";
+import { listClientGems, type ClientGem } from "@/lib/client-gems.functions";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { Trash2, Send, Calendar, X, Save, User, Users, Loader2, Pencil, Upload, Download, Lock, Share2, MoreVertical, Building2, Sparkles, AlertCircle, Clock, Coins, Layers, DollarSign, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STATUS_CHIP: Record<string, string> = {
@@ -312,6 +319,51 @@ export function DemandDetailDialog({
     queryFn: () => getPricingSettingsFn(),
     enabled: !portalMode,
   });
+
+  // Fetch registered gems for the current client
+  const listGemsFn = useServerFn(listClientGems);
+  const { data: clientGems = [] } = useQuery({
+    queryKey: ["client-gems", clientId],
+    queryFn: () => listGemsFn({ data: { client_id: clientId } }),
+    enabled: !!clientId,
+  });
+
+  const handleTriggerGem = async (gem: ClientGem) => {
+    const plainDesc = description ? description.replace(/<[^>]*>/g, '').trim() : '';
+    const compiledBriefing = `TÍTULO DA DEMANDA:\n${title}\n\nBRIEFING E DETALHES:\n${plainDesc}`;
+
+    try {
+      await navigator.clipboard.writeText(compiledBriefing);
+    } catch (err) {
+      console.error("Erro ao copiar briefing:", err);
+    }
+
+    toast.success(`Briefing copiado! Abrindo assistente (${gem.name})...`);
+
+    const popupLeft = typeof window !== "undefined" && window.screen.width ? window.screen.width - 530 : 1000;
+    window.open(
+      gem.gem_url,
+      'GeminiAssistant',
+      'width=520,height=850,left=' + popupLeft + ',top=50,resizable=yes'
+    );
+  };
+
+  const handleAiButtonClick = () => {
+    if (!clientId) {
+      toast.error("Selecione um cliente primeiro.");
+      return;
+    }
+    if (clientGems.length === 0) {
+      toast.warning(
+        "Nenhum Gem cadastrado para este cliente. Acesse a aba 'IA / Agentes' no perfil do cliente para cadastrar.",
+        { duration: 5000 }
+      );
+      return;
+    }
+    if (clientGems.length === 1) {
+      handleTriggerGem(clientGems[0]);
+    }
+  };
 
   // ── Local form state ──
   const [clientId, setClientId] = useState("");
@@ -1048,7 +1100,50 @@ export function DemandDetailDialog({
                  )}
                </div>
 
-              <div className="ml-auto flex items-center gap-1.5">
+              <div className="ml-auto flex items-center gap-2">
+                {/* ✨ Criar layout com IA Button */}
+                {clientGems.length > 1 ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs font-semibold gap-1.5 border-amber-500/40 hover:border-amber-500 text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer shadow-xs"
+                      >
+                        <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                        <span>Criar layout com IA</span>
+                        <ChevronDown className="h-3 w-3 opacity-70" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56 p-1.5 bg-popover text-popover-foreground border border-border shadow-lg rounded-xl">
+                      <DropdownMenuLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
+                        Escolha o Agente / Marca
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator className="bg-border/60" />
+                      {clientGems.map((gem) => (
+                        <DropdownMenuItem
+                          key={gem.id}
+                          onClick={() => handleTriggerGem(gem)}
+                          className="text-xs font-medium cursor-pointer flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent focus:bg-accent"
+                        >
+                          <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                          <span>{gem.name}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleAiButtonClick}
+                    className="h-7 text-xs font-semibold gap-1.5 border-amber-500/40 hover:border-amber-500 text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer shadow-xs"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Criar layout com IA</span>
+                  </Button>
+                )}
+
                 {!isNew && (
                   <button
                     onClick={() => setShowComments((v) => !v)}
