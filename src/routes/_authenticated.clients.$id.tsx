@@ -41,9 +41,9 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight, Search, X, Star, MoreHorizontal, Pencil, ExternalLink, Copy, Phone, Mail, User, DollarSign, FileText, CheckCircle2, Clock, Sparkles } from "lucide-react";
+import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, DEFAULT_CREDIT_TIERS, type CreditTier } from "@/lib/credit-tiers";
 import { CreditProgressBar } from "@/components/credit-progress-bar";
 import { ClientGemsTab } from "@/components/client-gems-tab";
 
