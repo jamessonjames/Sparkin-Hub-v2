@@ -60,7 +60,7 @@ export function ClientGemsTab({ clientId }: { clientId: string }) {
       return;
     }
     if (!gemUrl.trim()) {
-      toast.error("Informe a URL do Gem.");
+      toast.error("Informe a URL do Agente.");
       return;
     }
 
@@ -75,7 +75,7 @@ export function ClientGemsTab({ clientId }: { clientId: string }) {
             category,
           },
         });
-        toast.success("Gem atualizado com sucesso!");
+        toast.success("Agente atualizado com sucesso!");
       } else {
         await createGemFn({
           data: {
@@ -85,27 +85,27 @@ export function ClientGemsTab({ clientId }: { clientId: string }) {
             category,
           },
         });
-        toast.success("Gem cadastrado com sucesso!");
+        toast.success("Agente cadastrado com sucesso!");
       }
 
       qc.invalidateQueries({ queryKey: ["client-gems", clientId] });
       setIsDialogOpen(false);
     } catch (err: any) {
-      toast.error(err.message || "Erro ao salvar Gem.");
+      toast.error(err.message || "Erro ao salvar Agente.");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (gemId: string) => {
-    if (!confirm("Tem certeza que deseja excluir este Gem/Agente?")) return;
+    if (!confirm("Tem certeza que deseja excluir este Agente?")) return;
 
     try {
       await deleteGemFn({ data: { id: gemId } });
-      toast.success("Gem removido com sucesso.");
+      toast.success("Agente removido com sucesso.");
       qc.invalidateQueries({ queryKey: ["client-gems", clientId] });
     } catch (err: any) {
-      toast.error(err.message || "Erro ao remover Gem.");
+      toast.error(err.message || "Erro ao remover Agente.");
     }
   };
 
@@ -120,12 +120,12 @@ export function ClientGemsTab({ clientId }: { clientId: string }) {
             IA / Agentes do Cliente
           </h3>
           <p className="text-xs text-muted-foreground">
-            Cadastre os Gems e especialistas de IA para esta marca organizados por categoria (Designers e Copywriters).
+            Cadastre os especialistas e Agentes de IA para esta marca organizados por categoria (Designers e Copywriters).
           </p>
         </div>
         <Button onClick={handleOpenAdd} size="sm" className="gap-1.5 cursor-pointer">
           <Plus className="h-4 w-4" />
-          Adicionar Gem / Agente
+          Adicionar Agente
         </Button>
       </div>
 
@@ -135,12 +135,12 @@ export function ClientGemsTab({ clientId }: { clientId: string }) {
         <Card className="border-dashed py-10 text-center">
           <CardContent className="flex flex-col items-center justify-center gap-3">
             <Bot className="h-10 w-10 text-muted-foreground/50" />
-            <p className="text-sm font-medium text-muted-foreground">Nenhum Gem cadastrado para este cliente.</p>
+            <p className="text-sm font-medium text-muted-foreground">Nenhum agente cadastrado para este cliente.</p>
             <p className="text-xs text-muted-foreground/75 max-w-sm">
-              Adicione as URLs dos Gems especificando o nome e a categoria (Designers ou Copywriters).
+              Adicione as URLs dos Agentes de IA (ChatGPT, Gemini, etc.) especificando o nome e a categoria (Designers ou Copywriters).
             </p>
             <Button onClick={handleOpenAdd} variant="outline" size="sm" className="mt-2 gap-1.5 cursor-pointer">
-              <Plus className="h-4 w-4" /> Cadastrar Primeiro Gem
+              <Plus className="h-4 w-4" /> Cadastrar Primeiro Agente
             </Button>
           </CardContent>
         </Card>
@@ -205,7 +205,7 @@ export function ClientGemsTab({ clientId }: { clientId: string }) {
                         className="w-full text-xs gap-1.5 cursor-pointer hover:bg-muted"
                         onClick={() => window.open(gem.gem_url, "_blank")}
                       >
-                        <ExternalLink className="h-3.5 w-3.5" /> Abrir no Gemini
+                        <ExternalLink className="h-3.5 w-3.5" /> Usar Agente
                       </Button>
                     </CardContent>
                   </Card>
@@ -273,7 +273,7 @@ export function ClientGemsTab({ clientId }: { clientId: string }) {
                         className="w-full text-xs gap-1.5 cursor-pointer hover:bg-muted"
                         onClick={() => window.open(gem.gem_url, "_blank")}
                       >
-                        <ExternalLink className="h-3.5 w-3.5" /> Abrir no Gemini
+                        <ExternalLink className="h-3.5 w-3.5" /> Usar Agente
                       </Button>
                     </CardContent>
                   </Card>
@@ -289,7 +289,7 @@ export function ClientGemsTab({ clientId }: { clientId: string }) {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-foreground">
-              {editingGem ? "Editar Gem / Agente" : "Novo Gem / Agente"}
+              {editingGem ? "Editar Agente" : "Novo Agente"}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-4 py-2">
@@ -321,9 +321,9 @@ export function ClientGemsTab({ clientId }: { clientId: string }) {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">URL do Gem (Gemini)</Label>
+              <Label className="text-xs font-semibold">URL do Agente (ChatGPT, Gemini, etc.)</Label>
               <Input
-                placeholder="https://gemini.google.com/gems/..."
+                placeholder="https://..."
                 value={gemUrl}
                 onChange={(e) => setGemUrl(e.target.value)}
                 className="text-xs"
@@ -337,7 +337,7 @@ export function ClientGemsTab({ clientId }: { clientId: string }) {
                 Cancelar
               </Button>
               <Button type="submit" size="sm" disabled={saving}>
-                {saving ? "Salvando..." : editingGem ? "Salvar Alterações" : "Cadastrar Gem"}
+                {saving ? "Salvando..." : editingGem ? "Salvar Alterações" : "Cadastrar Agente"}
               </Button>
             </DialogFooter>
           </form>

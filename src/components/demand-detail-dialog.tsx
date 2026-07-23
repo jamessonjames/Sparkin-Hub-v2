@@ -355,7 +355,7 @@ export function DemandDetailDialog({
     }
     if (clientGems.length === 0) {
       toast.warning(
-        "Nenhum Gem cadastrado para este cliente. Acesse a aba 'IA / Agentes' no perfil do cliente para cadastrar.",
+        "Nenhum Agente cadastrado para este cliente. Acesse a aba 'IA / Agentes' no perfil do cliente para cadastrar.",
         { duration: 5000 }
       );
       return;
