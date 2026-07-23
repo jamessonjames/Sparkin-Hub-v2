@@ -1032,157 +1032,159 @@ export function DemandDetailDialog({
               <div className="flex-1 px-6 py-4 flex flex-col gap-4 min-h-0 overflow-y-auto">
 
                 {/* Notion-style 1-Line Property Bar */}
-                <div className="flex items-center gap-6 py-2 px-1 border-b border-border/40 shrink-0 text-xs overflow-x-auto whitespace-nowrap">
-                  {/* Client — admin only, visible only on creation if multiple clients */}
-                  {!portalMode && isNew && clients.length > 1 && (
-                    <div className="flex flex-col gap-1 shrink-0">
-                      <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
-                        <Building2 className="h-3.5 w-3.5 text-muted-foreground/70" /> Cliente
-                      </span>
-                      <Select value={clientId} onValueChange={setClientId}>
-                        <SelectTrigger className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium py-0 px-2.5 rounded-md">
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {clients.map((c) => (
-                            <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {/* Status */}
-                  <div className="flex flex-col gap-1 shrink-0">
-                    <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5 text-muted-foreground/70" /> Status
-                    </span>
-                    {fieldsEditable && !isStatusBlockedInPortal ? (
-                      <Select value={status} onValueChange={(val) => setStatus(val as DemandStatus)}>
-                        <SelectTrigger className={cn("h-7 text-xs font-bold border-none text-white w-auto min-w-[105px] py-0 px-3 rounded-full shadow-2xs", STATUS_CHIP[status])}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableStatuses.map((s) => (
-                            <SelectItem key={s} value={s} className="text-xs">{STATUS_LABELS[s]}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <span className={cn("inline-flex h-7 items-center px-3 rounded-full text-xs font-bold w-fit", STATUS_CHIP[status])}>
-                        {STATUS_LABELS[status] ?? status}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Responsável (Admin only) */}
-                  {!portalMode && (
-                    <div className="flex flex-col gap-1 shrink-0">
-                      <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
-                        <Users className="h-3.5 w-3.5 text-muted-foreground/70" /> Responsável
-                      </span>
-                      <Select value={assigneeId} onValueChange={setAssigneeId}>
-                        <SelectTrigger className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium py-0 px-2.5 rounded-md gap-2">
-                          {assigneeId ? (
-                            <div className="flex items-center gap-1.5">
-                              {(() => {
-                                const assignee = profiles.find((p) => p.id === assigneeId);
-                                const name = assignee?.name ?? "Jamesson James";
-                                const colorClass = getProfileColor(assigneeId || name);
-                                return (
-                                  <>
-                                    <div className={cn("h-4 w-4 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0 border", colorClass)}>
-                                      {name.charAt(0).toUpperCase()}
-                                    </div>
-                                    <span>{name}</span>
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          ) : (
+                <div className="flex items-center justify-between gap-3 md:gap-4 py-2 px-1 border-b border-border/40 shrink-0 text-xs overflow-hidden whitespace-nowrap">
+                  <div className="flex items-center gap-3.5 sm:gap-4 md:gap-5 shrink-0 overflow-hidden">
+                    {/* Client — admin only, visible only on creation if multiple clients */}
+                    {!portalMode && isNew && clients.length > 1 && (
+                      <div className="flex flex-col gap-1 shrink-0">
+                        <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
+                          <Building2 className="h-3.5 w-3.5 text-muted-foreground/70" /> Cliente
+                        </span>
+                        <Select value={clientId} onValueChange={setClientId}>
+                          <SelectTrigger className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium py-0 px-2.5 rounded-md">
                             <SelectValue placeholder="Selecione..." />
-                          )}
-                        </SelectTrigger>
-                        <SelectContent>
-                          {profiles.map((p) => (
-                            <SelectItem key={p.id} value={p.id} className="text-xs">
-                              <div className="flex items-center gap-2">
-                                <div className={cn("h-4 w-4 rounded-full text-[9px] font-bold flex items-center justify-center border", getProfileColor(p.id))}>
-                                  {p.name.charAt(0).toUpperCase()}
-                                </div>
-                                <span>{p.name}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {/* Prioridade */}
-                  <div className="flex flex-col gap-1 shrink-0">
-                    <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
-                      <AlertCircle className="h-3.5 w-3.5 text-muted-foreground/70" /> Prioridade
-                    </span>
-                    {fieldsEditable ? (
-                      <Select value={priority} onValueChange={(val) => setPriority(val as any)}>
-                        <SelectTrigger className={cn("h-7 text-xs font-bold border-none text-white w-auto min-w-[85px] py-0 px-2.5 rounded-md", PRIORITY_CHIP[priority])}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(["low", "medium", "high", "urgent"] as const).map((p) => (
-                            <SelectItem key={p} value={p} className="text-xs">{PRIORITY_LABELS[p]}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <span className={cn("inline-flex h-7 items-center px-2.5 rounded-md text-xs font-bold w-fit", PRIORITY_CHIP[priority])}>
-                        {PRIORITY_LABELS[priority]}
-                      </span>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {clients.map((c) => (
+                              <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     )}
-                  </div>
 
-                  {/* Data de término */}
-                  <div className="flex flex-col gap-1 shrink-0">
-                    <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
-                      <Calendar className="h-3.5 w-3.5 text-muted-foreground/70" /> Data de término
-                    </span>
-                    {fieldsEditable ? (
-                      <Input
-                        type="date"
-                        value={dueDate}
-                        onChange={(e) => setDueDate(e.target.value)}
-                        className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-[130px] py-0 px-2 rounded-md"
-                      />
-                    ) : (
-                      <span className={cn(
-                        "inline-flex h-7 items-center px-2.5 rounded-md text-xs font-medium w-fit bg-muted/40",
-                        isOverdue ? "text-red-400" : "text-foreground"
-                      )}>
-                        {dueDate ? new Date(dueDate + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Tempo Estimado */}
-                  {!portalMode && (
+                    {/* Status */}
                     <div className="flex flex-col gap-1 shrink-0">
                       <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
-                        <Clock className="h-3.5 w-3.5 text-muted-foreground/70" /> Tempo Estimado
+                        <Sparkles className="h-3.5 w-3.5 text-muted-foreground/70" /> Status
                       </span>
-                      <div className="flex items-center gap-1.5">
-                        <Input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={estimatedHours}
-                          onChange={(e) => setEstimatedHours(parseFloat(e.target.value) || 1.0)}
-                          className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-14 py-0 px-1.5 rounded-md text-center"
-                        />
-                        <span className="text-xs text-muted-foreground">h</span>
-                      </div>
+                      {fieldsEditable && !isStatusBlockedInPortal ? (
+                        <Select value={status} onValueChange={(val) => setStatus(val as DemandStatus)}>
+                          <SelectTrigger className={cn("h-7 text-xs font-bold border-none text-white w-auto min-w-[100px] py-0 px-2.5 rounded-full shadow-2xs", STATUS_CHIP[status])}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableStatuses.map((s) => (
+                              <SelectItem key={s} value={s} className="text-xs">{STATUS_LABELS[s]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className={cn("inline-flex h-7 items-center px-2.5 rounded-full text-xs font-bold w-fit", STATUS_CHIP[status])}>
+                          {STATUS_LABELS[status] ?? status}
+                        </span>
+                      )}
                     </div>
-                  )}
+
+                    {/* Responsável (Admin only) */}
+                    {!portalMode && (
+                      <div className="flex flex-col gap-1 shrink-0">
+                        <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
+                          <Users className="h-3.5 w-3.5 text-muted-foreground/70" /> Responsável
+                        </span>
+                        <Select value={assigneeId} onValueChange={setAssigneeId}>
+                          <SelectTrigger className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium py-0 px-2 rounded-md gap-1.5">
+                            {assigneeId ? (
+                              <div className="flex items-center gap-1.5">
+                                {(() => {
+                                  const assignee = profiles.find((p) => p.id === assigneeId);
+                                  const name = assignee?.name ?? "Jamesson James";
+                                  const colorClass = getProfileColor(assigneeId || name);
+                                  return (
+                                    <>
+                                      <div className={cn("h-4 w-4 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0 border", colorClass)}>
+                                        {name.charAt(0).toUpperCase()}
+                                      </div>
+                                      <span>{name}</span>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            ) : (
+                              <SelectValue placeholder="Selecione..." />
+                            )}
+                          </SelectTrigger>
+                          <SelectContent>
+                            {profiles.map((p) => (
+                              <SelectItem key={p.id} value={p.id} className="text-xs">
+                                <div className="flex items-center gap-2">
+                                  <div className={cn("h-4 w-4 rounded-full text-[9px] font-bold flex items-center justify-center border", getProfileColor(p.id))}>
+                                    {p.name.charAt(0).toUpperCase()}
+                                  </div>
+                                  <span>{p.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Prioridade */}
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
+                        <AlertCircle className="h-3.5 w-3.5 text-muted-foreground/70" /> Prioridade
+                      </span>
+                      {fieldsEditable ? (
+                        <Select value={priority} onValueChange={(val) => setPriority(val as any)}>
+                          <SelectTrigger className={cn("h-7 text-xs font-bold border-none text-white w-auto min-w-[80px] py-0 px-2 rounded-md", PRIORITY_CHIP[priority])}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(["low", "medium", "high", "urgent"] as const).map((p) => (
+                              <SelectItem key={p} value={p} className="text-xs">{PRIORITY_LABELS[p]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className={cn("inline-flex h-7 items-center px-2.5 rounded-md text-xs font-bold w-fit", PRIORITY_CHIP[priority])}>
+                          {PRIORITY_LABELS[priority]}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Data de término */}
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5 text-muted-foreground/70" /> Data de término
+                      </span>
+                      {fieldsEditable ? (
+                        <Input
+                          type="date"
+                          value={dueDate}
+                          onChange={(e) => setDueDate(e.target.value)}
+                          className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-[138px] py-0 pl-2 pr-1 rounded-md [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-75 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
+                        />
+                      ) : (
+                        <span className={cn(
+                          "inline-flex h-7 items-center px-2.5 rounded-md text-xs font-medium w-fit bg-muted/40",
+                          isOverdue ? "text-red-400" : "text-foreground"
+                        )}>
+                          {dueDate ? new Date(dueDate + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Tempo Estimado */}
+                    {!portalMode && (
+                      <div className="flex flex-col gap-1 shrink-0">
+                        <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5 text-muted-foreground/70" /> Tempo Estimado
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            step="0.5"
+                            min="0.5"
+                            value={estimatedHours}
+                            onChange={(e) => setEstimatedHours(parseFloat(e.target.value) || 1.0)}
+                            className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-14 py-0 px-1 rounded-md text-center"
+                          />
+                          <span className="text-xs text-muted-foreground">h</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Secondary Fields Dropdown / Popover (Credits, Edition, Price) — Vertical 3 Dots */}
                   {(isCreditBillingEnabled || (!portalMode && isNew && selectedClient?.billing_model === "seasonal") || (!portalMode && selectedClient && (selectedClient.billing_model === "seasonal" || (selectedClient.billing_model === "fixed" && selectedClient.fixed_type === "one_off")))) && (
