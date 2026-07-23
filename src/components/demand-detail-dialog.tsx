@@ -1216,7 +1216,7 @@ export function DemandDetailDialog({
                                 type="date"
                                 value={dueDate}
                                 onChange={(e) => setDueDate(e.target.value)}
-                                className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-[138px] py-0 pl-2 pr-1 rounded-md [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-75 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
+                                className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-[144px] py-0 pl-2.5 pr-1 rounded-md [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-80 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
                               />
                             ) : (
                               <span className={cn(
@@ -1295,7 +1295,7 @@ export function DemandDetailDialog({
                                     type="date"
                                     value={dueDate}
                                     onChange={(e) => setDueDate(e.target.value)}
-                                    className="h-7 text-xs bg-background border-input text-foreground w-32 py-0 px-2"
+                                    className="h-7 text-xs bg-background border-input text-foreground w-36 py-0 pl-2.5 pr-1 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-80 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
                                   />
                                 ) : (
                                   <span className="text-xs font-medium text-foreground">
