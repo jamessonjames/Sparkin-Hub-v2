@@ -532,8 +532,7 @@ export function DemandDetailDialog({
       setStatus((defaultStatus as DemandStatus) || "nao_iniciado");
       setPriority("medium");
       setDueDate("");
-      const jamessonId = profiles.find((p) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || "";
-      setAssigneeId(defaultAssigneeId || activeUserId || jamessonId);
+      setAssigneeId(defaultAssigneeId || activeUserId || "");
       setEstimatedHours(1.0);
       setEstimatedCredits(0);
       setPrice(null);
@@ -556,8 +555,7 @@ export function DemandDetailDialog({
       setStatus(demand.status as DemandStatus);
       setPriority(demand.priority as "low" | "medium" | "high" | "urgent");
       setDueDate(demand.due_date ? demand.due_date.slice(0, 10) : "");
-      const jamessonId = profiles.find((p) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || "";
-      setAssigneeId(demand.assignee_user_id || jamessonId);
+      setAssigneeId(demand.assignee_user_id || "");
       setEstimatedHours(demand.estimated_hours ? Number(demand.estimated_hours) : 1.0);
       setEstimatedCredits(demand.estimated_credits ? Number(demand.estimated_credits) : 0);
       setClientEditionId(demand.client_edition_id || "");
