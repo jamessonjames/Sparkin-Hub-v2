@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -333,22 +333,52 @@ export function DemandDetailDialog({
   // Flag to track if the user manually edited the price field
   const [isPriceManuallyEdited, setIsPriceManuallyEdited] = useState(false);
 
-  // Property bar responsive width observer
+  // Dynamic Real-Time DOM Geometry Overflow Detection for Option B
   const propBarRef = useRef<HTMLDivElement>(null);
-  const [barWidth, setBarWidth] = useState<number>(1000);
+  const [visibleCount, setVisibleCount] = useState<number>(5);
+
+  const updateVisibleCount = useCallback(() => {
+    if (!propBarRef.current) return;
+    const container = propBarRef.current;
+    const containerWidth = container.clientWidth;
+    if (containerWidth === 0) return;
+
+    const items = container.querySelectorAll<HTMLElement>("[data-prop-item]");
+    if (items.length === 0) return;
+
+    const dotsWidth = 44;
+    const gap = 16;
+    let usedWidth = 0;
+    let count = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      const itemWidth = items[i].offsetWidth;
+      const isLast = i === items.length - 1;
+      const neededWidth = isLast ? itemWidth : itemWidth + dotsWidth;
+
+      if (usedWidth + neededWidth <= containerWidth || count === 0) {
+        usedWidth += itemWidth + gap;
+        count++;
+      } else {
+        break;
+      }
+    }
+
+    setVisibleCount(count);
+  }, []);
+
+  useLayoutEffect(() => {
+    updateVisibleCount();
+  }, [updateVisibleCount]);
 
   useEffect(() => {
     if (!propBarRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.contentRect.width > 0) {
-          setBarWidth(entry.contentRect.width);
-        }
-      }
+    const observer = new ResizeObserver(() => {
+      updateVisibleCount();
     });
     observer.observe(propBarRef.current);
     return () => observer.disconnect();
-  }, []);
+  }, [updateVisibleCount]);
 
   // Reset manually edited flag when switching/loading demands
   useEffect(() => {
@@ -1048,21 +1078,27 @@ export function DemandDetailDialog({
               {/* Left Panel */}
               <div className="flex-1 px-6 py-4 flex flex-col gap-4 min-h-0 overflow-y-auto">
 
-                {/* Notion-style 1-Line Property Bar */}
+                {/* Notion-style 1-Line Property Bar with Option B Dynamic DOM Measurement */}
                 {(() => {
-                  const showHoursInBar = barWidth >= 540;
-                  const showDueDateInBar = barWidth >= 440;
-                  const showPriorityInBar = barWidth >= 340;
-                  const hasOverflowedProperties = !showHoursInBar || !showDueDateInBar || !showPriorityInBar;
                   const hasExtraFields = isCreditBillingEnabled || (!portalMode && isNew && selectedClient?.billing_model === "seasonal") || (!portalMode && selectedClient && (selectedClient.billing_model === "seasonal" || (selectedClient.billing_model === "fixed" && selectedClient.fixed_type === "one_off")));
+                  
+                  const showClientInBar = !portalMode && isNew && clients.length > 1;
+                  const showAssigneeInBar = !portalMode;
+                  const showHoursCandidate = !portalMode;
+
+                  const showPriorityInBar = visibleCount >= (showClientInBar ? 4 : 3);
+                  const showDueDateInBar = visibleCount >= (showClientInBar ? 5 : 4);
+                  const showHoursInBar = showHoursCandidate && visibleCount >= (showClientInBar ? 6 : 5);
+
+                  const hasOverflowedProperties = !showPriorityInBar || !showDueDateInBar || (showHoursCandidate && !showHoursInBar);
                   const showMoreDotsButton = hasOverflowedProperties || hasExtraFields;
 
                   return (
                     <div ref={propBarRef} className="flex items-center justify-between gap-3 md:gap-4 py-2 px-1 border-b border-border/40 shrink-0 text-xs overflow-hidden whitespace-nowrap">
                       <div className="flex items-center gap-3.5 sm:gap-4 md:gap-5 shrink-0 overflow-hidden">
-                        {/* Client — admin only, visible only on creation if multiple clients */}
-                        {!portalMode && isNew && clients.length > 1 && (
-                          <div className="flex flex-col gap-1 shrink-0">
+                        {/* Client — admin only */}
+                        {showClientInBar && (
+                          <div data-prop-item className="flex flex-col gap-1 shrink-0">
                             <span className="text-xs font-medium text-muted-foreground/80">Cliente</span>
                             <Select value={clientId} onValueChange={setClientId}>
                               <SelectTrigger className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium py-0 px-2.5 rounded-md">
@@ -1078,7 +1114,7 @@ export function DemandDetailDialog({
                         )}
 
                         {/* Status */}
-                        <div className="flex flex-col gap-1 shrink-0">
+                        <div data-prop-item className="flex flex-col gap-1 shrink-0">
                           <span className="text-xs font-medium text-muted-foreground/80">Status</span>
                           {fieldsEditable && !isStatusBlockedInPortal ? (
                             <Select value={status} onValueChange={(val) => setStatus(val as DemandStatus)}>
@@ -1099,8 +1135,8 @@ export function DemandDetailDialog({
                         </div>
 
                         {/* Responsável (Admin only) */}
-                        {!portalMode && (
-                          <div className="flex flex-col gap-1 shrink-0">
+                        {showAssigneeInBar && (
+                          <div data-prop-item className="flex flex-col gap-1 shrink-0">
                             <span className="text-xs font-medium text-muted-foreground/80">Responsável</span>
                             <Select value={assigneeId} onValueChange={setAssigneeId}>
                               <SelectTrigger className="h-7 text-xs bg-transparent hover:bg-muted/40 border-none shadow-none text-foreground font-medium p-0 gap-1.5 focus:ring-0">
@@ -1142,7 +1178,7 @@ export function DemandDetailDialog({
 
                         {/* Prioridade */}
                         {showPriorityInBar && (
-                          <div className="flex flex-col gap-1 shrink-0">
+                          <div data-prop-item className="flex flex-col gap-1 shrink-0">
                             <span className="text-xs font-medium text-muted-foreground/80">Prioridade</span>
                             {fieldsEditable ? (
                               <Select value={priority} onValueChange={(val) => setPriority(val as any)}>
@@ -1165,7 +1201,7 @@ export function DemandDetailDialog({
 
                         {/* Data de término */}
                         {showDueDateInBar && (
-                          <div className="flex flex-col gap-1 shrink-0">
+                          <div data-prop-item className="flex flex-col gap-1 shrink-0">
                             <span className="text-xs font-medium text-muted-foreground/80">Data de término</span>
                             {fieldsEditable ? (
                               <Input
@@ -1186,8 +1222,8 @@ export function DemandDetailDialog({
                         )}
 
                         {/* Tempo Estimado */}
-                        {!portalMode && showHoursInBar && (
-                          <div className="flex flex-col gap-1 shrink-0">
+                        {showHoursInBar && (
+                          <div data-prop-item className="flex flex-col gap-1 shrink-0">
                             <span className="text-xs font-medium text-muted-foreground/80">Tempo Estimado</span>
                             <div className="flex items-center gap-1">
                               <Input
@@ -1262,7 +1298,7 @@ export function DemandDetailDialog({
                             )}
 
                             {/* Overflowed Tempo Estimado */}
-                            {!portalMode && !showHoursInBar && (
+                            {showHoursCandidate && !showHoursInBar && (
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-xs font-medium text-muted-foreground">Tempo Estimado:</span>
                                 <div className="flex items-center gap-1">
