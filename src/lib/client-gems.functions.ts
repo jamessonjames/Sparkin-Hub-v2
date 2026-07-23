@@ -2,11 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
+export type ClientGemCategory = "designer" | "copywriter";
+
 export type ClientGem = {
   id: string;
   client_id: string;
   name: string;
   gem_url: string;
+  category: ClientGemCategory;
   created_at: string;
 };
 
@@ -28,12 +31,13 @@ export const listClientGems = createServerFn({ method: "GET" })
 
 export const createClientGem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { client_id: string; name: string; gem_url: string }) =>
+  .inputValidator((input: { client_id: string; name: string; gem_url: string; category?: ClientGemCategory }) =>
     z
       .object({
         client_id: z.string().uuid(),
         name: z.string().min(1, "Nome é obrigatório"),
         gem_url: z.string().url("URL do Gem inválida"),
+        category: z.enum(["designer", "copywriter"]).default("designer"),
       })
       .parse(input)
   )
@@ -44,6 +48,7 @@ export const createClientGem = createServerFn({ method: "POST" })
         client_id: data.client_id,
         name: data.name.trim(),
         gem_url: data.gem_url.trim(),
+        category: data.category,
       })
       .select()
       .single();
@@ -54,12 +59,13 @@ export const createClientGem = createServerFn({ method: "POST" })
 
 export const updateClientGem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string; name: string; gem_url: string }) =>
+  .inputValidator((input: { id: string; name: string; gem_url: string; category?: ClientGemCategory }) =>
     z
       .object({
         id: z.string().uuid(),
         name: z.string().min(1, "Nome é obrigatório"),
         gem_url: z.string().url("URL do Gem inválida"),
+        category: z.enum(["designer", "copywriter"]).default("designer"),
       })
       .parse(input)
   )
@@ -69,6 +75,7 @@ export const updateClientGem = createServerFn({ method: "POST" })
       .update({
         name: data.name.trim(),
         gem_url: data.gem_url.trim(),
+        category: data.category,
       })
       .eq("id", data.id)
       .select()

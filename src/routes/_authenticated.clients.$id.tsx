@@ -347,11 +347,8 @@ function ClientPage() {
             {client.billing_model === "seasonal" && (
               <TabsTrigger value="editions">Edições</TabsTrigger>
             )}
-            <TabsTrigger value="ai_agents" className="gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-              IA / Agentes
-            </TabsTrigger>
             <TabsTrigger value="overview">Visão geral</TabsTrigger>
+            <TabsTrigger value="ai_agents">IA / Agentes</TabsTrigger>
             <TabsTrigger value="notes">Notas</TabsTrigger>
             {!client.is_project && <TabsTrigger value="reports">Relatórios</TabsTrigger>}
           </TabsList>

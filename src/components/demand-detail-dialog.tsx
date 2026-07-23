@@ -1115,21 +1115,47 @@ export function DemandDetailDialog({
                         <ChevronDown className="h-3 w-3 opacity-70" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56 p-1.5 bg-popover text-popover-foreground border border-border shadow-lg rounded-xl">
-                      <DropdownMenuLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
-                        Escolha o Agente / Marca
-                      </DropdownMenuLabel>
-                      <DropdownMenuSeparator className="bg-border/60" />
-                      {clientGems.map((gem) => (
-                        <DropdownMenuItem
-                          key={gem.id}
-                          onClick={() => handleTriggerGem(gem)}
-                          className="text-xs font-medium cursor-pointer flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent focus:bg-accent"
-                        >
-                          <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                          <span>{gem.name}</span>
-                        </DropdownMenuItem>
-                      ))}
+                    <DropdownMenuContent align="end" className="w-56 p-1.5 bg-popover text-popover-foreground border border-border shadow-lg rounded-xl space-y-1">
+                      {clientGems.some((g) => (g.category || "designer") === "designer") && (
+                        <>
+                          <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-0.5">
+                            Designers
+                          </DropdownMenuLabel>
+                          {clientGems
+                            .filter((g) => (g.category || "designer") === "designer")
+                            .map((gem) => (
+                              <DropdownMenuItem
+                                key={gem.id}
+                                onClick={() => handleTriggerGem(gem)}
+                                className="text-xs font-medium cursor-pointer flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-accent focus:bg-accent"
+                              >
+                                <span>{gem.name}</span>
+                              </DropdownMenuItem>
+                            ))}
+                        </>
+                      )}
+
+                      {clientGems.some((g) => g.category === "copywriter") && (
+                        <>
+                          {clientGems.some((g) => (g.category || "designer") === "designer") && (
+                            <DropdownMenuSeparator className="bg-border/60" />
+                          )}
+                          <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-0.5">
+                            Copywriters
+                          </DropdownMenuLabel>
+                          {clientGems
+                            .filter((g) => g.category === "copywriter")
+                            .map((gem) => (
+                              <DropdownMenuItem
+                                key={gem.id}
+                                onClick={() => handleTriggerGem(gem)}
+                                className="text-xs font-medium cursor-pointer flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-accent focus:bg-accent"
+                              >
+                                <span>{gem.name}</span>
+                              </DropdownMenuItem>
+                            ))}
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 ) : (
