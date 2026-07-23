@@ -623,6 +623,94 @@ function AgendaPage() {
     }
   }
 
+  function calculateCascadingPushDown(
+    droppedDemandId: string,
+    targetDate: Date,
+    allDemands: AgendaDemand[],
+    cfg: SchedulingConfig
+  ): { id: string; due_date: string; is_manually_scheduled?: boolean }[] {
+    const updates: { id: string; due_date: string; is_manually_scheduled?: boolean }[] = [];
+    const droppedDemand = allDemands.find(d => d.id === droppedDemandId);
+    if (!droppedDemand) return updates;
+
+    const droppedDurationHours = getDemandDurationHours(droppedDemand);
+    const formattedDroppedDate = formatTzString(targetDate);
+
+    updates.push({
+      id: droppedDemandId,
+      due_date: formattedDroppedDate,
+      is_manually_scheduled: true,
+    });
+
+    const droppedEnd = addHours(targetDate, droppedDurationHours);
+    const targetDayStr = toISO(targetDate);
+
+    const otherDemandsOnDay = allDemands.filter(d => {
+      if (d.id === droppedDemandId) return false;
+      if (d.status === "concluido" || d.status === "para_analise" || d.status === "rascunho") return false;
+      if (!d.due_date) return false;
+      return d.due_date.slice(0, 10) === targetDayStr;
+    });
+
+    otherDemandsOnDay.sort((a, b) => {
+      const dtA = safeParseDate(a.due_date!).getTime();
+      const dtB = safeParseDate(b.due_date!).getTime();
+      return dtA - dtB;
+    });
+
+    const takenSlots = new Set<string>();
+    blockSlots(targetDate, droppedDurationHours, takenSlots);
+
+    for (const d of otherDemandsOnDay) {
+      if (d.is_manually_scheduled && d.due_date && d.due_date.length > 10) {
+        const dt = safeParseDate(d.due_date);
+        const dur = getDemandDurationHours(d);
+        blockSlots(dt, dur, takenSlots);
+      }
+    }
+
+    let cursor = new Date(droppedEnd);
+    if (!isValidSlot(cursor, cfg)) {
+      cursor = getNextSlot(cursor, cfg);
+    }
+
+    for (const d of otherDemandsOnDay) {
+      if (d.is_manually_scheduled && d.due_date && d.due_date.length > 10) continue;
+
+      const dt = safeParseDate(d.due_date!);
+      const dur = getDemandDurationHours(d);
+      const dEnd = addHours(dt, dur);
+
+      if (rangesOverlap(targetDate, droppedEnd, dt, dEnd) || dt.getTime() >= targetDate.getTime()) {
+        let search = new Date(cursor);
+        let safety = 0;
+
+        while (safety < 1000) {
+          if (isValidSlot(search, cfg) && areSlotsFree(search, dur, takenSlots)) {
+            const newSlotStr = formatTzString(search);
+            if (newSlotStr !== d.due_date) {
+              updates.push({
+                id: d.id,
+                due_date: newSlotStr,
+                is_manually_scheduled: false,
+              });
+            }
+            blockSlots(search, dur, takenSlots);
+            cursor = addHours(search, dur);
+            if (!isValidSlot(cursor, cfg)) {
+              cursor = getNextSlot(cursor, cfg);
+            }
+            break;
+          }
+          search = getNextSlot(search, cfg);
+          safety++;
+        }
+      }
+    }
+
+    return updates;
+  }
+
   async function handleDragEnd(e: DragEndEvent) {
     setActiveDragId(null);
 
@@ -676,32 +764,45 @@ function AgendaPage() {
       return;
     }
 
-    const demandId = activeIdStr;
-    const conflict = findSchedulingConflict(demandId, targetDate);
-    if (!conflict.ok) {
-      toast.error(conflict.message);
+    const demandId = activeIdStr.replace(/^pill_demand:/, "");
+
+    if (!isValidSlot(targetDate, config)) {
+      toast.error("Este intervalo fica fora do expediente configurado.");
       return;
     }
 
-    const formatted = formatTzString(targetDate);
+    const updates = calculateCascadingPushDown(demandId, targetDate, demands as AgendaDemand[], config);
+    if (updates.length === 0) return;
 
-    qc.setQueryData<typeof demands>(["demands", activeUserId], (prev) =>
-      (prev ?? []).map((d) => (d.id === demandId ? { ...d, due_date: formatted, is_manually_scheduled: true } as any : d))
-    );
+    qc.setQueryData<typeof demands>(["demands", activeUserId], (prev) => {
+      const updateMap = new Map(updates.map(u => [u.id, u]));
+      return (prev ?? []).map((d) => {
+        const patch = updateMap.get(d.id);
+        if (patch) {
+          return {
+            ...d,
+            due_date: patch.due_date,
+            is_manually_scheduled: patch.is_manually_scheduled ?? d.is_manually_scheduled,
+          } as any;
+        }
+        return d;
+      });
+    });
 
     try {
-      await batchUpdateFn({ data: { updates: [{ id: demandId, due_date: formatted, is_manually_scheduled: true }] } });
-      toast.success("Demanda reagendada!");
+      await batchUpdateFn({ data: { updates } });
+      toast.success(updates.length > 1 ? "Demanda posicionada! Agenda reajustada com sucesso." : "Demanda posicionada!");
       qc.invalidateQueries({ queryKey: ["demands"] });
     } catch (err) {
-      toast.error("Erro ao reagendar");
+      toast.error("Erro ao reagendar demanda");
       qc.invalidateQueries({ queryKey: ["demands"] });
     }
   }
 
   const activeDragDemand = useMemo(() => {
     if (!activeDragId || activeDragId.startsWith("reminder:")) return null;
-    const demand = demands.find((d) => d.id === activeDragId) as AgendaDemand | undefined;
+    const realId = activeDragId.startsWith("pill_demand:") ? activeDragId.replace("pill_demand:", "") : activeDragId;
+    const demand = demands.find((d) => d.id === realId) as AgendaDemand | undefined;
     if (!demand) return null;
     return { ...demand, due_date: getEffectiveDueDate(demand) };
   }, [activeDragId, demands, scheduledMap]);
@@ -1122,6 +1223,67 @@ function DroppableHourCell({
   );
 }
 
+function DraggablePillItem({
+  demand,
+  onOpenDemand,
+}: {
+  demand: AgendaDemand;
+  onOpenDemand: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `pill_demand:${demand.id}`,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={(e) => {
+        if (isDragging) return;
+        e.stopPropagation();
+        onOpenDemand(demand.id);
+      }}
+      className={cn(
+        "p-2 rounded-lg text-xs cursor-grab active:cursor-grabbing transition-colors flex items-center justify-between group select-none",
+        demand.status === "com_ajustes" ? "bg-[#33261a] hover:bg-[#402f20] border border-amber-500/40" :
+        demand.status === "para_analise" ? "bg-[#2a2433] hover:bg-[#342b40] border border-purple-500/30" :
+        "bg-[#1a2820] hover:bg-[#203328] border border-emerald-500/30",
+        isDragging && "opacity-40"
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <p className={cn(
+          "font-semibold truncate",
+          demand.status === "com_ajustes" ? "text-amber-200" :
+          demand.status === "para_analise" ? "text-purple-200" : "text-emerald-200 line-through"
+        )}>
+          {demand.title}
+        </p>
+        <div className="flex items-center justify-between text-[10px] mt-0.5 font-medium">
+          {demand.status === "com_ajustes" ? (
+            <span className="text-amber-400 flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              Com Ajuste
+            </span>
+          ) : demand.status === "para_analise" ? (
+            <span className="text-purple-400 flex items-center gap-1">
+              <Clock className="h-3 w-3 shrink-0" />
+              Em Análise
+            </span>
+          ) : (
+            <span className="text-emerald-400 flex items-center gap-1">
+              <Check className="h-3 w-3 shrink-0 stroke-[2.5]" />
+              Concluída
+            </span>
+          )}
+          <span className="text-muted-foreground/75 text-[9px] truncate ml-2">{demand.clients?.name ?? ""}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DaySummaryPill({
   summary,
   onOpenDemand,
@@ -1174,51 +1336,39 @@ function DaySummaryPill({
       </PopoverTrigger>
       <PopoverContent align="center" className="w-64 p-3 bg-[#222222] border border-white/10 text-foreground rounded-xl shadow-2xl space-y-2.5 z-50">
         <div className="flex items-center justify-between border-b border-white/10 pb-1.5 px-0.5">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Fora da Grade</p>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Fora da Grade (Arrastável)</p>
           <span className="text-[10px] text-muted-foreground font-medium">{totalCount} no total</span>
         </div>
         <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5 scrollbar-thin">
           {comAjustesList.map((d) => (
-            <div
+            <DraggablePillItem
               key={d.id}
-              onClick={() => { setOpen(false); onOpenDemand(d.id); }}
-              className="p-2 rounded-lg bg-[#33261a] hover:bg-[#402f20] border border-amber-500/40 text-xs cursor-pointer transition-colors"
-            >
-              <p className="font-semibold text-amber-200 truncate">{d.title}</p>
-              <div className="flex items-center justify-between text-[10px] text-amber-400 font-medium mt-0.5">
-                <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                  Com Ajuste
-                </span>
-                <span className="text-[9px] opacity-75">{d.clients?.name ?? ""}</span>
-              </div>
-            </div>
+              demand={d}
+              onOpenDemand={(id) => {
+                setOpen(false);
+                onOpenDemand(id);
+              }}
+            />
           ))}
           {summary.para_analise.map((d) => (
-            <div
+            <DraggablePillItem
               key={d.id}
-              onClick={() => { setOpen(false); onOpenDemand(d.id); }}
-              className="p-2 rounded-lg bg-[#2a2433] hover:bg-[#342b40] border border-purple-500/30 text-xs cursor-pointer transition-colors"
-            >
-              <p className="font-semibold text-purple-200 truncate">{d.title}</p>
-              <div className="flex items-center gap-1 text-[10px] text-purple-400 font-medium mt-0.5">
-                <Clock className="h-3 w-3 shrink-0 stroke-[2]" />
-                <span>Em Análise</span>
-              </div>
-            </div>
+              demand={d}
+              onOpenDemand={(id) => {
+                setOpen(false);
+                onOpenDemand(id);
+              }}
+            />
           ))}
           {summary.concluida.map((d) => (
-            <div
+            <DraggablePillItem
               key={d.id}
-              onClick={() => { setOpen(false); onOpenDemand(d.id); }}
-              className="p-2 rounded-lg bg-[#1a2820] hover:bg-[#203328] border border-emerald-500/30 text-xs cursor-pointer transition-colors"
-            >
-              <p className="font-semibold text-emerald-200 truncate line-through">{d.title}</p>
-              <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium mt-0.5">
-                <Check className="h-3 w-3 shrink-0 stroke-[2.5]" />
-                <span>Concluída</span>
-              </div>
-            </div>
+              demand={d}
+              onOpenDemand={(id) => {
+                setOpen(false);
+                onOpenDemand(id);
+              }}
+            />
           ))}
         </div>
       </PopoverContent>
