@@ -333,31 +333,39 @@ export function DemandDetailDialog({
   // Flag to track if the user manually edited the price field
   const [isPriceManuallyEdited, setIsPriceManuallyEdited] = useState(false);
 
-  // Dynamic Real-Time DOM Geometry Overflow Detection for Option B
+  // Dynamic Real-Time Overflow Calculation for Option B
   const propBarRef = useRef<HTMLDivElement>(null);
-  const [visibleCount, setVisibleCount] = useState<number>(5);
+  const [visibleCount, setVisibleCount] = useState<number>(6);
 
-  const updateVisibleCount = useCallback(() => {
+  const calculateOverflow = useCallback(() => {
     if (!propBarRef.current) return;
-    const container = propBarRef.current;
-    const containerWidth = container.clientWidth;
+    const containerWidth = propBarRef.current.clientWidth;
     if (containerWidth === 0) return;
 
-    const items = container.querySelectorAll<HTMLElement>("[data-prop-item]");
-    if (items.length === 0) return;
+    const showClient = !portalMode && isNew && clients.length > 1;
+    const showAssignee = !portalMode;
+    const showHours = !portalMode;
+
+    const itemWidths: number[] = [];
+    if (showClient) itemWidths.push(130);
+    itemWidths.push(115); // Status
+    if (showAssignee) itemWidths.push(145); // Responsável
+    itemWidths.push(95); // Prioridade
+    itemWidths.push(140); // Data de término
+    if (showHours) itemWidths.push(105); // Tempo Estimado
 
     const dotsWidth = 44;
     const gap = 16;
     let usedWidth = 0;
     let count = 0;
 
-    for (let i = 0; i < items.length; i++) {
-      const itemWidth = items[i].offsetWidth;
-      const isLast = i === items.length - 1;
-      const neededWidth = isLast ? itemWidth : itemWidth + dotsWidth;
+    for (let i = 0; i < itemWidths.length; i++) {
+      const w = itemWidths[i];
+      const isLast = i === itemWidths.length - 1;
+      const needed = isLast ? w : w + dotsWidth;
 
-      if (usedWidth + neededWidth <= containerWidth || count === 0) {
-        usedWidth += itemWidth + gap;
+      if (usedWidth + needed <= containerWidth || count === 0) {
+        usedWidth += w + gap;
         count++;
       } else {
         break;
@@ -365,20 +373,20 @@ export function DemandDetailDialog({
     }
 
     setVisibleCount(count);
-  }, []);
+  }, [portalMode, isNew, clients.length]);
 
   useLayoutEffect(() => {
-    updateVisibleCount();
-  }, [updateVisibleCount]);
+    calculateOverflow();
+  }, [calculateOverflow]);
 
   useEffect(() => {
     if (!propBarRef.current) return;
     const observer = new ResizeObserver(() => {
-      updateVisibleCount();
+      calculateOverflow();
     });
     observer.observe(propBarRef.current);
     return () => observer.disconnect();
-  }, [updateVisibleCount]);
+  }, [calculateOverflow]);
 
   // Reset manually edited flag when switching/loading demands
   useEffect(() => {
@@ -1252,7 +1260,7 @@ export function DemandDetailDialog({
                               <MoreVertical className="h-4 w-4" />
                             </button>
                           </PopoverTrigger>
-                          <PopoverContent align="end" className="w-64 p-3 bg-zinc-950 border border-zinc-800 text-zinc-200 space-y-3">
+                          <PopoverContent align="end" className="w-64 p-3.5 bg-popover text-popover-foreground border border-border shadow-lg rounded-xl space-y-3">
                             <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Opções Adicionais</div>
 
                             {/* Overflowed Prioridade */}
