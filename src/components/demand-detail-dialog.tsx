@@ -53,8 +53,28 @@ const PRIORITY_CHIP: Record<string, string> = {
   urgent: "bg-red-500 dark:bg-red-650 text-white font-semibold hover:bg-red-600",
 };
 
-// Statuses that clients can set (not "fazendo", not "para_analise", not "rascunho")
 const CLIENT_STATUSES: DemandStatus[] = ["nao_iniciado", "com_ajustes", "concluido"];
+
+const PROFILE_COLORS = [
+  "bg-indigo-600/40 text-indigo-200 border-indigo-500/50",
+  "bg-emerald-600/40 text-emerald-200 border-emerald-500/50",
+  "bg-amber-600/40 text-amber-200 border-amber-500/50",
+  "bg-rose-600/40 text-rose-200 border-rose-500/50",
+  "bg-purple-600/40 text-purple-200 border-purple-500/50",
+  "bg-cyan-600/40 text-cyan-200 border-cyan-500/50",
+  "bg-blue-600/40 text-blue-200 border-blue-500/50",
+  "bg-pink-600/40 text-pink-200 border-pink-500/50",
+];
+
+function getProfileColor(str: string) {
+  if (!str) return PROFILE_COLORS[0];
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % PROFILE_COLORS.length;
+  return PROFILE_COLORS[index];
+}
 
 export type PortalInitialDemand = {
   id: string;
@@ -1012,15 +1032,15 @@ export function DemandDetailDialog({
               <div className="flex-1 px-6 py-4 flex flex-col gap-4 min-h-0 overflow-y-auto">
 
                 {/* Notion-style 1-Line Property Bar */}
-                <div className="flex items-center gap-3.5 py-1.5 px-1 border-b border-border/40 shrink-0 text-xs overflow-x-auto whitespace-nowrap">
+                <div className="flex items-center gap-6 py-2 px-1 border-b border-border/40 shrink-0 text-xs overflow-x-auto whitespace-nowrap">
                   {/* Client — admin only, visible only on creation if multiple clients */}
                   {!portalMode && isNew && clients.length > 1 && (
-                    <div className="flex flex-col gap-0.5 shrink-0">
-                      <span className="text-[10px] font-semibold text-muted-foreground/75 flex items-center gap-1">
-                        <Building2 className="h-3 w-3 text-muted-foreground/60" /> Cliente
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
+                        <Building2 className="h-3.5 w-3.5 text-muted-foreground/70" /> Cliente
                       </span>
                       <Select value={clientId} onValueChange={setClientId}>
-                        <SelectTrigger className="h-6.5 text-[11px] bg-muted/30 hover:bg-muted/50 border-transparent text-foreground font-medium py-0 px-2 rounded-md">
+                        <SelectTrigger className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium py-0 px-2.5 rounded-md">
                           <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -1033,13 +1053,13 @@ export function DemandDetailDialog({
                   )}
 
                   {/* Status */}
-                  <div className="flex flex-col gap-0.5 shrink-0">
-                    <span className="text-[10px] font-semibold text-muted-foreground/75 flex items-center gap-1">
-                      <Sparkles className="h-3 w-3 text-muted-foreground/60" /> Status
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-muted-foreground/70" /> Status
                     </span>
                     {fieldsEditable && !isStatusBlockedInPortal ? (
                       <Select value={status} onValueChange={(val) => setStatus(val as DemandStatus)}>
-                        <SelectTrigger className={cn("h-6.5 text-[11px] font-bold border-none text-white w-auto min-w-[95px] py-0 px-2 rounded-md shadow-2xs", STATUS_CHIP[status])}>
+                        <SelectTrigger className={cn("h-7 text-xs font-bold border-none text-white w-auto min-w-[105px] py-0 px-3 rounded-full shadow-2xs", STATUS_CHIP[status])}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1049,7 +1069,7 @@ export function DemandDetailDialog({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <span className={cn("inline-flex h-6.5 items-center px-2 rounded-md text-[11px] font-bold w-fit", STATUS_CHIP[status])}>
+                      <span className={cn("inline-flex h-7 items-center px-3 rounded-full text-xs font-bold w-fit", STATUS_CHIP[status])}>
                         {STATUS_LABELS[status] ?? status}
                       </span>
                     )}
@@ -1057,20 +1077,38 @@ export function DemandDetailDialog({
 
                   {/* Responsável (Admin only) */}
                   {!portalMode && (
-                    <div className="flex flex-col gap-0.5 shrink-0">
-                      <span className="text-[10px] font-semibold text-muted-foreground/75 flex items-center gap-1">
-                        <Users className="h-3 w-3 text-muted-foreground/60" /> Responsável
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-muted-foreground/70" /> Responsável
                       </span>
                       <Select value={assigneeId} onValueChange={setAssigneeId}>
-                        <SelectTrigger className="h-6.5 text-[11px] bg-muted/30 hover:bg-muted/50 border-transparent text-foreground font-medium py-0 px-2 rounded-md">
-                          <SelectValue placeholder="Selecione..." />
+                        <SelectTrigger className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium py-0 px-2.5 rounded-md gap-2">
+                          {assigneeId ? (
+                            <div className="flex items-center gap-1.5">
+                              {(() => {
+                                const assignee = profiles.find((p) => p.id === assigneeId);
+                                const name = assignee?.name ?? "Jamesson James";
+                                const colorClass = getProfileColor(assigneeId || name);
+                                return (
+                                  <>
+                                    <div className={cn("h-4 w-4 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0 border", colorClass)}>
+                                      {name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <span>{name}</span>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          ) : (
+                            <SelectValue placeholder="Selecione..." />
+                          )}
                         </SelectTrigger>
                         <SelectContent>
                           {profiles.map((p) => (
                             <SelectItem key={p.id} value={p.id} className="text-xs">
-                              <div className="flex items-center gap-1.5">
-                                <div className="h-3.5 w-3.5 rounded-full bg-primary/20 text-primary text-[8px] font-bold flex items-center justify-center">
-                                  {p.name.charAt(0)}
+                              <div className="flex items-center gap-2">
+                                <div className={cn("h-4 w-4 rounded-full text-[9px] font-bold flex items-center justify-center border", getProfileColor(p.id))}>
+                                  {p.name.charAt(0).toUpperCase()}
                                 </div>
                                 <span>{p.name}</span>
                               </div>
@@ -1082,13 +1120,13 @@ export function DemandDetailDialog({
                   )}
 
                   {/* Prioridade */}
-                  <div className="flex flex-col gap-0.5 shrink-0">
-                    <span className="text-[10px] font-semibold text-muted-foreground/75 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3 text-muted-foreground/60" /> Prioridade
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
+                      <AlertCircle className="h-3.5 w-3.5 text-muted-foreground/70" /> Prioridade
                     </span>
                     {fieldsEditable ? (
                       <Select value={priority} onValueChange={(val) => setPriority(val as any)}>
-                        <SelectTrigger className={cn("h-6.5 text-[11px] font-bold border-none text-white w-auto min-w-[75px] py-0 px-2 rounded-md", PRIORITY_CHIP[priority])}>
+                        <SelectTrigger className={cn("h-7 text-xs font-bold border-none text-white w-auto min-w-[85px] py-0 px-2.5 rounded-md", PRIORITY_CHIP[priority])}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1098,27 +1136,27 @@ export function DemandDetailDialog({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <span className={cn("inline-flex h-6.5 items-center px-2 rounded-md text-[11px] font-bold w-fit", PRIORITY_CHIP[priority])}>
+                      <span className={cn("inline-flex h-7 items-center px-2.5 rounded-md text-xs font-bold w-fit", PRIORITY_CHIP[priority])}>
                         {PRIORITY_LABELS[priority]}
                       </span>
                     )}
                   </div>
 
                   {/* Data de término */}
-                  <div className="flex flex-col gap-0.5 shrink-0">
-                    <span className="text-[10px] font-semibold text-muted-foreground/75 flex items-center gap-1">
-                      <Calendar className="h-3 w-3 text-muted-foreground/60" /> Data de término
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground/70" /> Data de término
                     </span>
                     {fieldsEditable ? (
                       <Input
                         type="date"
                         value={dueDate}
                         onChange={(e) => setDueDate(e.target.value)}
-                        className="h-6.5 text-[11px] bg-muted/30 hover:bg-muted/50 border-transparent text-foreground font-medium w-[120px] py-0 px-1.5 rounded-md"
+                        className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-[130px] py-0 px-2 rounded-md"
                       />
                     ) : (
                       <span className={cn(
-                        "inline-flex h-6.5 items-center px-2 rounded-md text-[11px] font-medium w-fit bg-muted/40",
+                        "inline-flex h-7 items-center px-2.5 rounded-md text-xs font-medium w-fit bg-muted/40",
                         isOverdue ? "text-red-400" : "text-foreground"
                       )}>
                         {dueDate ? new Date(dueDate + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
@@ -1128,20 +1166,20 @@ export function DemandDetailDialog({
 
                   {/* Tempo Estimado */}
                   {!portalMode && (
-                    <div className="flex flex-col gap-0.5 shrink-0">
-                      <span className="text-[10px] font-semibold text-muted-foreground/75 flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-muted-foreground/60" /> Tempo Estimado
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <span className="text-xs font-medium text-muted-foreground/80 flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground/70" /> Tempo Estimado
                       </span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         <Input
                           type="number"
                           step="0.5"
                           min="0.5"
                           value={estimatedHours}
                           onChange={(e) => setEstimatedHours(parseFloat(e.target.value) || 1.0)}
-                          className="h-6.5 text-[11px] bg-muted/30 hover:bg-muted/50 border-transparent text-foreground font-medium w-12 py-0 px-1 rounded-md text-center"
+                          className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-14 py-0 px-1.5 rounded-md text-center"
                         />
-                        <span className="text-[11px] text-muted-foreground">h</span>
+                        <span className="text-xs text-muted-foreground">h</span>
                       </div>
                     </div>
                   )}
@@ -1152,7 +1190,7 @@ export function DemandDetailDialog({
                       <PopoverTrigger asChild>
                         <button
                           type="button"
-                          className="h-6.5 w-6.5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors ml-auto shrink-0 cursor-pointer self-end mb-0.5"
+                          className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors ml-auto shrink-0 cursor-pointer self-end mb-0.5"
                           title="Mais opções e campos adicionais"
                         >
                           <MoreVertical className="h-4 w-4" />
@@ -1164,7 +1202,7 @@ export function DemandDetailDialog({
                         {isCreditBillingEnabled && (
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                              <Coins className="h-3 w-3" /> Créditos:
+                              <Coins className="h-3.5 w-3.5" /> Créditos:
                             </span>
                             {portalMode ? (
                               <span className="text-xs font-bold text-emerald-400">
@@ -1185,7 +1223,7 @@ export function DemandDetailDialog({
                         {!portalMode && isNew && selectedClient?.billing_model === "seasonal" && (
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                              <Layers className="h-3 w-3" /> Edição:
+                              <Layers className="h-3.5 w-3.5" /> Edição:
                             </span>
                             <Select value={clientEditionId} onValueChange={setClientEditionId}>
                               <SelectTrigger className="h-7 text-xs bg-background border-input text-foreground w-32 py-0 px-2">
@@ -1208,7 +1246,7 @@ export function DemandDetailDialog({
                         ) && (
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                              <DollarSign className="h-3 w-3" /> Valor (R$):
+                              <DollarSign className="h-3.5 w-3.5" /> Valor (R$):
                             </span>
                             <Input
                               type="number"
