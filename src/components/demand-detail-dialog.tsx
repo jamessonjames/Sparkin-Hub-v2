@@ -29,11 +29,12 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
 import { RichEditor } from "@/components/rich-editor";
 import { deleteFromGDrive } from "@/lib/gdrive.functions";
 import { getFileIdFromUrl } from "@/lib/gdrive-token";
-import { Trash2, Send, Calendar, X, Save, User, Loader2, Pencil, Upload, Download } from "lucide-react";
+import { Trash2, Send, Calendar, X, Save, User, Loader2, Pencil, Upload, Download, Lock, Share2, MoreVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STATUS_CHIP: Record<string, string> = {
@@ -303,6 +304,7 @@ export function DemandDetailDialog({
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
   const [showComments, setShowComments] = useState(true);
+  const [activeCommentTab, setActiveCommentTab] = useState<"public" | "internal">("public");
   const [estimatedHours, setEstimatedHours] = useState<number>(1.0);
   const [estimatedCredits, setEstimatedCredits] = useState<number>(0);
   const [clientEditionId, setClientEditionId] = useState("");
@@ -791,6 +793,8 @@ export function DemandDetailDialog({
     const textContent = comment.replace(/<[^>]*>/g, "").trim();
     if (!textContent && !comment.includes("<img")) return;
 
+    const isInternal = !portalMode && activeCommentTab === "internal";
+
     try {
       if (portalMode) {
         await addPortalCommentFn({
@@ -798,12 +802,30 @@ export function DemandDetailDialog({
         });
         qc.invalidateQueries({ queryKey: ["portal-comments", id] });
       } else {
-        await addCommentFn({ data: { demand_id: id, body: comment } });
+        await addCommentFn({ data: { demand_id: id, body: comment, is_internal: isInternal } });
         qc.invalidateQueries({ queryKey: ["comments", id] });
       }
       setComment("");
+      toast.success(isInternal ? "Nota/comentário interno adicionado!" : "Comentário adicionado!");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro");
+      toast.error(e instanceof Error ? e.message : "Erro ao comentar");
+    }
+  }
+
+  async function handleForwardToClient(body: string) {
+    try {
+      await addCommentFn({
+        data: {
+          demand_id: id,
+          body,
+          is_internal: false,
+        },
+      });
+      qc.invalidateQueries({ queryKey: ["comments", id] });
+      setActiveCommentTab("public");
+      toast.success("Comentário encaminhado para a aba pública do cliente!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao encaminhar comentário");
     }
   }
 
@@ -987,17 +1009,16 @@ export function DemandDetailDialog({
             <div className="flex flex-1 min-h-0">
 
               {/* Left Panel */}
-              <div className="flex-1 px-6 py-5 flex flex-col gap-4 min-h-0">
+              <div className="flex-1 px-5 py-4 flex flex-col gap-3 min-h-0">
 
-                {/* Meta fields row — flex-wrap so chips stay naturally sized (left-aligned) */}
-                <div className="flex flex-wrap gap-x-6 gap-y-3 bg-muted/20 p-4 rounded-xl border border-border/80 shrink-0">
-
-                  {/* Client — admin only, visible only on creation if there are multiple clients to choose from */}
+                {/* Minimalist 1-Line Meta Bar */}
+                <div className="flex items-center gap-3 py-1.5 px-3 bg-muted/15 border border-border/60 rounded-xl shrink-0 text-xs overflow-x-auto whitespace-nowrap min-h-[40px] shadow-2xs">
+                  {/* Client — admin only, visible only on creation if multiple clients */}
                   {!portalMode && isNew && clients.length > 1 && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Cliente</label>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[11px] font-semibold text-muted-foreground">Cliente:</span>
                       <Select value={clientId} onValueChange={setClientId}>
-                        <SelectTrigger className="h-8 text-xs bg-background border-input text-foreground w-auto min-w-[120px]">
+                        <SelectTrigger className="h-7 text-xs bg-background border-input text-foreground w-auto min-w-[110px] py-0 px-2">
                           <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -1010,11 +1031,11 @@ export function DemandDetailDialog({
                   )}
 
                   {/* Status */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Status</label>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[11px] font-semibold text-muted-foreground">Status:</span>
                     {fieldsEditable && !isStatusBlockedInPortal ? (
                       <Select value={status} onValueChange={(val) => setStatus(val as DemandStatus)}>
-                        <SelectTrigger className={cn("h-8 text-xs font-bold border-none text-white w-auto min-w-[100px]", STATUS_CHIP[status])}>
+                        <SelectTrigger className={cn("h-7 text-xs font-bold border-none text-white w-auto min-w-[100px] py-0 px-2", STATUS_CHIP[status])}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1024,18 +1045,18 @@ export function DemandDetailDialog({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <span className={cn("inline-flex h-8 items-center px-3 rounded-md text-xs font-bold w-fit", STATUS_CHIP[status])}>
+                      <span className={cn("inline-flex h-7 items-center px-2.5 rounded-md text-xs font-bold w-fit", STATUS_CHIP[status])}>
                         {STATUS_LABELS[status] ?? status}
                       </span>
                     )}
                   </div>
 
                   {/* Priority */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Prioridade</label>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[11px] font-semibold text-muted-foreground">Prioridade:</span>
                     {fieldsEditable ? (
                       <Select value={priority} onValueChange={(val) => setPriority(val as any)}>
-                        <SelectTrigger className={cn("h-8 text-xs font-bold border-none text-white w-auto min-w-[80px]", PRIORITY_CHIP[priority])}>
+                        <SelectTrigger className={cn("h-7 text-xs font-bold border-none text-white w-auto min-w-[80px] py-0 px-2", PRIORITY_CHIP[priority])}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1045,25 +1066,25 @@ export function DemandDetailDialog({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <span className={cn("inline-flex h-8 items-center px-3 rounded-md text-xs font-bold w-fit", PRIORITY_CHIP[priority])}>
+                      <span className={cn("inline-flex h-7 items-center px-2.5 rounded-md text-xs font-bold w-fit", PRIORITY_CHIP[priority])}>
                         {PRIORITY_LABELS[priority]}
                       </span>
                     )}
                   </div>
 
                   {/* Due Date */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Prazo / Entrega</label>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[11px] font-semibold text-muted-foreground">Prazo:</span>
                     {fieldsEditable ? (
                       <Input
                         type="date"
                         value={dueDate}
                         onChange={(e) => setDueDate(e.target.value)}
-                        className="h-8 text-xs bg-background border-input text-foreground w-auto"
+                        className="h-7 text-xs bg-background border-input text-foreground w-[125px] py-0 px-2"
                       />
                     ) : (
                       <span className={cn(
-                        "inline-flex h-8 items-center gap-1.5 px-3 rounded-md text-xs font-medium w-fit bg-muted/60",
+                        "inline-flex h-7 items-center gap-1 px-2.5 rounded-md text-xs font-medium w-fit bg-muted/60",
                         isOverdue ? "text-red-400" : "text-foreground"
                       )}>
                         <Calendar className="h-3 w-3" />
@@ -1072,15 +1093,15 @@ export function DemandDetailDialog({
                     )}
                   </div>
 
-                  {/* Assignee — admin only */}
+                  {/* Assignee */}
                   {!portalMode && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold flex items-center gap-1">
-                        <User className="h-3 w-3 text-muted-foreground" /> Responsável
-                      </label>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                        <User className="h-3 w-3" /> Responsável:
+                      </span>
                       <Select value={assigneeId} onValueChange={setAssigneeId}>
-                        <SelectTrigger className="h-8 text-xs bg-background border-input text-foreground w-auto min-w-[140px]">
-                          <SelectValue placeholder="Selecione um responsável..." />
+                        <SelectTrigger className="h-7 text-xs bg-background border-input text-foreground w-auto min-w-[125px] py-0 px-2">
+                          <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
                         <SelectContent>
                           {profiles.map((p) => (
@@ -1093,119 +1114,161 @@ export function DemandDetailDialog({
                     </div>
                   )}
 
-                   {/* Estimated Hours — admin only */}
+                  {/* Estimated Hours */}
                   {!portalMode && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Tempo Estimado</label>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[11px] font-semibold text-muted-foreground">Tempo:</span>
                       <Input
                         type="number"
                         step="0.5"
                         min="0.5"
                         value={estimatedHours}
                         onChange={(e) => setEstimatedHours(parseFloat(e.target.value) || 1.0)}
-                        className="h-8 text-xs bg-background border-input text-foreground w-20"
+                        className="h-7 text-xs bg-background border-input text-foreground w-14 py-0 px-1.5 text-center"
                       />
+                      <span className="text-[10px] text-muted-foreground">h</span>
                     </div>
                   )}
 
-                  {/* Credits — visible if credit billing enabled */}
-                  {isCreditBillingEnabled && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Créditos</label>
-                      {portalMode ? (
-                        <span className="inline-flex h-8 items-center px-3 rounded-md text-xs font-bold w-fit bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                          {estimatedCredits} {estimatedCredits === 1 ? "crédito" : "créditos"}
-                        </span>
-                      ) : (
-                        <Input
-                          type="number"
-                          min="0"
-                          value={estimatedCredits}
-                          onChange={(e) => setEstimatedCredits(parseInt(e.target.value) || 0)}
-                          className="h-8 text-xs bg-background border-input text-foreground w-20"
-                        />
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Edition Select — visible only on creation if seasonal billing enabled */}
-                  {!portalMode && isNew && selectedClient?.billing_model === "seasonal" && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Edição</label>
-                      <Select value={clientEditionId} onValueChange={setClientEditionId}>
-                        <SelectTrigger className="h-8 text-xs bg-background border-input text-foreground w-auto min-w-[120px]">
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {clientEditions.map((ed: any) => (
-                            <SelectItem key={ed.id} value={ed.id} className="text-xs">
-                              {ed.name} {ed.is_active ? "(Vigente)" : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                  {/* Secondary Fields Dropdown / Popover (Credits, Edition, Price) */}
+                  {(isCreditBillingEnabled || (!portalMode && isNew && selectedClient?.billing_model === "seasonal") || (!portalMode && selectedClient && (selectedClient.billing_model === "seasonal" || (selectedClient.billing_model === "fixed" && selectedClient.fixed_type === "one_off")))) && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground gap-1 ml-auto shrink-0 cursor-pointer">
+                          <MoreVertical className="h-3.5 w-3.5" />
+                          <span>Mais</span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-64 p-3 bg-zinc-950 border border-zinc-800 text-zinc-200 space-y-3">
+                        <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Campos Adicionais</div>
+                        
+                        {isCreditBillingEnabled && (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium text-muted-foreground">Créditos:</span>
+                            {portalMode ? (
+                              <span className="text-xs font-bold text-emerald-400">
+                                {estimatedCredits} {estimatedCredits === 1 ? "crédito" : "créditos"}
+                              </span>
+                            ) : (
+                              <Input
+                                type="number"
+                                min="0"
+                                value={estimatedCredits}
+                                onChange={(e) => setEstimatedCredits(parseInt(e.target.value) || 0)}
+                                className="h-7 text-xs bg-background border-input text-foreground w-20 py-0 px-2"
+                              />
+                            )}
+                          </div>
+                        )}
 
-                  {/* Price Input — visible if seasonal or one_off billing enabled */}
-                  {!portalMode && selectedClient && (
-                    (selectedClient.billing_model === "seasonal") || 
-                    (selectedClient.billing_model === "fixed" && selectedClient.fixed_type === "one_off")
-                  ) && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Valor (R$)</label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={price ?? ""}
-                        onChange={(e) => {
-                          setPrice(e.target.value ? parseFloat(e.target.value) : null);
-                          setIsPriceManuallyEdited(true);
-                        }}
-                        className="h-8 text-xs bg-background border-input text-foreground w-24"
-                      />
-                    </div>
+                        {!portalMode && isNew && selectedClient?.billing_model === "seasonal" && (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium text-muted-foreground">Edição:</span>
+                            <Select value={clientEditionId} onValueChange={setClientEditionId}>
+                              <SelectTrigger className="h-7 text-xs bg-background border-input text-foreground w-32 py-0 px-2">
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {clientEditions.map((ed: any) => (
+                                  <SelectItem key={ed.id} value={ed.id} className="text-xs">
+                                    {ed.name} {ed.is_active ? "(Vigente)" : ""}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        {!portalMode && selectedClient && (
+                          (selectedClient.billing_model === "seasonal") || 
+                          (selectedClient.billing_model === "fixed" && selectedClient.fixed_type === "one_off")
+                        ) && (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium text-muted-foreground">Valor (R$):</span>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={price ?? ""}
+                              onChange={(e) => {
+                                setPrice(e.target.value ? parseFloat(e.target.value) : null);
+                                setIsPriceManuallyEdited(true);
+                              }}
+                              className="h-7 text-xs bg-background border-input text-foreground w-24 py-0 px-2"
+                            />
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                   )}
                 </div>
 
-                {/* Description label */}
-                <div className="shrink-0">
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Descrição</label>
-                </div>
-
-                {/* Description editor */}
-                <div className="description-editor-wrapper flex-1 flex flex-col min-h-0">
+                {/* Description editor — Maximize vertical space, borderless */}
+                <div className="description-editor-wrapper flex-1 flex flex-col min-h-0 h-full">
                   <RichEditor
                     content={description}
                     onChange={(html) => setDescription(html)}
-                    borderless={false}
+                    borderless={true}
                     readOnly={!descriptionEditable}
                     placeholder="Descreva a demanda em detalhes..."
                     gDrivePath={gDrivePath}
                   />
                 </div>
-
-
               </div>
 
               {/* Right Panel — Comments */}
               {!isNew && showComments && (
                 <div className="w-[360px] md:w-[400px] shrink-0 border-l border-border flex flex-col bg-muted/10">
-                  <div className="px-3.5 py-2.5 border-b border-border shrink-0">
+                  {/* Comments Header with Tab Switcher */}
+                  <div className="px-3.5 py-2 border-b border-border shrink-0 flex items-center justify-between min-h-[40px]">
                     <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Comentários</h4>
+
+                    {!portalMode && (
+                      <div className="flex items-center bg-zinc-900/90 border border-zinc-800 p-0.5 rounded-lg text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => setActiveCommentTab("public")}
+                          className={cn(
+                            "px-2 py-0.5 rounded font-medium transition-colors cursor-pointer",
+                            activeCommentTab === "public"
+                              ? "bg-zinc-800 text-zinc-100 font-bold shadow-xs"
+                              : "text-zinc-400 hover:text-zinc-200"
+                          )}
+                        >
+                          Gerais ({comments.filter((c: any) => !c.is_internal).length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveCommentTab("internal")}
+                          className={cn(
+                            "px-2 py-0.5 rounded font-medium transition-colors cursor-pointer flex items-center gap-1",
+                            activeCommentTab === "internal"
+                              ? "bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 shadow-xs"
+                              : "text-zinc-400 hover:text-zinc-200"
+                          )}
+                        >
+                          <Lock className="h-2.5 w-2.5 text-amber-400" />
+                          Internos ({comments.filter((c: any) => c.is_internal).length})
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Comments list */}
-                  <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-4">
+                  <div className={cn(
+                    "flex-1 overflow-y-auto px-3.5 py-3 space-y-4 transition-colors",
+                    !portalMode && activeCommentTab === "internal" && "bg-amber-500/[0.02]"
+                  )}>
                     {isLoadingComments ? (
                       <div className="flex justify-center py-8">
                         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/60" />
                       </div>
-                    ) : comments.length === 0 ? (
-                      <div className="text-center py-8 text-[11px] text-muted-foreground/60">Nenhum comentário.</div>
+                    ) : (portalMode ? comments.filter((c: any) => !c.is_internal) : comments.filter((c: any) => activeCommentTab === "internal" ? c.is_internal : !c.is_internal)).length === 0 ? (
+                      <div className="text-center py-8 text-[11px] text-muted-foreground/60">
+                        {!portalMode && activeCommentTab === "internal" ? "Nenhuma nota interna ainda." : "Nenhum comentário."}
+                      </div>
                     ) : (
-                      comments.map((c) => {
+                      (portalMode ? comments.filter((c: any) => !c.is_internal) : comments.filter((c: any) => activeCommentTab === "internal" ? c.is_internal : !c.is_internal)).map((c: any) => {
                         const initials = c.author_label
                           ? c.author_label.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
                           : "?";
@@ -1216,20 +1279,28 @@ export function DemandDetailDialog({
                               "h-7 w-7 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 border",
                               isClient
                                 ? "bg-emerald-900/40 text-emerald-400 border-emerald-700/40"
-                                : "bg-primary/20 text-primary border-primary/35"
+                                : c.is_internal
+                                  ? "bg-amber-900/40 text-amber-300 border-amber-700/40"
+                                  : "bg-primary/20 text-primary border-primary/35"
                             )}>
                               {initials}
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-baseline justify-between mb-0.5">
-                                <span className="text-xs font-bold text-foreground">
-                                  {c.author_label ?? (isClient ? "Cliente" : "Equipe")}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-bold text-foreground">
+                                    {c.author_label ?? (isClient ? "Cliente" : "Equipe")}
+                                  </span>
+                                  {c.is_internal && (
+                                    <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-0.5">
+                                      <Lock className="h-2 w-2" /> Interno
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="flex items-center gap-1.5 shrink-0">
                                   <span className="text-[9px] text-muted-foreground">
                                     {new Date(c.created_at).toLocaleDateString("pt-BR")}
                                   </span>
-                                  {/* Edit/delete buttons — admin only */}
                                   {!portalMode && (
                                     <div className="hidden group-hover:flex items-center gap-1.5 pl-1.5 border-l border-border">
                                       <button
@@ -1241,7 +1312,7 @@ export function DemandDetailDialog({
                                       </button>
                                       <button
                                         onClick={() => handleDeleteComment(c.id)}
-                                        title="Comentário"
+                                        title="Excluir comentário"
                                         className="text-muted-foreground hover:text-red-500 transition-colors cursor-pointer"
                                       >
                                         <Trash2 className="h-2.5 w-2.5" />
@@ -1275,11 +1346,29 @@ export function DemandDetailDialog({
                                   </div>
                                 </div>
                               ) : (
-                                <div
-                                  className="comment-body-wrapper text-xs text-foreground bg-muted/40 rounded-lg px-2.5 py-1.5 border border-border prose prose-invert prose-xs max-w-none break-words [&_p]:m-0"
-                                  data-comment-id={c.id}
-                                  dangerouslySetInnerHTML={{ __html: c.body }}
-                                />
+                                <>
+                                  <div
+                                    className={cn(
+                                      "comment-body-wrapper text-xs text-foreground rounded-lg px-2.5 py-1.5 border prose prose-invert prose-xs max-w-none break-words [&_p]:m-0",
+                                      c.is_internal
+                                        ? "bg-amber-950/20 border-amber-800/30 text-amber-100"
+                                        : "bg-muted/40 border-border"
+                                    )}
+                                    data-comment-id={c.id}
+                                    dangerouslySetInnerHTML={{ __html: c.body }}
+                                  />
+                                  {c.is_internal && !portalMode && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleForwardToClient(c.body)}
+                                      className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold hover:underline transition-colors cursor-pointer mt-1.5"
+                                      title="Copiar/Encaminhar esta nota para os comentários públicos do cliente"
+                                    >
+                                      <Share2 className="h-3 w-3" />
+                                      <span>Encaminhar para o cliente</span>
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>
@@ -1295,7 +1384,7 @@ export function DemandDetailDialog({
                       onChange={(html) => setComment(html)}
                       isChatInput={true}
                       onSubmitChat={handleAddComment}
-                      placeholder="Escrever comentário..."
+                      placeholder={!portalMode && activeCommentTab === "internal" ? "Escrever nota/comentário interno (apenas equipe)..." : "Escrever comentário..."}
                       gDrivePath={gDrivePath}
                     />
                   </div>

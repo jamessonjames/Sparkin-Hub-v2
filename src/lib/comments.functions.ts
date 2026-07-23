@@ -10,17 +10,24 @@ export const listComments = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
       .from("demand_comments")
-      .select("id, body, author_type, author_user_id, author_label, created_at")
+      .select("id, body, author_type, author_user_id, author_label, created_at, is_internal")
       .eq("demand_id", data.demand_id)
       .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
-    return rows ?? [];
+    return (rows ?? []).map((r) => ({
+      ...r,
+      is_internal: !!r.is_internal,
+    }));
   });
 
 export const addComment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ demand_id: z.string().uuid(), body: z.string().min(1) }).parse(input),
+    z.object({
+      demand_id: z.string().uuid(),
+      body: z.string().min(1),
+      is_internal: z.boolean().optional(),
+    }).parse(input),
   )
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("demand_comments").insert({
@@ -28,6 +35,7 @@ export const addComment = createServerFn({ method: "POST" })
       body: data.body,
       author_type: "team",
       author_user_id: context.userId,
+      is_internal: !!data.is_internal,
     });
     if (error) throw new Error(error.message);
     return { ok: true };

@@ -99,6 +99,7 @@ export const getPortalDemandComments = createServerFn({ method: "GET" })
       .from("demand_comments")
       .select("id, body, author_type, author_label, created_at")
       .eq("demand_id", data.demand_id)
+      .eq("is_internal", false)
       .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
     return comments ?? [];
@@ -120,6 +121,7 @@ export const addPortalComment = createServerFn({ method: "POST" })
       body: data.body,
       author_type: "client",
       author_label: data.author_label ?? "Cliente",
+      is_internal: false,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
