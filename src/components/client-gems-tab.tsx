@@ -313,7 +313,6 @@ export function ClientGemsTab({ clientId }: { clientId: string }) {
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Nome da Marca / Especialista</Label>
               <Input
-                placeholder="Ex: Profitin, Dinâmica, Nathália..."
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="text-xs"
