@@ -34,7 +34,7 @@ import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
 import { RichEditor } from "@/components/rich-editor";
 import { deleteFromGDrive } from "@/lib/gdrive.functions";
 import { getFileIdFromUrl } from "@/lib/gdrive-token";
-import { Trash2, Send, Calendar, X, Save, User, Loader2, Pencil, Upload, Download, Lock, Share2, MoreVertical } from "lucide-react";
+import { Trash2, Send, Calendar, X, Save, User, Users, Loader2, Pencil, Upload, Download, Lock, Share2, MoreVertical, Building2, Sparkles, AlertCircle, Clock, Coins, Layers, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STATUS_CHIP: Record<string, string> = {
@@ -1009,16 +1009,19 @@ export function DemandDetailDialog({
             <div className="flex flex-1 min-h-0">
 
               {/* Left Panel */}
-              <div className="flex-1 px-5 py-4 flex flex-col gap-3 min-h-0">
+              <div className="flex-1 px-6 py-4 flex flex-col gap-4 min-h-0 overflow-y-auto">
 
-                {/* Minimalist 1-Line Meta Bar */}
-                <div className="flex items-center gap-3 py-1.5 px-3 bg-muted/15 border border-border/60 rounded-xl shrink-0 text-xs overflow-x-auto whitespace-nowrap min-h-[40px] shadow-2xs">
+                {/* Notion-style Property Grid */}
+                <div className="flex flex-wrap items-start gap-x-7 gap-y-3 py-2 px-1 border-b border-border/50 shrink-0 text-xs">
                   {/* Client — admin only, visible only on creation if multiple clients */}
                   {!portalMode && isNew && clients.length > 1 && (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[11px] font-semibold text-muted-foreground">Cliente:</span>
+                    <div className="flex flex-col gap-1 min-w-[120px]">
+                      <span className="text-[11px] font-semibold text-muted-foreground/80 flex items-center gap-1.5">
+                        <Building2 className="h-3.5 w-3.5 text-muted-foreground/70" />
+                        Cliente
+                      </span>
                       <Select value={clientId} onValueChange={setClientId}>
-                        <SelectTrigger className="h-7 text-xs bg-background border-input text-foreground w-auto min-w-[110px] py-0 px-2">
+                        <SelectTrigger className="h-7 text-xs bg-muted/30 hover:bg-muted/50 border-transparent text-foreground font-medium py-0 px-2 rounded-md">
                           <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -1031,11 +1034,14 @@ export function DemandDetailDialog({
                   )}
 
                   {/* Status */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-[11px] font-semibold text-muted-foreground">Status:</span>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] font-semibold text-muted-foreground/80 flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-muted-foreground/70" />
+                      Status
+                    </span>
                     {fieldsEditable && !isStatusBlockedInPortal ? (
                       <Select value={status} onValueChange={(val) => setStatus(val as DemandStatus)}>
-                        <SelectTrigger className={cn("h-7 text-xs font-bold border-none text-white w-auto min-w-[100px] py-0 px-2", STATUS_CHIP[status])}>
+                        <SelectTrigger className={cn("h-7 text-xs font-bold border-none text-white w-auto min-w-[105px] py-0 px-2.5 rounded-md shadow-2xs", STATUS_CHIP[status])}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1051,12 +1057,42 @@ export function DemandDetailDialog({
                     )}
                   </div>
 
-                  {/* Priority */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-[11px] font-semibold text-muted-foreground">Prioridade:</span>
+                  {/* Responsável (Admin only) */}
+                  {!portalMode && (
+                    <div className="flex flex-col gap-1 min-w-[135px]">
+                      <span className="text-[11px] font-semibold text-muted-foreground/80 flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-muted-foreground/70" />
+                        Responsável
+                      </span>
+                      <Select value={assigneeId} onValueChange={setAssigneeId}>
+                        <SelectTrigger className="h-7 text-xs bg-muted/30 hover:bg-muted/50 border-transparent text-foreground font-medium py-0 px-2.5 rounded-md">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {profiles.map((p) => (
+                            <SelectItem key={p.id} value={p.id} className="text-xs">
+                              <div className="flex items-center gap-2">
+                                <div className="h-4 w-4 rounded-full bg-primary/20 text-primary text-[9px] font-bold flex items-center justify-center">
+                                  {p.name.charAt(0)}
+                                </div>
+                                <span>{p.name}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Prioridade */}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] font-semibold text-muted-foreground/80 flex items-center gap-1.5">
+                      <AlertCircle className="h-3.5 w-3.5 text-muted-foreground/70" />
+                      Prioridade
+                    </span>
                     {fieldsEditable ? (
                       <Select value={priority} onValueChange={(val) => setPriority(val as any)}>
-                        <SelectTrigger className={cn("h-7 text-xs font-bold border-none text-white w-auto min-w-[80px] py-0 px-2", PRIORITY_CHIP[priority])}>
+                        <SelectTrigger className={cn("h-7 text-xs font-bold border-none text-white w-auto min-w-[85px] py-0 px-2.5 rounded-md", PRIORITY_CHIP[priority])}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1072,41 +1108,88 @@ export function DemandDetailDialog({
                     )}
                   </div>
 
-                  {/* Due Date */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-[11px] font-semibold text-muted-foreground">Prazo:</span>
+                  {/* Data de término */}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] font-semibold text-muted-foreground/80 flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground/70" />
+                      Data de término
+                    </span>
                     {fieldsEditable ? (
                       <Input
                         type="date"
                         value={dueDate}
                         onChange={(e) => setDueDate(e.target.value)}
-                        className="h-7 text-xs bg-background border-input text-foreground w-[125px] py-0 px-2"
+                        className="h-7 text-xs bg-muted/30 hover:bg-muted/50 border-transparent text-foreground font-medium w-[135px] py-0 px-2 rounded-md"
                       />
                     ) : (
                       <span className={cn(
-                        "inline-flex h-7 items-center gap-1 px-2.5 rounded-md text-xs font-medium w-fit bg-muted/60",
+                        "inline-flex h-7 items-center px-2.5 rounded-md text-xs font-medium w-fit bg-muted/40",
                         isOverdue ? "text-red-400" : "text-foreground"
                       )}>
-                        <Calendar className="h-3 w-3" />
                         {dueDate ? new Date(dueDate + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
                       </span>
                     )}
                   </div>
 
-                  {/* Assignee */}
+                  {/* Tempo Estimado */}
                   {!portalMode && (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                        <User className="h-3 w-3" /> Responsável:
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-muted-foreground/80 flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground/70" />
+                        Tempo Estimado
                       </span>
-                      <Select value={assigneeId} onValueChange={setAssigneeId}>
-                        <SelectTrigger className="h-7 text-xs bg-background border-input text-foreground w-auto min-w-[125px] py-0 px-2">
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          step="0.5"
+                          min="0.5"
+                          value={estimatedHours}
+                          onChange={(e) => setEstimatedHours(parseFloat(e.target.value) || 1.0)}
+                          className="h-7 text-xs bg-muted/30 hover:bg-muted/50 border-transparent text-foreground font-medium w-16 py-0 px-2 rounded-md text-center"
+                        />
+                        <span className="text-xs text-muted-foreground">h</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Créditos */}
+                  {isCreditBillingEnabled && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-muted-foreground/80 flex items-center gap-1.5">
+                        <Coins className="h-3.5 w-3.5 text-muted-foreground/70" />
+                        Créditos
+                      </span>
+                      {portalMode ? (
+                        <span className="inline-flex h-7 items-center px-2.5 rounded-md text-xs font-bold text-emerald-400 bg-emerald-500/10">
+                          {estimatedCredits} {estimatedCredits === 1 ? "crédito" : "créditos"}
+                        </span>
+                      ) : (
+                        <Input
+                          type="number"
+                          min="0"
+                          value={estimatedCredits}
+                          onChange={(e) => setEstimatedCredits(parseInt(e.target.value) || 0)}
+                          className="h-7 text-xs bg-muted/30 hover:bg-muted/50 border-transparent text-foreground font-medium w-20 py-0 px-2 rounded-md"
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {/* Edição */}
+                  {!portalMode && isNew && selectedClient?.billing_model === "seasonal" && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-muted-foreground/80 flex items-center gap-1.5">
+                        <Layers className="h-3.5 w-3.5 text-muted-foreground/70" />
+                        Edição
+                      </span>
+                      <Select value={clientEditionId} onValueChange={setClientEditionId}>
+                        <SelectTrigger className="h-7 text-xs bg-muted/30 hover:bg-muted/50 border-transparent text-foreground font-medium w-32 py-0 px-2 rounded-md">
                           <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {profiles.map((p) => (
-                            <SelectItem key={p.id} value={p.id} className="text-xs">
-                              {p.name}
+                          {clientEditions.map((ed: any) => (
+                            <SelectItem key={ed.id} value={ed.id} className="text-xs">
+                              {ed.name} {ed.is_active ? "(Vigente)" : ""}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1114,97 +1197,33 @@ export function DemandDetailDialog({
                     </div>
                   )}
 
-                  {/* Estimated Hours */}
-                  {!portalMode && (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[11px] font-semibold text-muted-foreground">Tempo:</span>
+                  {/* Valor (R$) */}
+                  {!portalMode && selectedClient && (
+                    (selectedClient.billing_model === "seasonal") || 
+                    (selectedClient.billing_model === "fixed" && selectedClient.fixed_type === "one_off")
+                  ) && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-muted-foreground/80 flex items-center gap-1.5">
+                        <DollarSign className="h-3.5 w-3.5 text-muted-foreground/70" />
+                        Valor (R$)
+                      </span>
                       <Input
                         type="number"
-                        step="0.5"
-                        min="0.5"
-                        value={estimatedHours}
-                        onChange={(e) => setEstimatedHours(parseFloat(e.target.value) || 1.0)}
-                        className="h-7 text-xs bg-background border-input text-foreground w-14 py-0 px-1.5 text-center"
+                        step="0.01"
+                        min="0"
+                        value={price ?? ""}
+                        onChange={(e) => {
+                          setPrice(e.target.value ? parseFloat(e.target.value) : null);
+                          setIsPriceManuallyEdited(true);
+                        }}
+                        className="h-7 text-xs bg-muted/30 hover:bg-muted/50 border-transparent text-foreground font-medium w-24 py-0 px-2 rounded-md"
                       />
-                      <span className="text-[10px] text-muted-foreground">h</span>
                     </div>
-                  )}
-
-                  {/* Secondary Fields Dropdown / Popover (Credits, Edition, Price) */}
-                  {(isCreditBillingEnabled || (!portalMode && isNew && selectedClient?.billing_model === "seasonal") || (!portalMode && selectedClient && (selectedClient.billing_model === "seasonal" || (selectedClient.billing_model === "fixed" && selectedClient.fixed_type === "one_off")))) && (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground gap-1 ml-auto shrink-0 cursor-pointer">
-                          <MoreVertical className="h-3.5 w-3.5" />
-                          <span>Mais</span>
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent align="end" className="w-64 p-3 bg-zinc-950 border border-zinc-800 text-zinc-200 space-y-3">
-                        <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Campos Adicionais</div>
-                        
-                        {isCreditBillingEnabled && (
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-medium text-muted-foreground">Créditos:</span>
-                            {portalMode ? (
-                              <span className="text-xs font-bold text-emerald-400">
-                                {estimatedCredits} {estimatedCredits === 1 ? "crédito" : "créditos"}
-                              </span>
-                            ) : (
-                              <Input
-                                type="number"
-                                min="0"
-                                value={estimatedCredits}
-                                onChange={(e) => setEstimatedCredits(parseInt(e.target.value) || 0)}
-                                className="h-7 text-xs bg-background border-input text-foreground w-20 py-0 px-2"
-                              />
-                            )}
-                          </div>
-                        )}
-
-                        {!portalMode && isNew && selectedClient?.billing_model === "seasonal" && (
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-medium text-muted-foreground">Edição:</span>
-                            <Select value={clientEditionId} onValueChange={setClientEditionId}>
-                              <SelectTrigger className="h-7 text-xs bg-background border-input text-foreground w-32 py-0 px-2">
-                                <SelectValue placeholder="Selecione..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {clientEditions.map((ed: any) => (
-                                  <SelectItem key={ed.id} value={ed.id} className="text-xs">
-                                    {ed.name} {ed.is_active ? "(Vigente)" : ""}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-
-                        {!portalMode && selectedClient && (
-                          (selectedClient.billing_model === "seasonal") || 
-                          (selectedClient.billing_model === "fixed" && selectedClient.fixed_type === "one_off")
-                        ) && (
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-medium text-muted-foreground">Valor (R$):</span>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={price ?? ""}
-                              onChange={(e) => {
-                                setPrice(e.target.value ? parseFloat(e.target.value) : null);
-                                setIsPriceManuallyEdited(true);
-                              }}
-                              className="h-7 text-xs bg-background border-input text-foreground w-24 py-0 px-2"
-                            />
-                          </div>
-                        )}
-                      </PopoverContent>
-                    </Popover>
                   )}
                 </div>
 
                 {/* Description editor — Maximize vertical space, borderless */}
-                <div className="description-editor-wrapper flex-1 flex flex-col min-h-0 h-full">
+                <div className="description-editor-wrapper flex-1 flex flex-col min-h-[300px]">
                   <RichEditor
                     content={description}
                     onChange={(html) => setDescription(html)}
@@ -1218,18 +1237,20 @@ export function DemandDetailDialog({
 
               {/* Right Panel — Comments */}
               {!isNew && showComments && (
-                <div className="w-[360px] md:w-[400px] shrink-0 border-l border-border flex flex-col bg-muted/10">
-                  {/* Comments Header with Tab Switcher */}
-                  <div className="px-3.5 py-2 border-b border-border shrink-0 flex items-center justify-between min-h-[40px]">
-                    <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Comentários</h4>
+                <div className="w-[380px] lg:w-[420px] shrink-0 border-l border-border flex flex-col bg-muted/10 min-w-0">
+                  {/* Comments Header with Full-Width 2-Column Tabs */}
+                  <div className="px-4 py-3 border-b border-border shrink-0 flex flex-col gap-2.5 bg-card/40">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Comentários</h4>
+                    </div>
 
                     {!portalMode && (
-                      <div className="flex items-center bg-zinc-900/90 border border-zinc-800 p-0.5 rounded-lg text-[11px]">
+                      <div className="grid grid-cols-2 bg-zinc-900/90 border border-zinc-800 p-0.5 rounded-lg text-xs w-full">
                         <button
                           type="button"
                           onClick={() => setActiveCommentTab("public")}
                           className={cn(
-                            "px-2 py-0.5 rounded font-medium transition-colors cursor-pointer",
+                            "py-1 rounded font-medium transition-colors cursor-pointer text-center",
                             activeCommentTab === "public"
                               ? "bg-zinc-800 text-zinc-100 font-bold shadow-xs"
                               : "text-zinc-400 hover:text-zinc-200"
@@ -1241,13 +1262,13 @@ export function DemandDetailDialog({
                           type="button"
                           onClick={() => setActiveCommentTab("internal")}
                           className={cn(
-                            "px-2 py-0.5 rounded font-medium transition-colors cursor-pointer flex items-center gap-1",
+                            "py-1 rounded font-medium transition-colors cursor-pointer flex items-center justify-center gap-1",
                             activeCommentTab === "internal"
                               ? "bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 shadow-xs"
                               : "text-zinc-400 hover:text-zinc-200"
                           )}
                         >
-                          <Lock className="h-2.5 w-2.5 text-amber-400" />
+                          <Lock className="h-3 w-3 text-amber-400" />
                           Internos ({comments.filter((c: any) => c.is_internal).length})
                         </button>
                       </div>
