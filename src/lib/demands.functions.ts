@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { getAdjustmentTargetDate } from "@/utils/scheduler";
 
 export const DEMAND_STATUSES = [
   "rascunho",
@@ -226,9 +227,25 @@ export const moveDemandStatus = createServerFn({ method: "POST" })
 
     console.log("[moveDemandStatus] attempting update", { id: data.id, dbStatus, userId: context.userId });
 
+    const patch: Record<string, unknown> = {
+      status: dbStatus,
+      status_id: dbStatusId,
+    };
+
+    if (dbStatus === "com_ajustes") {
+      const { data: allDemands } = await context.supabase
+        .from("demands")
+        .select("due_date, estimated_hours, status")
+        .is("deleted_at", null);
+
+      const targetDateStr = getAdjustmentTargetDate(allDemands || []);
+      patch.due_date = targetDateStr;
+      patch.is_manually_scheduled = false;
+    }
+
     const { error } = await context.supabase
       .from("demands")
-      .update({ status: dbStatus as any, status_id: dbStatusId })
+      .update(patch as any)
       .eq("id", data.id);
     if (error) {
       console.error("[moveDemandStatus] RLS/DB error", error);

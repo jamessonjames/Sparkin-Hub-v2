@@ -443,3 +443,65 @@ export function scheduleByPriority(
   return scheduledTimes;
 }
 
+/** Helper to get next working day YYYY-MM-DD string */
+export function getNextWorkingDayStr(startDate: Date, config: SchedulingConfig = DEFAULT_CONFIG): string {
+  const next = new Date(startDate);
+  next.setDate(next.getDate() + 1);
+  let safety = 0;
+  while (safety < 30) {
+    if (config.workingDays.includes(next.getDay())) {
+      return toISO(next);
+    }
+    next.setDate(next.getDate() + 1);
+    safety++;
+  }
+  return toISO(next);
+}
+
+/**
+ * Calculates the target date for a demand moved to "com_ajustes" (Com Ajuste).
+ * Evaluates whether Today has at least 2.0 hours of unbooked working capacity remaining.
+ * - If YES (before 16:00 and >= 2.0 hours free today): returns Today's date string YYYY-MM-DD.
+ * - If NO (after 16:00 or < 2.0 hours free today): returns Next Working Day's date string YYYY-MM-DD.
+ */
+export function getAdjustmentTargetDate(
+  allDemands: { due_date: string | null; estimated_hours?: number | null; status: string }[],
+  config: SchedulingConfig = DEFAULT_CONFIG
+): string {
+  const now = getTzTime(config.timezone);
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+
+  const todayStr = toISO(now);
+
+  // Check condition 1: Must be before config.endHour - 2 (e.g., before 16:00)
+  const isTimeSuitable = (currentHour + currentMinute / 60) <= (config.endHour - 2);
+
+  if (!isTimeSuitable) {
+    return getNextWorkingDayStr(now, config);
+  }
+
+  // Check condition 2: Count booked hours for today
+  let bookedHoursToday = 0;
+  for (const d of allDemands) {
+    if (d.status === "concluido" || d.status === "para_analise" || d.status === "rascunho") continue;
+    if (d.due_date && d.due_date.slice(0, 10) === todayStr) {
+      bookedHoursToday += d.estimated_hours ? Number(d.estimated_hours) : 1.0;
+    }
+  }
+
+  // Total working hours per day
+  const totalWorkingHours = (config.endHour - config.startHour) - (config.lunchEnd - config.lunchStart);
+  
+  // Remaining working hours from now until endHour
+  const remainingWorkdayHours = Math.max(0, config.endHour - Math.max(config.startHour, currentHour + currentMinute / 60));
+  
+  const freeHoursToday = Math.min(totalWorkingHours - bookedHoursToday, remainingWorkdayHours);
+
+  if (freeHoursToday >= 2.0) {
+    return todayStr;
+  } else {
+    return getNextWorkingDayStr(now, config);
+  }
+}
+

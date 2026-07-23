@@ -269,6 +269,10 @@ function AgendaPage() {
     const map = new Map<string, AgendaDemand>();
     for (const d of demands) {
       if (d.status !== "nao_iniciado" && d.status !== "fazendo" && d.status !== "com_ajustes") continue;
+      // If it's a date-only adjustment, render it in DaySummaryPill at the top of the day
+      if (d.status === "com_ajustes" && (!d.due_date || d.due_date.length <= 10 || !d.is_manually_scheduled)) {
+        continue;
+      }
       const finalDate = scheduledMap[d.id] ?? d.due_date;
       if (finalDate) {
         const dt = safeParseDate(finalDate);
@@ -281,17 +285,22 @@ function AgendaPage() {
     return map;
   }, [demands, scheduledMap]);
 
-  // Group concluida & para_analise demands for day header summary pill (Option A)
+  // Group concluida, para_analise & com_ajustes demands for day header summary pill
   const daySummaryDemands = useMemo(() => {
-    const map = new Map<string, { concluida: AgendaDemand[]; para_analise: AgendaDemand[] }>();
+    const map = new Map<string, { concluida: AgendaDemand[]; para_analise: AgendaDemand[]; com_ajustes: AgendaDemand[] }>();
     for (const d of demands) {
-      if (d.status === "concluido" || d.status === "para_analise") {
+      if (d.status === "concluido" || d.status === "para_analise" || d.status === "com_ajustes") {
+        const isDateOnlyAdjustment = d.status === "com_ajustes" && (!d.due_date || d.due_date.length <= 10 || !d.is_manually_scheduled);
+        if (d.status === "com_ajustes" && !isDateOnlyAdjustment) continue;
+
         const dateKey = (d.due_date || toISO(new Date())).slice(0, 10);
-        const entry = map.get(dateKey) || { concluida: [], para_analise: [] };
+        const entry = map.get(dateKey) || { concluida: [], para_analise: [], com_ajustes: [] };
         if (d.status === "concluido") {
           entry.concluida.push(d as AgendaDemand);
-        } else {
+        } else if (d.status === "para_analise") {
           entry.para_analise.push(d as AgendaDemand);
+        } else if (d.status === "com_ajustes") {
+          entry.com_ajustes.push(d as AgendaDemand);
         }
         map.set(dateKey, entry);
       }
@@ -1117,11 +1126,12 @@ function DaySummaryPill({
   summary,
   onOpenDemand,
 }: {
-  summary: { concluida: AgendaDemand[]; para_analise: AgendaDemand[] };
+  summary: { concluida: AgendaDemand[]; para_analise: AgendaDemand[]; com_ajustes?: AgendaDemand[] };
   onOpenDemand: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const totalCount = summary.concluida.length + summary.para_analise.length;
+  const comAjustesList = summary.com_ajustes || [];
+  const totalCount = summary.concluida.length + summary.para_analise.length + comAjustesList.length;
   if (totalCount === 0) return null;
 
   return (
@@ -1129,17 +1139,17 @@ function DaySummaryPill({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="mt-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#222222] hover:bg-[#2a2a2a] text-foreground border border-white/10 flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer truncate max-w-[95%]"
-          title="Ver demandas concluídas e em análise do dia"
+          className="mt-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#222222] hover:bg-[#2a2a2a] text-foreground border border-white/10 flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer truncate max-w-[95%]"
+          title="Ver demandas fora da grade do dia"
         >
-          {summary.concluida.length > 0 && (
-            <span className="flex items-center gap-1 text-emerald-400 font-semibold truncate">
-              <Check className="h-3 w-3 text-emerald-400 shrink-0 stroke-[2.5]" />
-              <span>{summary.concluida.length} {summary.concluida.length === 1 ? "concluído" : "concluídos"}</span>
+          {comAjustesList.length > 0 && (
+            <span className="flex items-center gap-1 text-amber-400 font-semibold truncate">
+              <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0 animate-pulse" />
+              <span>{comAjustesList.length} {comAjustesList.length === 1 ? "com ajuste" : "com ajustes"}</span>
             </span>
           )}
 
-          {summary.concluida.length > 0 && summary.para_analise.length > 0 && (
+          {comAjustesList.length > 0 && (summary.concluida.length > 0 || summary.para_analise.length > 0) && (
             <span className="text-white/20 text-[9px]">•</span>
           )}
 
@@ -1147,6 +1157,17 @@ function DaySummaryPill({
             <span className="flex items-center gap-1 text-purple-400 font-semibold truncate">
               <Clock className="h-3 w-3 text-purple-400 shrink-0 stroke-[2.5]" />
               <span>{summary.para_analise.length} em análise</span>
+            </span>
+          )}
+
+          {summary.para_analise.length > 0 && summary.concluida.length > 0 && (
+            <span className="text-white/20 text-[9px]">•</span>
+          )}
+
+          {summary.concluida.length > 0 && (
+            <span className="flex items-center gap-1 text-emerald-400 font-semibold truncate">
+              <Check className="h-3 w-3 text-emerald-400 shrink-0 stroke-[2.5]" />
+              <span>{summary.concluida.length} {summary.concluida.length === 1 ? "concluído" : "concluídos"}</span>
             </span>
           )}
         </button>
@@ -1157,6 +1178,22 @@ function DaySummaryPill({
           <span className="text-[10px] text-muted-foreground font-medium">{totalCount} no total</span>
         </div>
         <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5 scrollbar-thin">
+          {comAjustesList.map((d) => (
+            <div
+              key={d.id}
+              onClick={() => { setOpen(false); onOpenDemand(d.id); }}
+              className="p-2 rounded-lg bg-[#33261a] hover:bg-[#402f20] border border-amber-500/40 text-xs cursor-pointer transition-colors"
+            >
+              <p className="font-semibold text-amber-200 truncate">{d.title}</p>
+              <div className="flex items-center justify-between text-[10px] text-amber-400 font-medium mt-0.5">
+                <span className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  Com Ajuste
+                </span>
+                <span className="text-[9px] opacity-75">{d.clients?.name ?? ""}</span>
+              </div>
+            </div>
+          ))}
           {summary.para_analise.map((d) => (
             <div
               key={d.id}
