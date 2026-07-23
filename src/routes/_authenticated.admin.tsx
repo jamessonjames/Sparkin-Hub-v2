@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listUsersWithRoles, updateUserRole, createUserWithRole, updateUserAdmin, deleteUserAdmin, saveUserPreferences, getUserPreferences } from "@/lib/users.functions";
+import { listUsersWithRoles, updateUserRole, createUserWithRole, updateUserAdmin, deleteUserAdmin, saveUserPreferences, getUserPreferences, getSystemBranding, saveSystemBranding } from "@/lib/users.functions";
 import { storeGoogleDriveToken, storeGoogleDriveCode, getGoogleDriveStatus, disconnectGoogleDrive, uploadToGDrive } from "@/lib/gdrive.functions";
 import { connectGDrive, connectGDriveCode, clearGDriveToken, getGDriveAccessToken } from "@/lib/gdrive-token";
 import { getPricingSettings, savePricingSettings } from "@/lib/pricing.functions";
@@ -291,11 +291,31 @@ function AdminPage() {
     }
   };
 
+  const getBrandingFn = useServerFn(getSystemBranding);
+  const saveBrandingFn = useServerFn(saveSystemBranding);
+
   // Load configuration from localstorage and user preferences from DB
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
       const savedFavicon = localStorage.getItem("CF_Favicon") || "";
+
+      setSystemName(savedName);
+      setFaviconUrl(savedFavicon);
+      document.title = `Painel Admin — ${savedName} Hub`;
+
+      // Load branding from DB (syncs across devices)
+      getBrandingFn().then((b) => {
+        if (b.system_name) {
+          setSystemName(b.system_name);
+          localStorage.setItem("CF_SystemName", b.system_name);
+          document.title = `Painel Admin — ${b.system_name} Hub`;
+        }
+        if (b.favicon_url) {
+          setFaviconUrl(b.favicon_url);
+          localStorage.setItem("CF_Favicon", b.favicon_url);
+        }
+      }).catch(() => {});
 
       // Load color from DB first; fall back to localStorage
       getPrefsFn().then((prefs) => {
@@ -312,10 +332,6 @@ function AdminPage() {
         setHighlightColor(savedColor);
         setCustomHex(savedHex);
       });
-
-      setSystemName(savedName);
-      setFaviconUrl(savedFavicon);
-      document.title = `Painel Admin — ${savedName} Hub`;
 
       setNotionEnabled(localStorage.getItem("CF_Int_NotionEnabled") === "true");
       setNotionToken(localStorage.getItem("CF_Int_NotionToken") || "");
@@ -374,7 +390,12 @@ function AdminPage() {
     applyThemeAndHighlight();
     window.dispatchEvent(new Event("systemBrandingChanged"));
     document.title = `Painel Admin — ${systemName} Hub`;
-    toast.success("Configurações de marca atualizadas!");
+    try {
+      await saveBrandingFn({ data: { system_name: systemName, favicon_url: faviconUrl } });
+      toast.success("Configurações de marca salvas globalmente!");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao salvar marca no banco.");
+    }
   }
 
   async function handleSaveIntegrations() {

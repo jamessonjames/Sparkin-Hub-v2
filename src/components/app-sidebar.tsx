@@ -20,7 +20,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { listClients } from "@/lib/clients.functions";
-import { saveSidebarOrder } from "@/lib/users.functions";
+import { saveSidebarOrder, getSystemBranding } from "@/lib/users.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/contexts/user-context";
 import { cn } from "@/lib/utils";
@@ -75,6 +75,7 @@ export function AppSidebar() {
 
   const [systemName, setSystemName] = useState("Creative Flow");
   const [faviconUrl, setFaviconUrl] = useState("");
+  const getBrandingFn = useServerFn(getSystemBranding);
 
   useEffect(() => {
     const handleBrandingChange = () => {
@@ -84,6 +85,22 @@ export function AppSidebar() {
       setFaviconUrl(savedFavicon);
     };
     handleBrandingChange();
+
+    getBrandingFn().then((b) => {
+      if (b.system_name) {
+        setSystemName(b.system_name);
+        localStorage.setItem("CF_SystemName", b.system_name);
+      }
+      if (b.favicon_url) {
+        setFaviconUrl(b.favicon_url);
+        localStorage.setItem("CF_Favicon", b.favicon_url);
+        const faviconLink = document.querySelector<HTMLLinkElement>("link[rel*='icon']");
+        if (faviconLink) {
+          faviconLink.href = b.favicon_url;
+        }
+      }
+    }).catch(() => {});
+
     window.addEventListener("systemBrandingChanged", handleBrandingChange);
     return () => {
       window.removeEventListener("systemBrandingChanged", handleBrandingChange);

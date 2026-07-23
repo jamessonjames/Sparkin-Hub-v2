@@ -207,3 +207,49 @@ export const deleteUserAdmin = createServerFn({ method: "POST" })
 
     return { ok: true };
   });
+
+// Server functions to get and save global system branding (system name & favicon) across devices
+export const getSystemBranding = createServerFn({ method: "GET" })
+  .handler(async ({ context }) => {
+    try {
+      const { data } = await (context.supabase as any)
+        .from("system_settings")
+        .select("value")
+        .eq("key", "system_branding")
+        .maybeSingle();
+
+      const val = data?.value as any;
+      return {
+        system_name: val?.system_name || "Creative Flow",
+        favicon_url: val?.favicon_url || "",
+      };
+    } catch (e) {
+      return { system_name: "Creative Flow", favicon_url: "" };
+    }
+  });
+
+export const saveSystemBranding = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator(z.object({
+    system_name: z.string().min(1),
+    favicon_url: z.string().optional().nullable(),
+  }))
+  .handler(async ({ data: { system_name, favicon_url }, context }) => {
+    try {
+      const { error } = await context.supabase
+        .from("system_settings")
+        .upsert({
+          key: "system_branding",
+          value: {
+            system_name,
+            favicon_url: favicon_url || "",
+          },
+        });
+
+      if (error) throw error;
+      return { success: true };
+    } catch (e: any) {
+      console.error("saveSystemBranding error:", e);
+      return { success: false, error: e.message || "Erro ao salvar no banco de dados." };
+    }
+  });

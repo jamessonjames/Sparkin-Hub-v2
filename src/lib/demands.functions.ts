@@ -43,6 +43,7 @@ export const listDemands = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) =>
     z.object({
       assigneeUserId: z.string().uuid().optional(),
+      clientId: z.string().uuid().optional(),
     }).optional().parse(input ?? {})
   )
   .handler(async ({ data, context }) => {
@@ -58,6 +59,10 @@ export const listDemands = createServerFn({ method: "GET" })
       .from("demands")
       .select("*, clients(id, name), demand_comments(id)")
       .is("deleted_at", null);
+
+    if (data?.clientId) {
+      query = query.eq("client_id", data.clientId);
+    }
 
     if (role === "collaborator") {
       query = query.eq("assignee_user_id", context.userId);
