@@ -32,6 +32,8 @@ import {
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
 import { RichEditor } from "@/components/rich-editor";
+import { deleteFromGDrive } from "@/lib/gdrive.functions";
+import { getFileIdFromUrl } from "@/lib/gdrive-token";
 import { listClientGems, type ClientGem } from "@/lib/client-gems.functions";
 import {
   DropdownMenu,
