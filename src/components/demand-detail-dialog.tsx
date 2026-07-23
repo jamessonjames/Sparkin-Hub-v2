@@ -322,6 +322,26 @@ export function DemandDetailDialog({
     enabled: !portalMode,
   });
 
+  // ── Local form state ──
+  const [clientId, setClientId] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [status, setStatus] = useState<DemandStatus>("nao_iniciado");
+  const [priority, setPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
+  const [dueDate, setDueDate] = useState("");
+  const [assigneeId, setAssigneeId] = useState("");
+  const [comment, setComment] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [showComments, setShowComments] = useState(true);
+  const [activeCommentTab, setActiveCommentTab] = useState<"public" | "internal">("public");
+  const [estimatedHours, setEstimatedHours] = useState<number>(1.0);
+  const [estimatedCredits, setEstimatedCredits] = useState<number>(0);
+  const [clientEditionId, setClientEditionId] = useState("");
+  const [price, setPrice] = useState<number | null>(null);
+  
+  // Flag to track if the user manually edited the price field
+  const [isPriceManuallyEdited, setIsPriceManuallyEdited] = useState(false);
+
   // Fetch registered gems for the current client
   const listGemsFn = useServerFn(listClientGems);
   const { data: clientGems = [] } = useQuery({
@@ -366,26 +386,6 @@ export function DemandDetailDialog({
       handleTriggerGem(clientGems[0]);
     }
   };
-
-  // ── Local form state ──
-  const [clientId, setClientId] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<DemandStatus>("nao_iniciado");
-  const [priority, setPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
-  const [dueDate, setDueDate] = useState("");
-  const [assigneeId, setAssigneeId] = useState("");
-  const [comment, setComment] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [showComments, setShowComments] = useState(true);
-  const [activeCommentTab, setActiveCommentTab] = useState<"public" | "internal">("public");
-  const [estimatedHours, setEstimatedHours] = useState<number>(1.0);
-  const [estimatedCredits, setEstimatedCredits] = useState<number>(0);
-  const [clientEditionId, setClientEditionId] = useState("");
-  const [price, setPrice] = useState<number | null>(null);
-  
-  // Flag to track if the user manually edited the price field
-  const [isPriceManuallyEdited, setIsPriceManuallyEdited] = useState(false);
 
   // Dynamic Real-Time Overflow Calculation for Option B
   const propBarRef = useRef<HTMLDivElement>(null);
