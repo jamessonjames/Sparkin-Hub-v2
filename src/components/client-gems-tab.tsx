@@ -321,7 +321,7 @@ export function ClientGemsTab({ clientId }: { clientId: string }) {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">URL do Agente (ChatGPT, Gemini, etc.)</Label>
+              <Label className="text-xs font-semibold">URL do agente (Chat, GPT, Gemini, etc.)</Label>
               <Input
                 placeholder="https://..."
                 value={gemUrl}
