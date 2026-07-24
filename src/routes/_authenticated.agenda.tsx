@@ -129,10 +129,14 @@ function parseSlotId(slotId: string) {
 }
 
 function getSlotIdFromDragEnd(event: DragEndEvent) {
+  if (event.over && String(event.over.id).startsWith("slot_")) {
+    return String(event.over.id);
+  }
+
   const translatedRect = event.active.rect.current.translated;
   if (translatedRect && typeof document !== "undefined") {
     const targetX = translatedRect.left + translatedRect.width / 2;
-    const targetY = translatedRect.top + 8;
+    const targetY = translatedRect.top + 10;
     const slotElements = Array.from(document.querySelectorAll<HTMLElement>("[data-agenda-slot-id]"));
     const directHit = slotElements.find((element) => {
       const rect = element.getBoundingClientRect();
@@ -147,20 +151,12 @@ function getSlotIdFromDragEnd(event: DragEndEvent) {
   return event.over ? String(event.over.id) : null;
 }
 
-// Custom collision detection based on the top edge of the dragged element
+// Custom collision detection based on exact pointer position
 const customCollisionDetection = (args: any) => {
   const { active, droppableContainers, pointerCoordinates } = args;
-  
-  if (!active || !active.rect.current.translated) {
-    return pointerWithin(args);
-  }
 
-  const rect = active.rect.current.translated;
-  
-  // X: Use the pointer's horizontal coordinate (cursor position) to determine the day column.
-  // Y: Use the top edge of the dragged card (+ 10px buffer) to determine the time slot.
-  const targetX = pointerCoordinates ? pointerCoordinates.x : (rect.left + rect.width / 2);
-  const targetY = rect.top + 10; 
+  const targetX = pointerCoordinates ? pointerCoordinates.x : (active?.rect?.current?.translated?.left ?? 0);
+  const targetY = pointerCoordinates ? pointerCoordinates.y : (active?.rect?.current?.translated?.top ?? 0);
 
   const collisions = [];
   for (const container of droppableContainers) {
@@ -1296,7 +1292,7 @@ function DaySummaryPill({
   if (totalCount === 0) return null;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={false}>
       <PopoverTrigger asChild>
         <button
           type="button"
