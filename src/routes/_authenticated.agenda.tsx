@@ -129,6 +129,23 @@ function parseSlotId(slotId: string) {
 }
 
 function getSlotIdFromDragEnd(event: DragEndEvent) {
+  const pointerEvt = event.activatorEvent as MouseEvent | TouchEvent | PointerEvent;
+  let cursorX: number | null = null;
+  let cursorY: number | null = null;
+
+  if (pointerEvt && typeof (pointerEvt as any).clientX === "number") {
+    cursorX = (pointerEvt as MouseEvent).clientX + event.delta.x;
+    cursorY = (pointerEvt as MouseEvent).clientY + event.delta.y;
+  }
+
+  if (cursorX !== null && cursorY !== null && typeof document !== "undefined") {
+    const elem = document.elementFromPoint(cursorX, cursorY);
+    const slotElem = elem?.closest("[data-agenda-slot-id]") as HTMLElement | null;
+    if (slotElem?.dataset.agendaSlotId) {
+      return slotElem.dataset.agendaSlotId;
+    }
+  }
+
   if (event.over && String(event.over.id).startsWith("slot_")) {
     return String(event.over.id);
   }
@@ -151,33 +168,20 @@ function getSlotIdFromDragEnd(event: DragEndEvent) {
   return event.over ? String(event.over.id) : null;
 }
 
-// Custom collision detection based on exact pointer position
+// Live DOM collision detection via elementFromPoint (immune to scroll/popover offsets)
 const customCollisionDetection = (args: any) => {
-  const { active, droppableContainers, pointerCoordinates } = args;
+  const { pointerCoordinates, droppableContainers } = args;
 
-  const targetX = pointerCoordinates ? pointerCoordinates.x : (active?.rect?.current?.translated?.left ?? 0);
-  const targetY = pointerCoordinates ? pointerCoordinates.y : (active?.rect?.current?.translated?.top ?? 0);
-
-  const collisions = [];
-  for (const container of droppableContainers) {
-    const containerRect = container.rect.current;
-    if (!containerRect) continue;
-
-    if (
-      targetX >= containerRect.left &&
-      targetX <= containerRect.right &&
-      targetY >= containerRect.top &&
-      targetY <= containerRect.bottom
-    ) {
-      collisions.push({
-        id: container.id,
-        data: container.data,
-      });
+  if (pointerCoordinates && typeof document !== "undefined") {
+    const elem = document.elementFromPoint(pointerCoordinates.x, pointerCoordinates.y);
+    const slotElem = elem?.closest("[data-agenda-slot-id]") as HTMLElement | null;
+    if (slotElem?.dataset.agendaSlotId) {
+      const slotId = slotElem.dataset.agendaSlotId;
+      const container = droppableContainers.find((c: any) => String(c.id) === slotId);
+      if (container) {
+        return [{ id: container.id, data: container.data }];
+      }
     }
-  }
-
-  if (collisions.length > 0) {
-    return collisions;
   }
 
   return pointerWithin(args);
@@ -1018,6 +1022,7 @@ function AgendaPage() {
                     {summary && (summary.concluida.length > 0 || summary.para_analise.length > 0 || (summary.com_ajustes && summary.com_ajustes.length > 0)) && (
                       <DaySummaryPill
                         summary={summary}
+                        isDraggingActive={!!activeDragId}
                         onOpenDemand={(id) => overlay.open(id, clientsForOverlay)}
                       />
                     )}
@@ -1281,12 +1286,20 @@ function DraggablePillItem({
 
 function DaySummaryPill({
   summary,
+  isDraggingActive,
   onOpenDemand,
 }: {
   summary: { concluida: AgendaDemand[]; para_analise: AgendaDemand[]; com_ajustes?: AgendaDemand[] };
+  isDraggingActive?: boolean;
   onOpenDemand: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (isDraggingActive) {
+      setOpen(false);
+    }
+  }, [isDraggingActive]);
   const comAjustesList = summary.com_ajustes || [];
   const totalCount = summary.concluida.length + summary.para_analise.length + comAjustesList.length;
   if (totalCount === 0) return null;
