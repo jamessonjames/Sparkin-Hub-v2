@@ -1294,12 +1294,6 @@ function DaySummaryPill({
   onOpenDemand: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (isDraggingActive) {
-      setOpen(false);
-    }
-  }, [isDraggingActive]);
   const comAjustesList = summary.com_ajustes || [];
   const totalCount = summary.concluida.length + summary.para_analise.length + comAjustesList.length;
   if (totalCount === 0) return null;
@@ -1342,7 +1336,13 @@ function DaySummaryPill({
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="center" className="w-64 p-3 bg-[#222222] border border-white/10 text-foreground rounded-xl shadow-2xl space-y-2.5 z-50">
+      <PopoverContent
+        align="center"
+        className={cn(
+          "w-64 p-3 bg-[#222222] border border-white/10 text-foreground rounded-xl shadow-2xl space-y-2.5 z-50 transition-opacity duration-150",
+          isDraggingActive && "opacity-0 pointer-events-none"
+        )}
+      >
         <div className="flex items-center justify-between border-b border-white/10 pb-1.5 px-0.5">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Fora da Grade (Arrastável)</p>
           <span className="text-[10px] text-muted-foreground font-medium">{totalCount} no total</span>
