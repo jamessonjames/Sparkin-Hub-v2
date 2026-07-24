@@ -613,6 +613,39 @@ function AgendaPage() {
     }
   }
 
+function getDemandDurationHours(demand: any): number {
+  if (demand.estimated_hours) {
+    const num = Number(demand.estimated_hours);
+    if (!isNaN(num) && num > 0) return num;
+  }
+  return 1.0;
+}
+
+function blockSlots(startDate: Date, durationHours: number, takenSlots: Set<string>) {
+  const slotCount = Math.ceil(durationHours / 0.5);
+  const cursor = new Date(startDate);
+  for (let i = 0; i < slotCount; i++) {
+    const hStr = String(cursor.getHours()).padStart(2, "0");
+    const mStr = String(cursor.getMinutes() >= 30 ? 30 : 0).padStart(2, "0");
+    const key = `${toISO(cursor)}_${hStr}_${mStr}`;
+    takenSlots.add(key);
+    cursor.setMinutes(cursor.getMinutes() + 30);
+  }
+}
+
+function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<string>): boolean {
+  const slotCount = Math.ceil(durationHours / 0.5);
+  const cursor = new Date(startDate);
+  for (let i = 0; i < slotCount; i++) {
+    const hStr = String(cursor.getHours()).padStart(2, "0");
+    const mStr = String(cursor.getMinutes() >= 30 ? 30 : 0).padStart(2, "0");
+    const key = `${toISO(cursor)}_${hStr}_${mStr}`;
+    if (takenSlots.has(key)) return false;
+    cursor.setMinutes(cursor.getMinutes() + 30);
+  }
+  return true;
+}
+
   function calculateCascadingPushDown(
     droppedDemandId: string,
     targetDate: Date,
