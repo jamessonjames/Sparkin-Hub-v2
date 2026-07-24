@@ -1019,7 +1019,7 @@ function AgendaPage() {
                     )}>
                       {day.getDate()}
                     </div>
-                    {summary && (summary.concluida.length > 0 || summary.para_analise.length > 0) && (
+                    {summary && (summary.concluida.length > 0 || summary.para_analise.length > 0 || (summary.com_ajustes && summary.com_ajustes.length > 0)) && (
                       <DaySummaryPill
                         summary={summary}
                         onOpenDemand={(id) => overlay.open(id, clientsForOverlay)}
