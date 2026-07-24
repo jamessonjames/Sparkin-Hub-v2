@@ -36,9 +36,9 @@ import {
   RefreshCw,
   Plus,
   ArrowRight,
-  FileText,
   AlertTriangle,
 } from "lucide-react";
+import { MeetingTranscriptionDialog } from "@/components/meeting-transcription-dialog";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/inbox")({
@@ -498,68 +498,7 @@ function InboxPage() {
       </Dialog>
 
       {/* Modal: Transcrever Reunião */}
-      <Dialog open={isMeetingOpen} onOpenChange={setIsMeetingOpen}>
-        <DialogContent className="sm:max-w-lg bg-[#1e1e1e] border-white/10">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Mic className="h-5 w-5 text-purple-400" />
-              Transcrever Reunião & Gerar Demandas
-            </DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleMeetingSubmit} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Cliente Relacionado *</Label>
-              <Select value={meetingClientId} onValueChange={setMeetingClientId}>
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Selecione o cliente da reunião" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs">Título / Pauta da Reunião</Label>
-              <Input
-                value={meetingTitle}
-                onChange={(e) => setMeetingTitle(e.target.value)}
-                placeholder="Ex: Reunião de alinhamento mensal de campanha"
-                className="h-9 text-xs"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs">Transcrição / Anotações da Reunião *</Label>
-              <Textarea
-                rows={6}
-                value={meetingNotes}
-                onChange={(e) => setMeetingNotes(e.target.value)}
-                placeholder="Cole aqui a ata, anotações ou transcrição do Google Meet / Zoom..."
-                className="text-xs resize-none"
-              />
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => setIsMeetingOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={isProcessingMeeting}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                {isProcessingMeeting ? "Analisando..." : "Processar Reunião"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <MeetingTranscriptionDialog open={isMeetingOpen} onOpenChange={setIsMeetingOpen} />
     </div>
   );
 }

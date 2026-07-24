@@ -43,10 +43,11 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight, Search, X, Star, MoreHorizontal, Pencil, ExternalLink, Copy, Phone, Mail, User, DollarSign, FileText, CheckCircle2, Clock, Sparkles } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight, Search, X, Star, MoreHorizontal, Pencil, ExternalLink, Copy, Phone, Mail, User, DollarSign, FileText, CheckCircle2, Clock, Sparkles, Mic } from "lucide-react";
 import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, DEFAULT_CREDIT_TIERS, type CreditTier } from "@/lib/credit-tiers";
 import { CreditProgressBar } from "@/components/credit-progress-bar";
 import { ClientGemsTab } from "@/components/client-gems-tab";
+import { MeetingTranscriptionDialog } from "@/components/meeting-transcription-dialog";
 
 export const Route = createFileRoute("/_authenticated/clients/$id")({
   head: () => ({ meta: [{ title: "Cliente" }] }),
@@ -157,6 +158,7 @@ function ClientPage() {
   const { state: sidebarState } = useSidebar();
   const sidebarWidth = sidebarState === "collapsed" ? 48 : 256;
   const [search, setSearch] = useState("");
+  const [isMeetingOpen, setIsMeetingOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   async function handleMove(demandId: string, status: DemandStatus) {
@@ -270,6 +272,16 @@ function ClientPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsMeetingOpen(true)}
+              className="gap-1.5 text-xs font-medium border-purple-500/30 text-purple-300 hover:bg-purple-500/10 cursor-pointer"
+            >
+              <Mic className="h-3.5 w-3.5 text-purple-400" />
+              <span className="hidden sm:inline">Transcrever Reunião</span>
+            </Button>
+
             {client.slug && (
               <Button
                 variant="outline"
@@ -697,6 +709,7 @@ function ClientPage() {
             </div>
           </TabsContent>
         )}
+        <MeetingTranscriptionDialog open={isMeetingOpen} onOpenChange={setIsMeetingOpen} defaultClientId={id} />
       </Tabs>
     </div>
   );

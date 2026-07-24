@@ -8,13 +8,15 @@ import { ClientFormDialog } from "@/components/client-form-dialog";
 import { UserProvider } from "@/contexts/user-context";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, UserCircle, ChevronDown, Download, Eye, Star } from "lucide-react";
+import { LogOut, UserCircle, ChevronDown, Download, Eye, Star, Mic } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { useUserContext } from "@/contexts/user-context";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAutoScheduler } from "@/hooks/use-auto-scheduler";
+import { MeetingTranscriptionDialog } from "@/components/meeting-transcription-dialog";
 
 import {
   DropdownMenu,
@@ -104,6 +106,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   const [isStandalone, setIsStandalone] = useState(true);
+  const [isGlobalMeetingOpen, setIsGlobalMeetingOpen] = useState(false);
 
   useEffect(() => {
     setIsStandalone(window.matchMedia("(display-mode: standalone)").matches);
@@ -164,6 +167,17 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               </div>
               
               <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsGlobalMeetingOpen(true)}
+                  className="h-8 text-xs font-medium border-purple-500/30 text-purple-300 hover:bg-purple-500/10 gap-1.5 mr-2 cursor-pointer"
+                  title="Transcrever áudio/anotações de reunião"
+                >
+                  <Mic className="h-3.5 w-3.5 text-purple-400" />
+                  <span className="hidden md:inline">Transcrever Reunião</span>
+                </Button>
+
                 <HeaderUserWorkSelector />
                 {currentUser && (
                   <DropdownMenu>
@@ -222,6 +236,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
         {/* Global demand overlay — persists across page navigation */}
         <DemandOverlayRenderer />
         <ClientFormDialog />
+        <MeetingTranscriptionDialog open={isGlobalMeetingOpen} onOpenChange={setIsGlobalMeetingOpen} />
       </SidebarProvider>
     </DemandOverlayProvider>
     </UserProvider>
