@@ -36,6 +36,7 @@ import {
   formatTzString,
   getTzTime,
   isValidSlot,
+  getNextSlot,
   safeParseDate,
 } from "@/utils/scheduler";
 import { Button } from "@/components/ui/button";
