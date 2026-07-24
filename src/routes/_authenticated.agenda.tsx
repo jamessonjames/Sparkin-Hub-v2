@@ -199,8 +199,8 @@ function AgendaPage() {
   const isDefaultUser = defaultUserId ? defaultUserId === activeUserId : activeUserId === currentUser?.id;
 
   const { data: demands = [] } = useQuery({
-    queryKey: ["demands", activeUserId],
-    queryFn: () => listFn({ data: isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId } : {} }),
+    queryKey: ["demands", activeUserId, isAdminOrOwner],
+    queryFn: () => listFn({ data: isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId, includeUnassigned: true } : {} }),
   });
 
   const { data: allClients = [] } = useQuery({
@@ -283,16 +283,22 @@ function AgendaPage() {
     return map;
   }, [demands, scheduledMap]);
 
-  // Group concluida, para_analise & com_ajustes demands for day header summary pill
+  // Group concluida, para_analise, com_ajustes & sem_responsavel demands for day header summary pill
   const daySummaryDemands = useMemo(() => {
-    const map = new Map<string, { concluida: AgendaDemand[]; para_analise: AgendaDemand[]; com_ajustes: AgendaDemand[] }>();
+    const map = new Map<string, { concluida: AgendaDemand[]; para_analise: AgendaDemand[]; com_ajustes: AgendaDemand[]; sem_responsavel: AgendaDemand[] }>();
     for (const d of demands) {
-      if (d.status === "concluido" || d.status === "para_analise" || d.status === "com_ajustes") {
+      const isUnassigned = !d.assignee_user_id;
+      const isDateOnlyAdjustment = d.status === "com_ajustes" && !d.is_manually_scheduled;
+
+      if (d.status === "concluido" || d.status === "para_analise" || isDateOnlyAdjustment || (isAdminOrOwner && isUnassigned)) {
         if (d.status === "com_ajustes" && d.is_manually_scheduled) continue;
 
         const dateKey = d.due_date ? toISO(safeParseDate(d.due_date)) : todayISO;
-        const entry = map.get(dateKey) || { concluida: [], para_analise: [], com_ajustes: [] };
-        if (d.status === "concluido") {
+        const entry = map.get(dateKey) || { concluida: [], para_analise: [], com_ajustes: [], sem_responsavel: [] };
+        
+        if (isAdminOrOwner && isUnassigned && d.status !== "concluido" && d.status !== "para_analise") {
+          entry.sem_responsavel.push(d as AgendaDemand);
+        } else if (d.status === "concluido") {
           entry.concluida.push(d as AgendaDemand);
         } else if (d.status === "para_analise") {
           entry.para_analise.push(d as AgendaDemand);
@@ -303,7 +309,7 @@ function AgendaPage() {
       }
     }
     return map;
-  }, [demands]);
+  }, [demands, isAdminOrOwner]);
 
   // Group active reminders by slot (including recurring occurrences)
   const remindersBySlot = useMemo(() => {
@@ -1050,7 +1056,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                     )}>
                       {day.getDate()}
                     </div>
-                    {summary && (summary.concluida.length > 0 || summary.para_analise.length > 0 || (summary.com_ajustes && summary.com_ajustes.length > 0)) && (
+                    {summary && (summary.concluida.length > 0 || summary.para_analise.length > 0 || (summary.com_ajustes && summary.com_ajustes.length > 0) || (summary.sem_responsavel && summary.sem_responsavel.length > 0)) && (
                       <DaySummaryPill
                         summary={summary}
                         isDraggingActive={!!activeDragId}
@@ -1265,6 +1271,8 @@ function DraggablePillItem({
     id: `pill_demand:${demand.id}`,
   });
 
+  const isUnassigned = !demand.assignee_user_id;
+
   return (
     <div
       ref={setNodeRef}
@@ -1277,6 +1285,7 @@ function DraggablePillItem({
       }}
       className={cn(
         "p-2 rounded-lg text-xs cursor-grab active:cursor-grabbing transition-colors flex items-center justify-between group select-none",
+        isUnassigned ? "bg-[#25282c] hover:bg-[#2e3238] border border-slate-500/40" :
         demand.status === "com_ajustes" ? "bg-[#33261a] hover:bg-[#402f20] border border-amber-500/40" :
         demand.status === "para_analise" ? "bg-[#2a2433] hover:bg-[#342b40] border border-purple-500/30" :
         "bg-[#1a2820] hover:bg-[#203328] border border-emerald-500/30",
@@ -1286,13 +1295,19 @@ function DraggablePillItem({
       <div className="min-w-0 flex-1">
         <p className={cn(
           "font-semibold truncate",
+          isUnassigned ? "text-slate-200" :
           demand.status === "com_ajustes" ? "text-amber-200" :
           demand.status === "para_analise" ? "text-purple-200" : "text-emerald-200 line-through"
         )}>
           {demand.title}
         </p>
         <div className="flex items-center justify-between text-[10px] mt-0.5 font-medium">
-          {demand.status === "com_ajustes" ? (
+          {isUnassigned ? (
+            <span className="text-slate-400 flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+              Sem Responsável
+            </span>
+          ) : demand.status === "com_ajustes" ? (
             <span className="text-amber-400 flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
               Com Ajuste
@@ -1320,13 +1335,19 @@ function DaySummaryPill({
   isDraggingActive,
   onOpenDemand,
 }: {
-  summary: { concluida: AgendaDemand[]; para_analise: AgendaDemand[]; com_ajustes?: AgendaDemand[] };
+  summary: {
+    concluida: AgendaDemand[];
+    para_analise: AgendaDemand[];
+    com_ajustes?: AgendaDemand[];
+    sem_responsavel?: AgendaDemand[];
+  };
   isDraggingActive?: boolean;
   onOpenDemand: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const comAjustesList = summary.com_ajustes || [];
-  const totalCount = summary.concluida.length + summary.para_analise.length + comAjustesList.length;
+  const semResponsavelList = summary.sem_responsavel || [];
+  const totalCount = summary.concluida.length + summary.para_analise.length + comAjustesList.length + semResponsavelList.length;
   if (totalCount === 0) return null;
 
   return (
@@ -1337,6 +1358,17 @@ function DaySummaryPill({
           className="mt-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#222222] hover:bg-[#2a2a2a] text-foreground border border-white/10 flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer truncate max-w-[95%]"
           title="Ver demandas fora da grade do dia"
         >
+          {semResponsavelList.length > 0 && (
+            <span className="flex items-center gap-1 text-slate-300 font-semibold truncate">
+              <span className="h-2 w-2 rounded-full bg-slate-400 shrink-0" />
+              <span>{semResponsavelList.length} sem resp.</span>
+            </span>
+          )}
+
+          {semResponsavelList.length > 0 && (comAjustesList.length > 0 || summary.concluida.length > 0 || summary.para_analise.length > 0) && (
+            <span className="text-white/20 text-[9px]">•</span>
+          )}
+
           {comAjustesList.length > 0 && (
             <span className="flex items-center gap-1 text-amber-400 font-semibold truncate">
               <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0 animate-pulse" />
@@ -1379,6 +1411,16 @@ function DaySummaryPill({
           <span className="text-[10px] text-muted-foreground font-medium">{totalCount} no total</span>
         </div>
         <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5 scrollbar-thin">
+          {semResponsavelList.map((d) => (
+            <DraggablePillItem
+              key={d.id}
+              demand={d}
+              onOpenDemand={(id) => {
+                setOpen(false);
+                onOpenDemand(id);
+              }}
+            />
+          ))}
           {comAjustesList.map((d) => (
             <DraggablePillItem
               key={d.id}

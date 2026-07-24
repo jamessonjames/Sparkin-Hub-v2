@@ -532,7 +532,7 @@ export function DemandDetailDialog({
       setStatus((defaultStatus as DemandStatus) || "nao_iniciado");
       setPriority("medium");
       setDueDate("");
-      setAssigneeId(defaultAssigneeId || activeUserId || "");
+      setAssigneeId(defaultAssigneeId || "");
       setEstimatedHours(1.0);
       setEstimatedCredits(0);
       setPrice(null);

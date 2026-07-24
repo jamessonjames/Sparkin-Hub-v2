@@ -45,6 +45,7 @@ export const listDemands = createServerFn({ method: "GET" })
     z.object({
       assigneeUserId: z.string().uuid().optional(),
       clientId: z.string().uuid().optional(),
+      includeUnassigned: z.boolean().optional(),
     }).optional().parse(input ?? {})
   )
   .handler(async ({ data, context }) => {
@@ -68,7 +69,11 @@ export const listDemands = createServerFn({ method: "GET" })
     if (role === "collaborator") {
       query = query.eq("assignee_user_id", context.userId);
     } else if (data?.assigneeUserId) {
-      query = query.eq("assignee_user_id", data.assigneeUserId);
+      if (data?.includeUnassigned) {
+        query = query.or(`assignee_user_id.eq.${data.assigneeUserId},assignee_user_id.is.null`);
+      } else {
+        query = query.eq("assignee_user_id", data.assigneeUserId);
+      }
     }
 
     const { data: result, error } = await query
@@ -122,7 +127,7 @@ export const createDemand = createServerFn({ method: "POST" })
       due_date: data.due_date || null,
       estimated_credits: data.estimated_credits ?? undefined,
       internal_notes: data.internal_notes || null,
-      assignee_user_id: data.assignee_user_id || context.userId || "d562a6d6-7f1f-4b2b-9018-006ec6a4b7e3",
+      assignee_user_id: data.assignee_user_id || null,
       created_by_user_id: context.userId,
       client_edition_id: data.client_edition_id || null,
       price: data.price ?? null,
@@ -181,7 +186,7 @@ export const updateDemand = createServerFn({ method: "POST" })
       due_date: rest.due_date || null,
       estimated_credits: rest.estimated_credits ?? undefined,
       internal_notes: rest.internal_notes || null,
-      assignee_user_id: rest.assignee_user_id || context.userId || "d562a6d6-7f1f-4b2b-9018-006ec6a4b7e3",
+      assignee_user_id: rest.assignee_user_id || null,
       client_edition_id: rest.client_edition_id || null,
       price: rest.price ?? null,
     };
