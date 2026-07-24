@@ -27,6 +27,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
   pointerWithin,
+  rectIntersection,
 } from "@dnd-kit/core";
 import {
   scheduleByPriority,
@@ -132,59 +133,16 @@ function getSlotIdFromDragEnd(event: DragEndEvent) {
   if (event.over && String(event.over.id).startsWith("slot_")) {
     return String(event.over.id);
   }
-
-  const pointerEvt = event.activatorEvent as MouseEvent | TouchEvent | PointerEvent;
-  let cursorX: number | null = null;
-  let cursorY: number | null = null;
-
-  if (pointerEvt && typeof (pointerEvt as any).clientX === "number") {
-    cursorX = (pointerEvt as MouseEvent).clientX + event.delta.x;
-    cursorY = (pointerEvt as MouseEvent).clientY + event.delta.y;
-  }
-
-  if (cursorX !== null && cursorY !== null && typeof document !== "undefined") {
-    const elem = document.elementFromPoint(cursorX, cursorY);
-    const slotElem = elem?.closest("[data-agenda-slot-id]") as HTMLElement | null;
-    if (slotElem?.dataset.agendaSlotId) {
-      return slotElem.dataset.agendaSlotId;
-    }
-  }
-
-  const translatedRect = event.active.rect.current.translated;
-  if (translatedRect && typeof document !== "undefined") {
-    const targetX = translatedRect.left + translatedRect.width / 2;
-    const targetY = translatedRect.top + 10;
-    const slotElements = Array.from(document.querySelectorAll<HTMLElement>("[data-agenda-slot-id]"));
-    const directHit = slotElements.find((element) => {
-      const rect = element.getBoundingClientRect();
-      return targetX >= rect.left && targetX <= rect.right && targetY >= rect.top && targetY <= rect.bottom;
-    });
-
-    if (directHit?.dataset.agendaSlotId) {
-      return directHit.dataset.agendaSlotId;
-    }
-  }
-
-  return event.over ? String(event.over.id) : null;
+  return null;
 }
 
-// Live DOM collision detection via elementFromPoint (immune to scroll/popover offsets)
+// Clean @dnd-kit collision detection: pointerWithin first (cursor inside cell), rectIntersection fallback
 const customCollisionDetection = (args: any) => {
-  const { pointerCoordinates, droppableContainers } = args;
-
-  if (pointerCoordinates && typeof document !== "undefined") {
-    const elem = document.elementFromPoint(pointerCoordinates.x, pointerCoordinates.y);
-    const slotElem = elem?.closest("[data-agenda-slot-id]") as HTMLElement | null;
-    if (slotElem?.dataset.agendaSlotId) {
-      const slotId = slotElem.dataset.agendaSlotId;
-      const container = droppableContainers.find((c: any) => String(c.id) === slotId);
-      if (container) {
-        return [{ id: container.id, data: container.data }];
-      }
-    }
+  const pointerCollisions = pointerWithin(args);
+  if (pointerCollisions.length > 0) {
+    return pointerCollisions;
   }
-
-  return pointerWithin(args);
+  return rectIntersection(args);
 };
 
 function AgendaPage() {
