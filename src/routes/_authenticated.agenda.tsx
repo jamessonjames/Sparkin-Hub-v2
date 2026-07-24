@@ -129,6 +129,10 @@ function parseSlotId(slotId: string) {
 }
 
 function getSlotIdFromDragEnd(event: DragEndEvent) {
+  if (event.over && String(event.over.id).startsWith("slot_")) {
+    return String(event.over.id);
+  }
+
   const pointerEvt = event.activatorEvent as MouseEvent | TouchEvent | PointerEvent;
   let cursorX: number | null = null;
   let cursorY: number | null = null;
@@ -144,10 +148,6 @@ function getSlotIdFromDragEnd(event: DragEndEvent) {
     if (slotElem?.dataset.agendaSlotId) {
       return slotElem.dataset.agendaSlotId;
     }
-  }
-
-  if (event.over && String(event.over.id).startsWith("slot_")) {
-    return String(event.over.id);
   }
 
   const translatedRect = event.active.rect.current.translated;
@@ -1130,7 +1130,7 @@ function AgendaPage() {
           <span>Fuso Horário: {config.timezone}</span>
         </div>
 
-        <DragOverlay dropAnimation={null}>
+        <DragOverlay dropAnimation={null} className="pointer-events-none z-50">
           {activeDragDemand ? (
             <AgendaDemandCardPreview demand={activeDragDemand} />
           ) : activeDragReminder ? (
