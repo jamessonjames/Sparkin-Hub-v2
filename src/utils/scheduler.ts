@@ -311,7 +311,7 @@ export function scheduleByPriority(
   _fixed: UnscheduledDemand[] = []
 ): Record<string, string> {
   const active = [..._fixed, ...demands]
-    .filter((d) => d.status === "nao_iniciado" || d.status === "fazendo" || d.status === "com_ajustes")
+    .filter((d) => d.status === "nao_iniciado" || d.status === "fazendo" || (d.status === "com_ajustes" && d.is_manually_scheduled))
     .filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i);
 
   // 1) Pinned demands (is_manually_scheduled = true and due_date exists)

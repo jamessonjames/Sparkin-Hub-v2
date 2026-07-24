@@ -57,6 +57,7 @@ export function useAutoScheduler() {
     const updates: { id: string; due_date: string | null }[] = [];
     for (const d of active) {
       if (d.is_manually_scheduled && d.due_date) continue;
+      if (d.status === "com_ajustes") continue; // Unpinned adjustments stay in day header pill
 
       const next = scheduled[d.id];
       if (next && next !== d.due_date) {

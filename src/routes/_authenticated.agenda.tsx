@@ -270,7 +270,7 @@ function AgendaPage() {
     for (const d of demands) {
       if (d.status !== "nao_iniciado" && d.status !== "fazendo" && d.status !== "com_ajustes") continue;
       // If it's a date-only adjustment, render it in DaySummaryPill at the top of the day
-      if (d.status === "com_ajustes" && (!d.due_date || d.due_date.length <= 10 || !d.is_manually_scheduled)) {
+      if (d.status === "com_ajustes" && !d.is_manually_scheduled) {
         continue;
       }
       const finalDate = scheduledMap[d.id] ?? d.due_date;
@@ -290,8 +290,7 @@ function AgendaPage() {
     const map = new Map<string, { concluida: AgendaDemand[]; para_analise: AgendaDemand[]; com_ajustes: AgendaDemand[] }>();
     for (const d of demands) {
       if (d.status === "concluido" || d.status === "para_analise" || d.status === "com_ajustes") {
-        const isDateOnlyAdjustment = d.status === "com_ajustes" && (!d.due_date || d.due_date.length <= 10 || !d.is_manually_scheduled);
-        if (d.status === "com_ajustes" && !isDateOnlyAdjustment) continue;
+        if (d.status === "com_ajustes" && d.is_manually_scheduled) continue;
 
         const dateKey = (d.due_date || toISO(new Date())).slice(0, 10);
         const entry = map.get(dateKey) || { concluida: [], para_analise: [], com_ajustes: [] };
