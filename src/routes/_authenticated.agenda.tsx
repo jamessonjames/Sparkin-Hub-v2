@@ -133,15 +133,48 @@ function getSlotIdFromDragEnd(event: DragEndEvent) {
   if (event.over && String(event.over.id).startsWith("slot_")) {
     return String(event.over.id);
   }
+
+  const pointerEvt = event.activatorEvent as MouseEvent | TouchEvent | PointerEvent;
+  if (pointerEvt && typeof (pointerEvt as any).clientX === "number" && typeof document !== "undefined") {
+    const cursorX = (pointerEvt as MouseEvent).clientX + event.delta.x;
+    const cursorY = (pointerEvt as MouseEvent).clientY + event.delta.y;
+
+    const slots = Array.from(document.querySelectorAll<HTMLElement>("[data-agenda-slot-id]"));
+    const hit = slots.find((el) => {
+      const r = el.getBoundingClientRect();
+      return cursorX >= r.left && cursorX <= r.right && cursorY >= r.top && cursorY <= r.bottom;
+    });
+
+    if (hit?.dataset.agendaSlotId) {
+      return hit.dataset.agendaSlotId;
+    }
+  }
+
   return null;
 }
 
-// Clean @dnd-kit collision detection: pointerWithin first (cursor inside cell), rectIntersection fallback
+// Live DOM collision detection using real-time getBoundingClientRect to account for scroll position
 const customCollisionDetection = (args: any) => {
-  const pointerCollisions = pointerWithin(args);
-  if (pointerCollisions.length > 0) {
-    return pointerCollisions;
+  const { pointerCoordinates, droppableContainers } = args;
+
+  if (pointerCoordinates && typeof document !== "undefined") {
+    const px = pointerCoordinates.x;
+    const py = pointerCoordinates.y;
+
+    for (const container of droppableContainers) {
+      if (!String(container.id).startsWith("slot_")) continue;
+      const node = container.node.current;
+      if (node) {
+        const r = node.getBoundingClientRect();
+        if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) {
+          return [{ id: container.id, data: container.data }];
+        }
+      }
+    }
   }
+
+  const pointerCollisions = pointerWithin(args);
+  if (pointerCollisions.length > 0) return pointerCollisions;
   return rectIntersection(args);
 };
 
