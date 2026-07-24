@@ -40,6 +40,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { getCaptureSettings, updateCaptureSettings, triggerWhatsAppScan } from "@/lib/suggestions.functions";
+
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [] }),
   component: AdminPage,
@@ -398,6 +400,29 @@ function AdminPage() {
     }
   }
 
+  // WhatsApp Capture Settings
+  const getCaptureFn = useServerFn(getCaptureSettings);
+  const updateCaptureFn = useServerFn(updateCaptureSettings);
+  const triggerScanFn = useServerFn(triggerWhatsAppScan);
+
+  const [scanFrequency, setScanFrequency] = useState<"manual" | "30m" | "1h" | "3h" | "daily">("1h");
+  const [maxMessages, setMaxMessages] = useState<number>(30);
+  const [aiProvider, setAiProvider] = useState<"gemini" | "deepseek" | "ollama">("gemini");
+  const [isScanningNow, setIsScanningNow] = useState(false);
+
+  const { data: captureSettings } = useQuery({
+    queryKey: ["capture-settings"],
+    queryFn: () => getCaptureFn(),
+  });
+
+  useEffect(() => {
+    if (captureSettings) {
+      setScanFrequency(captureSettings.scan_frequency || "1h");
+      setMaxMessages(captureSettings.max_messages || 30);
+      setAiProvider(captureSettings.ai_provider || "gemini");
+    }
+  }, [captureSettings]);
+
   async function handleSaveIntegrations() {
     if (!isOwner) {
       toast.error("Apenas o usuário proprietário pode alterar as integrações.");
@@ -411,7 +436,20 @@ function AdminPage() {
     localStorage.setItem("CF_Int_GoogleClientId", googleClientId);
     localStorage.setItem("CF_Int_WhatsappEnabled", String(whatsappEnabled));
     localStorage.setItem("CF_Int_WhatsappPhone", whatsappPhone);
-    toast.success("Integrações salvas!");
+
+    try {
+      await updateCaptureFn({
+        data: {
+          scan_frequency: scanFrequency,
+          max_messages: Number(maxMessages),
+          ai_provider: aiProvider,
+        },
+      });
+      toast.success("Integrações salvas!");
+      qc.invalidateQueries({ queryKey: ["capture-settings"] });
+    } catch (err: any) {
+      toast.error("Erro ao salvar captura: " + err.message);
+    }
   }
 
   async function handleRoleChange(userId: string, newRole: "owner" | "admin" | "collaborator") {
@@ -982,25 +1020,108 @@ function AdminPage() {
                 </div>
               </div>
 
-              {/* Whatsapp Resumo (Placeholder) */}
-              <div className="p-4 rounded-xl border border-border bg-surface-2/40 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
-                <div className="flex gap-3">
-                  <div className="h-10 w-10 bg-surface-2 rounded-lg flex items-center justify-center shrink-0 border border-border">
-                    <MessageSquare className="h-5 w-5 text-emerald-500" />
+              {/* Whatsapp Captura & Resumo Inteligente */}
+              <div className="p-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-4">
+                <div className="flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
+                  <div className="flex gap-3">
+                    <div className="h-10 w-10 bg-emerald-500/10 rounded-lg flex items-center justify-center shrink-0 border border-emerald-500/20">
+                      <MessageSquare className="h-5 w-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        WhatsApp Business & Extensão de Captura
+                        {whatsappEnabled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
+                        Monitoramento das conversas dos clientes via WhatsApp Web. As sugestões pré-analisadas chegam direto na sua <strong>Caixa de Entrada</strong>.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      WhatsApp Business (Resumo Inteligente)
-                      {whatsappEnabled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                    </h4>
-                    <p className="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
-                      Uma extensão que monitora e lê as conversas do WhatsApp do cliente, entregando resumos instantâneos das últimas demandas solicitadas por mensagem.
-                    </p>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <Switch disabled={!isOwner} checked={whatsappEnabled} onCheckedChange={setWhatsappEnabled} />
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <Switch disabled={!isOwner} checked={whatsappEnabled} onCheckedChange={setWhatsappEnabled} />
-                </div>
+
+                {whatsappEnabled && (
+                  <div className="pt-3 border-t border-emerald-500/15 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Frequência de Varredura */}
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] text-muted-foreground font-semibold">Frequência da Varredura</Label>
+                        <Select value={scanFrequency} onValueChange={(v: any) => setScanFrequency(v)} disabled={!isOwner}>
+                          <SelectTrigger className="h-8 text-xs bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="manual">Manual (Apenas ao clicar no botão)</SelectItem>
+                            <SelectItem value="30m">A cada 30 minutos</SelectItem>
+                            <SelectItem value="1h">A cada 1 hora (Recomendado)</SelectItem>
+                            <SelectItem value="3h">A cada 3 horas</SelectItem>
+                            <SelectItem value="daily">1x ao dia (Final do expediente)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Limite de Mensagens por Chat */}
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] text-muted-foreground font-semibold">Profundidade por Chat</Label>
+                        <Select value={String(maxMessages)} onValueChange={(v) => setMaxMessages(Number(v))} disabled={!isOwner}>
+                          <SelectTrigger className="h-8 text-xs bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="15">Últimas 15 mensagens</SelectItem>
+                            <SelectItem value="30">Últimas 30 mensagens</SelectItem>
+                            <SelectItem value="50">Últimas 50 mensagens</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Provedor de IA */}
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] text-muted-foreground font-semibold">Modelo de Inteligência Artificial</Label>
+                        <Select value={aiProvider} onValueChange={(v: any) => setAiProvider(v)} disabled={!isOwner}>
+                          <SelectTrigger className="h-8 text-xs bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="gemini">Google Gemini 1.5 Flash (Gratuito)</SelectItem>
+                            <SelectItem value="deepseek">DeepSeek V3 / R1</SelectItem>
+                            <SelectItem value="ollama">Ollama (Servidor Local)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-emerald-500/10">
+                      <div className="text-[11px] text-emerald-400/90 font-medium flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                        Extensão Zero-Config Pronta para Instalação no Chrome
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isScanningNow}
+                        onClick={async () => {
+                          setIsScanningNow(true);
+                          try {
+                            await triggerScanFn();
+                            toast.success("Varredura manual disparada!");
+                          } catch {
+                            toast.error("Erro ao disparar varredura.");
+                          } finally {
+                            setIsScanningNow(false);
+                          }
+                        }}
+                        className="h-8 text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 gap-1.5"
+                      >
+                        <Loader2 className={cn("h-3.5 w-3.5", isScanningNow && "animate-spin")} />
+                        Varrer WhatsApp Agora
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 flex justify-end">

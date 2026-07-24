@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Users, ListChecks, Plus, CalendarDays, Settings, DollarSign, TrendingUp, GripVertical, ChevronDown, ChevronRight, FolderKanban } from "lucide-react";
+import { LayoutDashboard, Users, ListChecks, Plus, CalendarDays, Settings, DollarSign, TrendingUp, GripVertical, ChevronDown, ChevronRight, FolderKanban, Inbox as InboxIcon } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -30,6 +30,7 @@ import type { ClientActivity } from "@/lib/activity.functions";
 type NavItem = { title: string; to: string; icon: typeof LayoutDashboard; exact?: boolean };
 const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Dashboard", to: "/", icon: LayoutDashboard, exact: true },
+  { title: "Caixa de Entrada", to: "/inbox", icon: InboxIcon },
   { title: "Clientes", to: "/clients", icon: Users },
   { title: "Funil Comercial", to: "/crm", icon: TrendingUp },
   { title: "Financeiro", to: "/finance", icon: DollarSign },
