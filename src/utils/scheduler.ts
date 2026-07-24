@@ -101,13 +101,16 @@ export function formatTzString(date: Date): string {
   return `${y}-${m}-${d}T${hh}:${mm}:${ss}${dif}${pad(tzo / 60)}:${pad(tzo % 60)}`;
 }
 
-/** Parse a date string safely avoiding UTC midnight shifting on YYYY-MM-DD */
+/** Parse a date string safely avoiding UTC midnight shifting on YYYY-MM-DD or T00:00:00 */
 export function safeParseDate(dateStr: string): Date {
   if (!dateStr) return new Date();
   
-  // If it's a date-only format like YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    const [y, m, d] = dateStr.split("-").map(Number);
+  // If it's a date-only format like YYYY-MM-DD or a midnight timestamp T00:00:00...
+  const dateOnlyMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00.*)?$/);
+  if (dateOnlyMatch) {
+    const y = parseInt(dateOnlyMatch[1], 10);
+    const m = parseInt(dateOnlyMatch[2], 10);
+    const d = parseInt(dateOnlyMatch[3], 10);
     return new Date(y, m - 1, d, 12, 0, 0); // local noon fallback
   }
   

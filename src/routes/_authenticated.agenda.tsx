@@ -292,7 +292,7 @@ function AgendaPage() {
       if (d.status === "concluido" || d.status === "para_analise" || d.status === "com_ajustes") {
         if (d.status === "com_ajustes" && d.is_manually_scheduled) continue;
 
-        const dateKey = (d.due_date || toISO(new Date())).slice(0, 10);
+        const dateKey = d.due_date ? toISO(safeParseDate(d.due_date)) : todayISO;
         const entry = map.get(dateKey) || { concluida: [], para_analise: [], com_ajustes: [] };
         if (d.status === "concluido") {
           entry.concluida.push(d as AgendaDemand);
