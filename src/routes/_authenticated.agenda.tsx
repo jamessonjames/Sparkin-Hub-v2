@@ -161,9 +161,15 @@ const customCollisionDetection = (args: any) => {
     const px = pointerCoordinates.x;
     const py = pointerCoordinates.y;
 
-    for (const container of droppableContainers) {
-      if (!String(container.id).startsWith("slot_")) continue;
-      const node = container.node.current;
+    const containerList = Array.isArray(droppableContainers)
+      ? droppableContainers
+      : typeof droppableContainers?.values === "function"
+      ? Array.from(droppableContainers.values())
+      : [];
+
+    for (const container of containerList) {
+      if (!container || !String(container.id).startsWith("slot_")) continue;
+      const node = container.node?.current;
       if (node) {
         const r = node.getBoundingClientRect();
         if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) {
