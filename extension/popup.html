@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sparkin Hub - Captura WhatsApp</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+      width: 320px;
+      background-color: #121619;
+      color: #e2e8f0;
+      padding: 16px;
+    }
+    .header {
+      display: flex;
+      items-center: center;
+      gap: 10px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 14px;
+    }
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: white;
+      font-size: 16px;
+    }
+    .header-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    .header-sub {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .status-card {
+      background-color: #1e262b;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+    .status-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #34d399;
+      margin-bottom: 6px;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #10b981;
+    }
+    .status-desc {
+      font-size: 11px;
+      color: #cbd5e1;
+      line-height: 1.4;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s ease;
+    }
+    .btn-primary {
+      background-color: #10b981;
+      color: white;
+    }
+    .btn-primary:hover {
+      background-color: #059669;
+    }
+    .btn-secondary {
+      background-color: rgba(255, 255, 255, 0.08);
+      color: #e2e8f0;
+      margin-top: 8px;
+      text-decoration: none;
+    }
+    .btn-secondary:hover {
+      background-color: rgba(255, 255, 255, 0.14);
+    }
+    .footer-note {
+      text-align: center;
+      font-size: 10px;
+      color: #64748b;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo-icon">S</div>
+    <div>
+      <div class="header-title">Sparkin Hub</div>
+      <div class="header-sub">Extensão Zero-Config</div>
+    </div>
+  </div>
+
+  <div class="status-card">
+    <div class="status-header">
+      <div class="pulse-dot"></div>
+      <span id="status-title">Conectado ao WhatsApp Web</span>
+    </div>
+    <div class="status-desc" id="status-desc">
+      A extensão lê as configurações diretamente do seu painel no Sparkin Hub.
+    </div>
+    <div class="info-row">
+      <span>Frequência:</span>
+      <strong id="info-frequency" style="color:#e2e8f0;">Carregando...</strong>
+    </div>
+    <div class="info-row">
+      <span>Última Varredura:</span>
+      <strong id="info-last-scan" style="color:#e2e8f0;">Agora</strong>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" id="btn-scan">
+    🔄 Disparar Varredura Agora
+  </button>
+
+  <a href="https://hub.sparkinlab.com.br/inbox" target="_blank" class="btn btn-secondary">
+    📥 Ir para a Caixa de Entrada
+  </a>
+
+  <div class="footer-note">
+    Configurações gerenciadas 100% no Sparkin Hub
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

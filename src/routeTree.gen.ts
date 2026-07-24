@@ -18,6 +18,7 @@ import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedCrmRouteImport } from './routes/_authenticated.crm'
 import { Route as AuthenticatedDemandsRouteImport } from './routes/_authenticated.demands'
 import { Route as AuthenticatedFinanceRouteImport } from './routes/_authenticated.finance'
+import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated.inbox'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated.profile'
 import { Route as PortalSlugRouteImport } from './routes/portal.$slug'
 import { Route as AuthenticatedClientsIndexRouteImport } from './routes/_authenticated.clients.index'
@@ -68,6 +69,11 @@ const AuthenticatedFinanceRoute = AuthenticatedFinanceRouteImport.update({
   path: '/finance',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedInboxRoute = AuthenticatedInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -104,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/crm': typeof AuthenticatedCrmRoute
   '/demands': typeof AuthenticatedDemandsRoute
   '/finance': typeof AuthenticatedFinanceRoute
+  '/inbox': typeof AuthenticatedInboxRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/portal/$slug': typeof PortalSlugRoute
   '/clients/$id': typeof AuthenticatedClientsIdRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/crm': typeof AuthenticatedCrmRoute
   '/demands': typeof AuthenticatedDemandsRoute
   '/finance': typeof AuthenticatedFinanceRoute
+  '/inbox': typeof AuthenticatedInboxRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/portal/$slug': typeof PortalSlugRoute
   '/': typeof AuthenticatedIndexRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/_authenticated/crm': typeof AuthenticatedCrmRoute
   '/_authenticated/demands': typeof AuthenticatedDemandsRoute
   '/_authenticated/finance': typeof AuthenticatedFinanceRoute
+  '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/portal/$slug': typeof PortalSlugRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -153,6 +162,7 @@ export interface FileRouteTypes {
     | '/crm'
     | '/demands'
     | '/finance'
+    | '/inbox'
     | '/profile'
     | '/portal/$slug'
     | '/clients/$id'
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/crm'
     | '/demands'
     | '/finance'
+    | '/inbox'
     | '/profile'
     | '/portal/$slug'
     | '/'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/_authenticated/crm'
     | '/_authenticated/demands'
     | '/_authenticated/finance'
+    | '/_authenticated/inbox'
     | '/_authenticated/profile'
     | '/portal/$slug'
     | '/_authenticated/'
@@ -263,6 +275,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFinanceRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/inbox': {
+      id: '/_authenticated/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof AuthenticatedInboxRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/profile': {
       id: '/_authenticated/profile'
       path: '/profile'
@@ -307,6 +326,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCrmRoute: typeof AuthenticatedCrmRoute
   AuthenticatedDemandsRoute: typeof AuthenticatedDemandsRoute
   AuthenticatedFinanceRoute: typeof AuthenticatedFinanceRoute
+  AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedClientsIdRoute: typeof AuthenticatedClientsIdRoute
@@ -320,6 +340,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCrmRoute: AuthenticatedCrmRoute,
   AuthenticatedDemandsRoute: AuthenticatedDemandsRoute,
   AuthenticatedFinanceRoute: AuthenticatedFinanceRoute,
+  AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedClientsIdRoute: AuthenticatedClientsIdRoute,

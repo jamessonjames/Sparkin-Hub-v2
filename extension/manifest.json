@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Sparkin Hub - Captura de WhatsApp",
+  "version": "1.0.0",
+  "description": "Extensão Zero-Config para ler conversas do WhatsApp Web e enviar sugestões de demandas para a Caixa de Entrada do Sparkin Hub.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Sparkin Hub - Status da Extensão"
+  },
+  "permissions": [
+    "storage",
+    "alarms",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://web.whatsapp.com/*",
+    "https://*.sparkinlab.com.br/*",
+    "http://localhost:8080/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ]
+}
