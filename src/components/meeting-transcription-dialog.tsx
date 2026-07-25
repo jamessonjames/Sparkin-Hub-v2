@@ -223,40 +223,30 @@ export function MeetingTranscriptionDialog({
       try { await audioCtx.resume(); } catch (e) { console.warn("[Sparkin Hub] Erro ao retomar AudioContext:", e); }
     }
 
-    const destNode = audioCtx.createMediaStreamDestination();
+    // Cada fonte de áudio tem seu próprio destino para evitar que o AudioContext
+    // consuma os dados do stream original e o MediaRecorder fique sem áudio (Chrome)
+    const mimeType = getMimeType();
+    const displayAudioTracks = displayStream ? displayStream.getAudioTracks() : [];
 
     if (micStream && micStream.getAudioTracks().length > 0) {
       const micSource = audioCtx.createMediaStreamSource(micStream);
       const micAnalyser = audioCtx.createAnalyser();
       micAnalyser.fftSize = 256;
       micSource.connect(micAnalyser);
-      micAnalyser.connect(destNode);
       analyserMicRef.current = micAnalyser;
       if (micCanvasRef.current) drawWaveform(micCanvasRef.current, micAnalyser, "#a78bfa");
-    }
 
-    const displayAudioTracks = displayStream ? displayStream.getAudioTracks() : [];
-    if (displayAudioTracks.length > 0) {
-      const displayAudioStream = new MediaStream([displayAudioTracks[0]]);
-      const displaySource = audioCtx.createMediaStreamSource(displayAudioStream);
-      const tabAnalyser = audioCtx.createAnalyser();
-      tabAnalyser.fftSize = 256;
-      displaySource.connect(tabAnalyser);
-      tabAnalyser.connect(destNode);
-      analyserTabRef.current = tabAnalyser;
-      if (tabCanvasRef.current) drawWaveform(tabCanvasRef.current, tabAnalyser, "#34d399");
-    }
+      // Grava a partir do AudioContext para não conflitar com o stream original
+      const micDestNode = audioCtx.createMediaStreamDestination();
+      micAnalyser.connect(micDestNode);
 
-    const mimeType = getMimeType();
-
-    if (micStream && micStream.getAudioTracks().length > 0) {
       try {
         micChunksRef.current = [];
-        const micRecorder = new MediaRecorder(micStream, { mimeType });
+        const micRecorder = new MediaRecorder(micDestNode.stream, { mimeType });
         micRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) micChunksRef.current.push(e.data); };
         micRecorder.start(1000);
         micRecorderRef.current = micRecorder;
-        addLog("success", "MediaRecorder do microfone ativo.");
+        addLog("success", "MediaRecorder do microfone ativo (via AudioContext).");
       } catch (err: any) {
         addLog("error", "Erro ao iniciar MediaRecorder do microfone: " + err.message);
         console.warn("[Sparkin Hub] Erro ao iniciar MediaRecorder do microfone:", err);
@@ -264,14 +254,25 @@ export function MeetingTranscriptionDialog({
     }
 
     if (displayAudioTracks.length > 0) {
-      const tabOnlyStream = new MediaStream([displayAudioTracks[0]]);
+      const displayAudioStream = new MediaStream([displayAudioTracks[0]]);
+      const displaySource = audioCtx.createMediaStreamSource(displayAudioStream);
+      const tabAnalyser = audioCtx.createAnalyser();
+      tabAnalyser.fftSize = 256;
+      displaySource.connect(tabAnalyser);
+      analyserTabRef.current = tabAnalyser;
+      if (tabCanvasRef.current) drawWaveform(tabCanvasRef.current, tabAnalyser, "#34d399");
+
+      // Grava a partir do AudioContext para não conflitar com o stream original
+      const tabDestNode = audioCtx.createMediaStreamDestination();
+      tabAnalyser.connect(tabDestNode);
+
       try {
         tabChunksRef.current = [];
-        const tabRecorder = new MediaRecorder(tabOnlyStream, { mimeType });
+        const tabRecorder = new MediaRecorder(tabDestNode.stream, { mimeType });
         tabRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) tabChunksRef.current.push(e.data); };
         tabRecorder.start(1000);
         tabRecorderRef.current = tabRecorder;
-        addLog("success", "MediaRecorder da aba ativo.");
+        addLog("success", "MediaRecorder da aba ativo (via AudioContext).");
       } catch (err: any) {
         addLog("error", "Erro ao iniciar MediaRecorder da aba: " + err.message);
         console.warn("[Sparkin Hub] Erro ao iniciar MediaRecorder da aba:", err);
