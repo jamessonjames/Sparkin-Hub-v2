@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useUserContext } from "@/contexts/user-context";
 import { cn } from "@/lib/utils";
+import { transcribeAudio } from "@/lib/local-whisper";
 
 export function MeetingTranscriptionDialog({
   open,
@@ -311,7 +312,7 @@ export function MeetingTranscriptionDialog({
     stopRecordingAndGetAudioBlob();
   };
 
-  // Process Recording / Text via Gemini 1.5 Flash (Audio + Text Multimodal)
+  // Process Recording / Text: transcribe audio locally via Whisper, then send text to Gemini
   const handleFinishAndAnalyze = async () => {
     setIsAnalyzing(true);
     const audioBlob = await stopRecordingAndGetAudioBlob();
@@ -327,31 +328,21 @@ export function MeetingTranscriptionDialog({
       combinedTranscriptText = pastedText.trim();
     }
 
-    // Convert Recorded Audio Blob into Base64 for Gemini 1.5 Flash Multimodal Audio Input
-    let audioBase64: string | undefined = undefined;
-    let mimeType = "audio/webm";
-
+    // Transcribe audio locally using Whisper (Transformers.js) — no API call
     if (audioBlob && audioBlob.size > 1000) {
       try {
-        mimeType = audioBlob.type || "audio/webm";
-        const buffer = await audioBlob.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-        let binary = "";
-        const CHUNK_SIZE = 8192;
-        for (let i = 0; i < bytes.byteLength; i += CHUNK_SIZE) {
-          binary += String.fromCharCode.apply(
-            null,
-            Array.from(bytes.subarray(i, i + CHUNK_SIZE)) as unknown as number[]
-          );
+        const whisperText = await transcribeAudio(audioBlob, (msg) => toast.info(msg));
+        if (whisperText.trim()) {
+          combinedTranscriptText += `TRANSCRIÇÃO DO ÁUDIO:\n${whisperText.trim()}\n\n`;
         }
-        audioBase64 = window.btoa(binary);
-      } catch (err) {
-        console.warn("[Sparkin Hub] Erro ao converter áudio para Base64:", err);
+      } catch (err: any) {
+        console.warn("[Sparkin Hub] Erro na transcrição local:", err);
+        toast.error("Falha na transcrição local: " + err.message);
       }
     }
 
-    if (!combinedTranscriptText.trim() && !audioBase64) {
-      toast.error("Nenhum áudio ou texto foi capturado para análise.");
+    if (!combinedTranscriptText.trim()) {
+      toast.error("Nenhum áudio ou texto foi capturado para transcrição.");
       setIsAnalyzing(false);
       return;
     }
@@ -362,8 +353,6 @@ export function MeetingTranscriptionDialog({
           clientId,
           title: title.trim() || "Reunião de Alinhamento",
           transcript: combinedTranscriptText,
-          audioBase64,
-          mimeType,
         },
       });
 
@@ -577,7 +566,7 @@ export function MeetingTranscriptionDialog({
               className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-11 text-xs gap-2 shadow-lg shadow-red-600/20 shrink-0 cursor-pointer"
             >
               <Square className="h-4 w-4 fill-white" />
-              {isAnalyzing ? "Enviando Áudio & Analisando com IA..." : "Finalizar Gravação & Analisar Reunião"}
+              {isAnalyzing ? "Transcrevendo áudio & Analisando..." : "Finalizar Gravação & Analisar Reunião"}
             </Button>
           </div>
         )}

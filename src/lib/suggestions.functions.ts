@@ -276,13 +276,11 @@ export const analyzeMeetingTranscript = createServerFn({ method: "POST" })
         clientId: z.string().uuid(),
         title: z.string().optional(),
         transcript: z.string().optional(),
-        audioBase64: z.string().optional(),
-        mimeType: z.string().optional(),
       })
       .parse(input)
   )
   .handler(async ({ data, context }) => {
-    const { clientId, title, transcript = "", audioBase64, mimeType = "audio/webm" } = data;
+    const { clientId, title, transcript = "" } = data;
 
     // 1. Fetch active demands for this client to match existing items vs new ones
     const { data: existingDemands } = await context.supabase
@@ -329,27 +327,25 @@ export const analyzeMeetingTranscript = createServerFn({ method: "POST" })
       const rawApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "";
       const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
       if (apiKey) {
-        const cleanMimeType = (mimeType || "audio/webm").split(";")[0];
         const promptText = `Você é um gestor de projetos sênior em uma agência de marketing e tecnologia.
-Você está analisando a gravação de áudio de uma reunião entre a agência [${userName} (Eu)] e o cliente [${clientName} (Cliente)].
+Você está analisando a transcrição de uma reunião entre a agência [${userName} (Eu)] e o cliente [${clientName} (Cliente)].
 
-INSTRUÇÕES CRÍTICAS DE TRANSCRIÇÃO DE ÁUDIO (MUITO IMPORTANTE):
-1. O arquivo de áudio em anexo contém a gravação MISTA da reunião (microfone do usuário + áudio da aba do navegador / cliente / vídeo).
-2. Faça a TRANSCRIÇÃO COMPLETA E LITERAL de 100% de tudo o que foi dito no áudio gravado.
-3. Identifique e separe os interlocutores no texto transcrito:
-   - Voz do usuário / microfone: [${userName} (Eu)]
-   - Voz do cliente / áudio do navegador / vídeo: [${clientName} (Cliente)]
-4. Retorne a transcrição completa diarizada no campo "diarized_transcript".
+A transcrição completa da reunião (incluindo anotações manuais) está abaixo.
+Com base nela, gere:
+
+1. "summary": lista de 2-4 bullets com os principais pontos, decisões e alinhamentos discutidos.
+2. "suggestions": uma ou mais sugestões de demandas (ou ajustes em demandas existentes) que devem ser criadas no sistema com base no que foi discutido.
+3. "diarized_transcript": a transcrição formatada com identificação de interlocutores.
 
 LISTA DE DEMANDAS JÁ EXISTENTES DO CLIENTE NO SISTEMA:
 ${JSON.stringify(demandsContext, null, 2)}
 
-ANOTAÇÕES ADICIONAIS / NOTAS DA REUNIÃO:
+TRANSCRIÇÃO DA REUNIÃO:
 "${transcript}"
 
 Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos markdown:
 {
-  "diarized_transcript": "[${userName} (Eu)]: Olá...\n[${clientName} (Cliente)]: Precisamos de...",
+  "diarized_transcript": "[${userName} (Eu)]: Texto...\n[${clientName} (Cliente)]: Texto...",
   "summary": ["Ponto principal 1", "Ponto principal 2"],
   "suggestions": [
     {
@@ -362,15 +358,7 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos m
   ]
 }`;
 
-        const parts: any[] = [{ text: promptText }];
-        if (audioBase64) {
-          parts.push({
-            inlineData: {
-              mimeType: cleanMimeType,
-              data: audioBase64,
-            },
-          });
-        }
+        const parts = [{ text: promptText }];
 
         const candidateModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite"];
         let res: Response | null = null;
@@ -414,14 +402,12 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos m
               if (parsed.diarized_transcript) {
                 aiDiarizedTranscript = parsed.diarized_transcript;
               }
-            } catch {
-              throw new Error(`Resposta da IA não está no formato JSON esperado. Texto: ${rawText.substring(0, 200)}`);
+            } catch (e) {
+              console.warn("[analyzeMeetingTranscript] Falha ao fazer parse do JSON da IA:", e);
             }
-          } else {
-            throw new Error(`Resposta da IA não contém JSON. Texto: ${rawText.substring(0, 200)}`);
           }
         } else if (lastError) {
-          throw new Error(lastError);
+          console.warn("[analyzeMeetingTranscript] Aviso da API da IA (usando parser local fallback):", lastError);
         } else {
           throw new Error("Nenhum modelo Gemini respondeu com sucesso");
         }
@@ -491,61 +477,4 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos m
     };
   });
 
-export const transcribeAudioChunk = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .validator((input: unknown) =>
-    z
-      .object({
-        audioBase64: z.string(),
-        mimeType: z.string().optional(),
-      })
-      .parse(input)
-  )
-  .handler(async ({ data }) => {
-    const rawApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "";
-    const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
-    if (!apiKey || !data.audioBase64) {
-      console.warn("[transcribeAudioChunk] API Key não configurada ou sem áudio.");
-      return { text: "" };
-    }
 
-    const cleanMimeType = (data.mimeType || "audio/webm").split(";")[0];
-    const candidateModels = ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash-8b"];
-    const promptText = "Transcreva literalmente o que é falado neste pequeno trecho de áudio. Retorne APENAS o texto transcrito em português sem saudações ou comentários.";
-
-    const parts = [
-      { text: promptText },
-      {
-        inlineData: {
-          mimeType: cleanMimeType,
-          data: data.audioBase64,
-        },
-      },
-    ];
-
-    for (const model of candidateModels) {
-      try {
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents: [{ parts }] }),
-          }
-        );
-        if (res.ok) {
-          const resData = await res.json();
-          const text = resData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          console.log(`[transcribeAudioChunk] Transcrição com ${model}: "${text.trim()}"`);
-          return { text: text.trim() };
-        } else {
-          const errText = await res.text();
-          console.warn(`[transcribeAudioChunk] ${model} error ${res.status}:`, errText);
-        }
-      } catch (err) {
-        console.warn(`[transcribeAudioChunk] ${model} fetch error:`, err);
-      }
-    }
-
-    return { text: "" };
-  });
