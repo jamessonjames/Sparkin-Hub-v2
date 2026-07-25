@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
   Mic,
@@ -22,6 +23,10 @@ import {
   RefreshCw,
   NotebookPen,
   Volume2,
+  Bug,
+  Loader2,
+  XCircle,
+  Info,
 } from "lucide-react";
 import { useUserContext } from "@/contexts/user-context";
 import { cn } from "@/lib/utils";
@@ -33,6 +38,13 @@ function getMimeType(): string {
   if (MediaRecorder.isTypeSupported("audio/mp4")) return "audio/mp4";
   return "audio/webm";
 }
+
+type LogEntry = {
+  id: number;
+  type: "info" | "progress" | "error" | "success";
+  message: string;
+  timestamp: string;
+};
 
 export function MeetingTranscriptionDialog({
   open,
@@ -63,6 +75,8 @@ export function MeetingTranscriptionDialog({
     suggestions: DemandSuggestion[];
     rawTranscript: string;
   } | null>(null);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
 
   const [seconds, setSeconds] = useState(0);
   const [captureTabAudio, setCaptureTabAudio] = useState(true);
@@ -71,6 +85,8 @@ export function MeetingTranscriptionDialog({
   const displayStreamRef = useRef<MediaStream | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const isRecordingRef = useRef<boolean>(false);
+  const logIdRef = useRef(0);
+  const logsEndRef = useRef<HTMLDivElement | null>(null);
 
   const micRecorderRef = useRef<MediaRecorder | null>(null);
   const micChunksRef = useRef<Blob[]>([]);
@@ -90,6 +106,13 @@ export function MeetingTranscriptionDialog({
     enabled: open,
   });
 
+  const addLog = (type: LogEntry["type"], message: string) => {
+    const id = ++logIdRef.current;
+    const timestamp = new Date().toLocaleTimeString("pt-BR");
+    setLogs((prev) => [...prev, { id, type, message, timestamp }]);
+    setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+  };
+
   useEffect(() => {
     if (open) {
       setClientId(defaultClientId || "");
@@ -98,6 +121,8 @@ export function MeetingTranscriptionDialog({
       setAnalysisResult(null);
       setPastedText("");
       setManualNotes("");
+      setLogs([]);
+      setShowLogs(false);
       micChunksRef.current = [];
       tabChunksRef.current = [];
     } else {
@@ -147,37 +172,49 @@ export function MeetingTranscriptionDialog({
 
   const startRecording = async () => {
     if (!clientId) {
+      addLog("error", "Selecione o cliente antes de iniciar a gravação.");
       toast.error("Por favor, selecione o cliente antes de iniciar a gravação.");
       return;
     }
 
     setMode("recording");
     isRecordingRef.current = true;
+    addLog("info", "Iniciando captura...");
 
     let displayStream: MediaStream | null = null;
     let micStream: MediaStream | null = null;
 
     if (captureTabAudio && navigator.mediaDevices?.getDisplayMedia) {
       try {
+        addLog("info", "👉 Selecione a aba da reunião e marque 'Compartilhar áudio da guia'.");
         toast.info("👉 Selecione a aba da reunião e marque 'Compartilhar áudio da guia'.", { duration: 6000 });
         displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
         displayStreamRef.current = displayStream;
         if (displayStream.getAudioTracks().length === 0) {
+          addLog("error", "Áudio da aba não foi capturado — marque 'Compartilhar áudio da guia'.");
           toast.error("Atenção: marque 'Compartilhar áudio da guia'.", { duration: 10000 });
+        } else {
+          addLog("success", "Áudio da aba capturado com sucesso.");
         }
         if (displayStream.getVideoTracks().length > 0) {
           displayStream.getVideoTracks()[0].onended = () => {};
         }
-      } catch (err) {
+      } catch (err: any) {
+        addLog("error", "Compartilhamento de aba cancelado: " + (err.message || "usuário cancelou"));
         console.warn("[Sparkin Hub] Compartilhamento de aba cancelado:", err);
       }
     }
 
     try {
+      addLog("info", "Solicitando acesso ao microfone...");
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       micStreamRef.current = micStream;
+      addLog("success", "Microfone conectado com sucesso.");
     } catch (err: any) {
-      toast.error("Não foi possível acessar o microfone: " + err.message);
+      const msg = "Não foi possível acessar o microfone: " + err.message;
+      addLog("error", msg);
+      toast.error(msg);
+      stopRecording();
       return;
     }
 
@@ -213,7 +250,6 @@ export function MeetingTranscriptionDialog({
 
     const mimeType = getMimeType();
 
-    // MediaRecorder for MIC (Eu)
     if (micStream && micStream.getAudioTracks().length > 0) {
       try {
         micChunksRef.current = [];
@@ -221,12 +257,13 @@ export function MeetingTranscriptionDialog({
         micRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) micChunksRef.current.push(e.data); };
         micRecorder.start(1000);
         micRecorderRef.current = micRecorder;
-      } catch (err) {
+        addLog("success", "MediaRecorder do microfone ativo.");
+      } catch (err: any) {
+        addLog("error", "Erro ao iniciar MediaRecorder do microfone: " + err.message);
         console.warn("[Sparkin Hub] Erro ao iniciar MediaRecorder do microfone:", err);
       }
     }
 
-    // MediaRecorder for TAB (Cliente)
     if (displayAudioTracks.length > 0) {
       const tabOnlyStream = new MediaStream([displayAudioTracks[0]]);
       try {
@@ -235,11 +272,14 @@ export function MeetingTranscriptionDialog({
         tabRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) tabChunksRef.current.push(e.data); };
         tabRecorder.start(1000);
         tabRecorderRef.current = tabRecorder;
-      } catch (err) {
+        addLog("success", "MediaRecorder da aba ativo.");
+      } catch (err: any) {
+        addLog("error", "Erro ao iniciar MediaRecorder da aba: " + err.message);
         console.warn("[Sparkin Hub] Erro ao iniciar MediaRecorder da aba:", err);
       }
     }
 
+    addLog("success", "Gravação iniciada! Microfone + Áudio da aba sendo capturados.");
     toast.success("Gravação iniciada! Microfone + Áudio da aba sendo capturados.");
   };
 
@@ -269,6 +309,7 @@ export function MeetingTranscriptionDialog({
   const handleFinishAndAnalyze = async () => {
     setIsAnalyzing(true);
     cancelAnimationFrame(animFrameRef.current);
+    addLog("info", "Finalizando gravação e coletando áudios...");
 
     const micBlob = await getBlob(micRecorderRef.current, micChunksRef.current);
     const tabBlob = await getBlob(tabRecorderRef.current, tabChunksRef.current);
@@ -281,42 +322,67 @@ export function MeetingTranscriptionDialog({
     const clientName = selectedClient?.name || "Cliente";
     let transcriptParts: string[] = [];
 
-    // Whisper: transcreve áudio do microfone (Eu)
     if (micBlob && micBlob.size > 1000) {
+      addLog("info", "Transcrevendo áudio do microfone (Whisper local)...");
       try {
-        const text = await transcribeAudio(micBlob, (msg) => toast.info(msg));
-        if (text.trim()) transcriptParts.push(`[${userDisplayName} (Eu)]: ${text.trim()}`);
+        const text = await transcribeAudio(micBlob, (msg) => {
+          addLog("progress", msg);
+          toast.info(msg, { duration: 2000 });
+        });
+        if (text.trim()) {
+          transcriptParts.push(`[${userDisplayName} (Eu)]: ${text.trim()}`);
+          addLog("success", "Microfone transcrito: " + text.trim().substring(0, 60) + "...");
+        } else {
+          addLog("info", "Microfone: transcrição vazia (sem fala detectada).");
+        }
       } catch (err: any) {
-        console.warn("[Sparkin Hub] Erro Whisper microfone:", err);
+        addLog("error", "Falha na transcrição do microfone: " + err.message);
         toast.error("Falha na transcrição do microfone: " + err.message);
       }
+    } else {
+      addLog("info", "Microfone: nenhum áudio capturado (blobo vazio).");
     }
 
-    // Whisper: transcreve áudio da aba (Cliente)
     if (tabBlob && tabBlob.size > 1000) {
+      addLog("info", "Transcrevendo áudio da aba (Whisper local)...");
       try {
-        const text = await transcribeAudio(tabBlob, (msg) => toast.info(msg));
-        if (text.trim()) transcriptParts.push(`[${clientName} (Cliente)]: ${text.trim()}`);
+        const text = await transcribeAudio(tabBlob, (msg) => {
+          addLog("progress", msg);
+          toast.info(msg, { duration: 2000 });
+        });
+        if (text.trim()) {
+          transcriptParts.push(`[${clientName} (Cliente)]: ${text.trim()}`);
+          addLog("success", "Aba transcrita: " + text.trim().substring(0, 60) + "...");
+        } else {
+          addLog("info", "Aba: transcrição vazia (sem fala detectada).");
+        }
       } catch (err: any) {
-        console.warn("[Sparkin Hub] Erro Whisper aba:", err);
+        addLog("error", "Falha na transcrição do áudio da aba: " + err.message);
         toast.error("Falha na transcrição do áudio da aba: " + err.message);
       }
+    } else {
+      addLog("info", "Aba: nenhum áudio capturado (blobo vazio ou não compartilhado).");
     }
 
     if (manualNotes.trim()) {
       transcriptParts.push(`[${userDisplayName} (Eu) - Anotações]: ${manualNotes.trim()}`);
+      addLog("info", "Anotações manuais incluídas.");
     }
     if (pastedText.trim() && transcriptParts.length === 0) {
       transcriptParts.push(pastedText.trim());
+      addLog("info", "Texto colado usado como transcrição.");
     }
 
     const combinedTranscriptText = transcriptParts.join("\n\n");
 
     if (!combinedTranscriptText.trim()) {
+      addLog("error", "Nenhum áudio ou texto foi capturado para análise.");
       toast.error("Nenhum áudio ou texto foi capturado para análise.");
       setIsAnalyzing(false);
       return;
     }
+
+    addLog("info", "Enviando transcrição para IA (Gemini) gerar resumo e sugestões...");
 
     try {
       const res = await analyzeFn({
@@ -329,9 +395,11 @@ export function MeetingTranscriptionDialog({
 
       setAnalysisResult(res);
       setMode("results");
+      addLog("success", "Reunião analisada pela IA com sucesso!");
       toast.success("Reunião analisada pela IA com sucesso!");
       qc.invalidateQueries({ queryKey: ["demand_suggestions"] });
     } catch (err: any) {
+      addLog("error", "Erro ao analisar reunião com IA: " + err.message);
       toast.error("Erro ao analisar reunião com IA: " + err.message);
     } finally {
       setIsAnalyzing(false);
@@ -353,6 +421,47 @@ export function MeetingTranscriptionDialog({
   };
 
   const selectedClient = clients.find((c) => c.id === clientId);
+
+  const LogPanel = () => (
+    <div className="border-t border-white/10 pt-2 mt-2">
+      <button
+        type="button"
+        onClick={() => setShowLogs(!showLogs)}
+        className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-zinc-300 transition-colors cursor-pointer mb-1"
+      >
+        <Bug className="h-3 w-3" />
+        {showLogs ? "Ocultar log de diagnóstico" : `Log de diagnóstico (${logs.length})`}
+      </button>
+      {showLogs && (
+        <div className="bg-black/60 rounded-lg border border-white/10 p-2 max-h-[120px] overflow-y-auto font-mono text-[10px] leading-relaxed space-y-0.5">
+          {logs.length === 0 ? (
+            <span className="text-zinc-600 italic">Nenhum evento registrado.</span>
+          ) : (
+            logs.map((entry) => (
+              <div key={entry.id} className="flex items-start gap-1.5">
+                <span className="text-zinc-600 shrink-0 w-14">[{entry.timestamp}]</span>
+                {entry.type === "error" && <XCircle className="h-3 w-3 text-red-400 shrink-0 mt-0.5" />}
+                {entry.type === "success" && <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0 mt-0.5" />}
+                {entry.type === "progress" && <Loader2 className="h-3 w-3 text-blue-400 shrink-0 mt-0.5 animate-spin" />}
+                {entry.type === "info" && <Info className="h-3 w-3 text-zinc-400 shrink-0 mt-0.5" />}
+                <span
+                  className={cn(
+                    entry.type === "error" && "text-red-300",
+                    entry.type === "success" && "text-emerald-300",
+                    entry.type === "progress" && "text-blue-300",
+                    entry.type === "info" && "text-zinc-300",
+                  )}
+                >
+                  {entry.message}
+                </span>
+              </div>
+            ))
+          )}
+          <div ref={logsEndRef} />
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -467,10 +576,13 @@ export function MeetingTranscriptionDialog({
               </div>
             </div>
 
-            <Button type="button" disabled={isAnalyzing} onClick={handleFinishAndAnalyze} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-11 text-xs gap-2 shadow-lg shadow-red-600/20 shrink-0 cursor-pointer">
-              <Square className="h-4 w-4 fill-white" />
-              {isAnalyzing ? "Transcrevendo áudios com IA local..." : "Finalizar & Transcrever Reunião"}
-            </Button>
+            <div className="space-y-2 shrink-0">
+              <Button type="button" disabled={isAnalyzing} onClick={handleFinishAndAnalyze} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-11 text-xs gap-2 shadow-lg shadow-red-600/20 cursor-pointer">
+                <Square className="h-4 w-4 fill-white" />
+                {isAnalyzing ? "Transcrevendo áudios com IA local..." : "Finalizar & Transcrever Reunião"}
+              </Button>
+              {isAnalyzing && <LogPanel />}
+            </div>
           </div>
         )}
 
@@ -545,7 +657,13 @@ export function MeetingTranscriptionDialog({
                 )}
               </TabsContent>
             </Tabs>
+
+            <LogPanel />
           </div>
+        )}
+
+        {mode !== "recording" && mode !== "config" && logs.length > 0 && (
+          <LogPanel />
         )}
       </DialogContent>
     </Dialog>
