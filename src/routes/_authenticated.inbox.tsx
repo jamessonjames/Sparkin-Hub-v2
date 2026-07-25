@@ -38,7 +38,7 @@ import {
   ArrowRight,
   AlertTriangle,
   FileText,
-  Eye,
+  NotebookPen,
 } from "lucide-react";
 import { MeetingTranscriptionDialog } from "@/components/meeting-transcription-dialog";
 import { cn } from "@/lib/utils";
@@ -516,7 +516,6 @@ function SuggestionCard({
   onDismiss: (id: string) => void;
   isReadonly?: boolean;
 }) {
-  const [showRaw, setShowRaw] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
 
   const getSourceBadge = () => {
@@ -546,97 +545,99 @@ function SuggestionCard({
 
   const isAdjustment = suggestion.suggested_type === "AJUSTE_DEMANDA";
 
-  return (
-    <div
-      className={cn(
-        "rounded-2xl border p-4 flex flex-col justify-between space-y-3 transition-all duration-150 shadow-md",
-        isAdjustment
-          ? "bg-[#241d15] border-amber-500/30 hover:border-amber-500/50"
-          : "bg-[#1c2226] border-white/10 hover:border-white/20"
-      )}
-    >
-      <div className="space-y-2.5">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 truncate">
-            {getSourceBadge()}
-            <Badge variant="outline" className="text-[10px] truncate border-white/10 font-normal">
-              {suggestion.clients?.name || "Cliente"}
-            </Badge>
-          </div>
-          <span className="text-[10px] text-muted-foreground shrink-0">
-            {new Date(suggestion.created_at).toLocaleDateString("pt-BR", {
-              day: "2-digit",
-              month: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </span>
-        </div>
+  const notesMatch = suggestion.raw_content?.match(/\[.*?Anotações.*?\]:\s*([\s\S]*?)(?=\n\[|$)/);
+  const notes = notesMatch?.[1]?.trim();
 
-        {/* Action Type Badge */}
-        <div>
-          {isAdjustment ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-md">
-              <AlertTriangle className="h-3 w-3" />
-              Solicitação de Ajuste
+  return (
+    <>
+      <div
+        onClick={() => setDetailOpen(true)}
+        className={cn(
+          "rounded-2xl border p-4 flex flex-col justify-between space-y-3 transition-all duration-150 shadow-md cursor-pointer",
+          isAdjustment
+            ? "bg-[#241d15] border-amber-500/30 hover:border-amber-500/50 hover:bg-amber-500/[0.03]"
+            : "bg-[#1c2226] border-white/10 hover:border-white/20 hover:bg-white/[0.02]"
+        )}
+      >
+        <div className="space-y-2.5 pointer-events-none">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 truncate">
+              {getSourceBadge()}
+              <Badge variant="outline" className="text-[10px] truncate border-white/10 font-normal">
+                {suggestion.clients?.name || "Cliente"}
+              </Badge>
+            </div>
+            <span className="text-[10px] text-muted-foreground shrink-0">
+              {new Date(suggestion.created_at).toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
             </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md">
-              <Sparkles className="h-3 w-3" />
-              Nova Demanda
-            </span>
+          </div>
+
+          <div>
+            {isAdjustment ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-md">
+                <AlertTriangle className="h-3 w-3" />
+                Solicitação de Ajuste
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md">
+                <Sparkles className="h-3 w-3" />
+                Nova Demanda
+              </span>
+            )}
+          </div>
+
+          <h3 className="font-bold text-sm text-foreground line-clamp-2 leading-snug">
+            {suggestion.suggested_title}
+          </h3>
+
+          {suggestion.suggested_description && (
+            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+              {suggestion.suggested_description}
+            </p>
           )}
         </div>
 
-        {/* Title */}
-        <h3 className="font-bold text-sm text-foreground line-clamp-2 leading-snug">
-          {suggestion.suggested_title}
-        </h3>
+        <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-2 mt-auto pointer-events-auto">
+          {!isReadonly && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); onDismiss(suggestion.id); }}
+                className="text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 px-2.5"
+              >
+                <XCircle className="h-3.5 w-3.5 mr-1" />
+                Descartar
+              </Button>
 
-        {/* AI Summary */}
-        {(suggestion.ai_summary || suggestion.suggested_description) && (
-          <div className="p-2.5 rounded-xl bg-black/20 border border-white/5 text-xs text-muted-foreground space-y-1 leading-relaxed">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/75 flex items-center gap-1">
-              <Sparkles className="h-3 w-3 text-primary" /> Resumo da IA
-            </p>
-            <p className="line-clamp-4">{suggestion.ai_summary || suggestion.suggested_description}</p>
-          </div>
-        )}
-
-        {/* Raw Content Collapsible */}
-        {suggestion.raw_content && (
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowRaw(!showRaw)}
-              className="text-[11px] text-primary/80 hover:text-primary flex items-center gap-1 font-medium transition-colors"
-            >
-              <FileText className="h-3 w-3" />
-              {showRaw ? "Ocultar conversa original" : "Ver conversa original"}
-            </button>
-            {showRaw && (
-              <div className="mt-1.5 p-2 rounded-lg bg-black/40 text-[11px] font-mono text-zinc-300 max-h-32 overflow-y-auto whitespace-pre-wrap scrollbar-thin">
-                {suggestion.raw_content}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Ver Detalhes */}
-        <div>
-          <button
-            type="button"
-            onClick={() => setDetailOpen(true)}
-            className="text-[11px] text-primary/80 hover:text-primary flex items-center gap-1 font-medium transition-colors"
-          >
-            <Eye className="h-3 w-3" />
-            Ver detalhes completos
-          </button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); onApprove(suggestion); }}
+                className={cn(
+                  "text-xs font-semibold h-8 px-3 gap-1.5 shadow-sm",
+                  isAdjustment
+                    ? "bg-amber-600 hover:bg-amber-700 text-white"
+                    : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                )}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {isAdjustment ? "Mover p/ Ajustes" : "Criar Demanda"}
+              </Button>
+            </>
+          )}
+          {isReadonly && (
+            <span className="text-[10px] text-muted-foreground italic mx-auto">Clique para ver detalhes</span>
+          )}
         </div>
       </div>
 
-      {/* Detail Modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="sm:max-w-3xl max-h-[85vh] bg-[#18181b] border-white/10 text-foreground overflow-hidden flex flex-col">
           <DialogHeader className="shrink-0 pb-2 border-b border-white/10">
@@ -646,7 +647,7 @@ function SuggestionCard({
             </DialogTitle>
           </DialogHeader>
           <Tabs defaultValue="transcript" className="flex-1 flex flex-col min-h-0 mt-2">
-            <TabsList className="grid grid-cols-3 bg-zinc-900 border border-white/10 shrink-0">
+            <TabsList className="grid grid-cols-4 bg-zinc-900 border border-white/10 shrink-0">
               <TabsTrigger value="transcript" className="text-xs gap-1.5 cursor-pointer">
                 <FileText className="h-3.5 w-3.5" /> Transcrição
               </TabsTrigger>
@@ -654,7 +655,10 @@ function SuggestionCard({
                 <Sparkles className="h-3.5 w-3.5" /> Resumo
               </TabsTrigger>
               <TabsTrigger value="suggestion" className="text-xs gap-1.5 cursor-pointer">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Sugestão
+                <CheckCircle2 className="h-3.5 w-3.5" /> Sugestões
+              </TabsTrigger>
+              <TabsTrigger value="notes" className="text-xs gap-1.5 cursor-pointer">
+                <NotebookPen className="h-3.5 w-3.5" /> Anotações
               </TabsTrigger>
             </TabsList>
             <TabsContent value="transcript" className="flex-1 min-h-0 mt-3 overflow-y-auto">
@@ -713,48 +717,39 @@ function SuggestionCard({
                     </div>
                     {suggestion.suggested_description && (
                       <div className="pt-2 border-t border-white/10">
-                        <span className="font-bold text-zinc-400 block mb-1">Descrição:</span>
-                        <p className="text-zinc-300 leading-relaxed">{suggestion.suggested_description}</p>
+                        <span className="font-bold text-zinc-400 block mb-1">Descrição / Briefing:</span>
+                        <div className="text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                          {suggestion.suggested_description}
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
             </TabsContent>
+            <TabsContent value="notes" className="flex-1 min-h-0 mt-3 overflow-y-auto">
+              <div className="p-4 rounded-xl bg-zinc-900 border border-white/10 space-y-3">
+                <h4 className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <NotebookPen className="h-4 w-4" /> Anotações da Reunião
+                </h4>
+                {notes ? (
+                  <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">{notes}</p>
+                ) : (
+                  <>
+                    {suggestion.raw_content ? (
+                      <div className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                        {suggestion.raw_content}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">Nenhuma anotação disponível.</p>
+                    )}
+                  </>
+                )}
+              </div>
+            </TabsContent>
           </Tabs>
         </DialogContent>
       </Dialog>
-
-      {/* Footer Actions */}
-      {!isReadonly && (
-        <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-2 mt-auto">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onDismiss(suggestion.id)}
-            className="text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 px-2.5"
-          >
-            <XCircle className="h-3.5 w-3.5 mr-1" />
-            Descartar
-          </Button>
-
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => onApprove(suggestion)}
-            className={cn(
-              "text-xs font-semibold h-8 px-3 gap-1.5 shadow-sm",
-              isAdjustment
-                ? "bg-amber-600 hover:bg-amber-700 text-white"
-                : "bg-emerald-600 hover:bg-emerald-700 text-white"
-            )}
-          >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            {isAdjustment ? "Mover p/ Ajustes" : "Criar Demanda"}
-          </Button>
-        </div>
-      )}
-    </div>
+    </>
   );
 }
