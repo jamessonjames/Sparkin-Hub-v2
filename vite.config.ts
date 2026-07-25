@@ -13,6 +13,9 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    optimizeDeps: {
+      exclude: ["@xenova/transformers"],
+    },
     server: {
       port: 8080,
       host: true,
