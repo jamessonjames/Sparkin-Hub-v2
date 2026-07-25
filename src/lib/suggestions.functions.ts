@@ -372,7 +372,7 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos m
           });
         }
 
-        const candidateModels = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash-lite-preview-02-05", "gemini-1.5-flash-8b"];
+        const candidateModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite"];
         let res: Response | null = null;
         let lastError = "";
 
@@ -415,10 +415,10 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos m
                 aiDiarizedTranscript = parsed.diarized_transcript;
               }
             } catch {
-              lastError = "Resposta da IA não está no formato JSON esperado";
+              throw new Error(`Resposta da IA não está no formato JSON esperado. Texto: ${rawText.substring(0, 200)}`);
             }
           } else {
-            lastError = `Resposta da IA não contém JSON: ${rawText.substring(0, 200)}`;
+            throw new Error(`Resposta da IA não contém JSON. Texto: ${rawText.substring(0, 200)}`);
           }
         } else if (lastError) {
           throw new Error(lastError);
