@@ -25,7 +25,13 @@ import {
 } from "lucide-react";
 import { useUserContext } from "@/contexts/user-context";
 import { cn } from "@/lib/utils";
-import { transcribeAudio } from "@/lib/local-whisper";
+
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+  }
+}
 
 export function MeetingTranscriptionDialog({
   open,
@@ -73,6 +79,9 @@ export function MeetingTranscriptionDialog({
   const analyserMicRef = useRef<AnalyserNode | null>(null);
   const analyserTabRef = useRef<AnalyserNode | null>(null);
 
+  // SpeechRecognition (live transcription)
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
   // Results State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<{
@@ -98,6 +107,10 @@ export function MeetingTranscriptionDialog({
       setManualNotes("");
       audioChunksRef.current = [];
     } else {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch {}
+        recognitionRef.current = null;
+      }
       stopRecording();
     }
   }, [open, defaultClientId]);
@@ -260,10 +273,49 @@ export function MeetingTranscriptionDialog({
       console.warn("[Sparkin Hub] Erro ao iniciar MediaRecorder:", err);
     }
 
+    // Start SpeechRecognition for live transcription
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognitionAPI) {
+      try {
+        const recognition = new SpeechRecognitionAPI();
+        recognition.lang = "pt-BR";
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+          let interim = "";
+          let final = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const text = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              final += text + " ";
+            } else {
+              interim += text;
+            }
+          }
+          setFullLiveText((prev) => {
+            const base = final ? prev + final : prev;
+            return interim ? base + " _(" + interim + ")_" : base;
+          });
+        };
+        recognition.onerror = (event) => {
+          console.warn("[Sparkin Hub] SpeechRecognition error:", event.error);
+        };
+        recognition.start();
+        recognitionRef.current = recognition;
+      } catch (err) {
+        console.warn("[Sparkin Hub] Erro ao iniciar SpeechRecognition:", err);
+      }
+    }
+
     toast.success("Gravação iniciada! Áudio sendo capturado.");
   };
 
   const stopRecordingAndGetAudioBlob = (): Promise<Blob | null> => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
+      recognitionRef.current = null;
+    }
     return new Promise((resolve) => {
       isRecordingRef.current = false;
       cancelAnimationFrame(animFrameRef.current);
@@ -312,37 +364,23 @@ export function MeetingTranscriptionDialog({
     stopRecordingAndGetAudioBlob();
   };
 
-  // Process Recording / Text: transcribe audio locally via Whisper, then send text to Gemini
   const handleFinishAndAnalyze = async () => {
     setIsAnalyzing(true);
-    const audioBlob = await stopRecordingAndGetAudioBlob();
+    await stopRecordingAndGetAudioBlob();
 
     let combinedTranscriptText = "";
     if (fullLiveText.trim()) {
-      combinedTranscriptText += `TRANSCRIÇÃO EM TEMPO REAL:\n${fullLiveText.trim()}\n\n`;
+      combinedTranscriptText += fullLiveText.trim() + "\n\n";
     }
     if (manualNotes.trim()) {
-      combinedTranscriptText += `MINHAS ANOTAÇÕES EM TEMPO REAL:\n${manualNotes.trim()}\n\n`;
+      combinedTranscriptText += manualNotes.trim();
     }
     if (pastedText.trim() && !combinedTranscriptText) {
       combinedTranscriptText = pastedText.trim();
     }
 
-    // Transcribe audio locally using Whisper (Transformers.js) — no API call
-    if (audioBlob && audioBlob.size > 1000) {
-      try {
-        const whisperText = await transcribeAudio(audioBlob, (msg) => toast.info(msg));
-        if (whisperText.trim()) {
-          combinedTranscriptText += `TRANSCRIÇÃO DO ÁUDIO:\n${whisperText.trim()}\n\n`;
-        }
-      } catch (err: any) {
-        console.warn("[Sparkin Hub] Erro na transcrição local:", err);
-        toast.error("Falha na transcrição local: " + err.message);
-      }
-    }
-
     if (!combinedTranscriptText.trim()) {
-      toast.error("Nenhum áudio ou texto foi capturado para transcrição.");
+      toast.error("Nenhum texto foi capturado para análise.");
       setIsAnalyzing(false);
       return;
     }
@@ -498,7 +536,7 @@ export function MeetingTranscriptionDialog({
           </div>
         )}
 
-        {/* STATE 2: GRAVAÇÃO EM ANDAMENTO + WAVEFORMS + ANOTAÇÕES */}
+        {/* STATE 2: GRAVAÇÃO EM ANDAMENTO + WAVEFORMS + TRANSCRIÇÃO AO VIVO + ANOTAÇÕES */}
         {mode === "recording" && (
           <div className="space-y-4 py-3 flex-1 flex flex-col min-h-0">
             <div className="flex items-center justify-between p-3 rounded-xl bg-red-500/10 border border-red-500/20">
@@ -513,8 +551,8 @@ export function MeetingTranscriptionDialog({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0">
-              {/* Lado Esquerdo: Waveforms dos canais de áudio */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 min-h-0">
+              {/* Coluna 1: Waveforms */}
               <div className="flex flex-col min-h-0 space-y-3">
                 <div className="rounded-xl bg-black/40 border border-white/10 p-3 space-y-2">
                   <Label className="text-xs font-semibold text-purple-300 flex items-center gap-1.5">
@@ -545,7 +583,20 @@ export function MeetingTranscriptionDialog({
                 </div>
               </div>
 
-              {/* Lado Direito: Anotações Manuais do Usuário em Tempo Real */}
+              {/* Coluna 2: Transcrição ao Vivo */}
+              <div className="flex flex-col min-h-0 space-y-1.5">
+                <Label className="text-xs font-semibold text-purple-300 flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5" /> Transcrição ao Vivo
+                </Label>
+                <Textarea
+                  readOnly
+                  value={fullLiveText}
+                  placeholder="Fale ao microfone — a transcrição aparecerá aqui em tempo real..."
+                  className="flex-1 min-h-[250px] bg-black/40 border-white/10 text-xs text-zinc-200 resize-none leading-relaxed p-3"
+                />
+              </div>
+
+              {/* Coluna 3: Anotações Manuais */}
               <div className="flex flex-col min-h-0 space-y-1.5">
                 <Label className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
                   <NotebookPen className="h-3.5 w-3.5" /> Minhas Anotações
@@ -553,8 +604,8 @@ export function MeetingTranscriptionDialog({
                 <Textarea
                   value={manualNotes}
                   onChange={(e) => setManualNotes(e.target.value)}
-                  placeholder="Escreva aqui suas observações durante a reunião (ex: Cliente quer prioridade no banner)..."
-                  className="flex-1 min-h-[180px] bg-black/40 border-white/10 text-xs text-zinc-200 resize-none leading-relaxed p-3"
+                  placeholder="Escreva aqui suas observações durante a reunião..."
+                  className="flex-1 min-h-[250px] bg-black/40 border-white/10 text-xs text-zinc-200 resize-none leading-relaxed p-3"
                 />
               </div>
             </div>
@@ -566,7 +617,7 @@ export function MeetingTranscriptionDialog({
               className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-11 text-xs gap-2 shadow-lg shadow-red-600/20 shrink-0 cursor-pointer"
             >
               <Square className="h-4 w-4 fill-white" />
-              {isAnalyzing ? "Transcrevendo áudio & Analisando..." : "Finalizar Gravação & Analisar Reunião"}
+              {isAnalyzing ? "Analisando com IA..." : "Finalizar & Analisar Reunião"}
             </Button>
           </div>
         )}
