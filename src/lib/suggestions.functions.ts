@@ -327,47 +327,80 @@ export const analyzeMeetingTranscript = createServerFn({ method: "POST" })
       const rawApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "";
       const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
       if (apiKey) {
-        const promptText = `Você é um gestor de projetos sênior em uma agência de marketing e tecnologia.
-Você está analisando a transcrição de uma reunião entre a agência [${userName} (Eu)] e o cliente [${clientName} (Cliente)].
+        const promptText = `Você é um analista de projetos sênior em uma agência de marketing e tecnologia. Sua função é extrair o máximo de valor de reuniões com clientes.
 
-A transcrição completa da reunião (incluindo anotações manuais) está abaixo.
-Com base nela, gere:
+Reunião entre: [${userName} (Eu/Agência)] e [${clientName} (Cliente)]
+Título da reunião: ${title || "Não informado"}
 
-1. "summary": lista de 2-4 bullets com os principais pontos, decisões e alinhamentos discutidos.
-2. "suggestions": uma ou mais sugestões de demandas (ou ajustes em demandas existentes) que devem ser criadas no sistema com base no que foi discutido.
-3. "diarized_transcript": a transcrição formatada com identificação de interlocutores.
-
-LISTA DE DEMANDAS JÁ EXISTENTES DO CLIENTE NO SISTEMA:
+DEMANDAS EXISTENTES DO CLIENTE (para referência):
 ${JSON.stringify(demandsContext, null, 2)}
 
-TRANSCRIÇÃO DA REUNIÃO:
-"${transcript}"
+TRANSCRIÇÃO COMPLETA DA REUNIÃO:
+${transcript}
 
-Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos markdown:
+Com base na transcrição acima, gere uma análise completa no formato JSON abaixo.
+
+REGRAS IMPORTANTES:
+- Seja detalhista e específico. Extraia o máximo de informação possível da reunião.
+- Se a transcrição for curta ou vaga, ainda assim extraia o que for possível.
+- As sugestões devem ser acionáveis e específicas, não genéricas.
+
+---
+
+1. "summary": Um ARRAY de strings, cada string sendo um tópico ESTRUTURADO. Para cada tópico importante discutido na reunião, crie UM item no array contendo:
+   - O assunto discutido
+   - O que foi decidido ou alinhado
+   - Próximos passos e quem é responsável
+
+   Exemplo de formato para cada item:
+   "🔹 **Redesign do Site** — Foi decidido focar no redesign da seção de portfólio. Próximo passo: [${userName}] enviar 3 propostas de layout até sexta. [${clientName}] vai levantar referências visuais."
+
+   IMPORTANTE: O PRIMEIRO item do array DEVE ser uma seção "📋 **PRÓXIMAS AÇÕES (Eu)**" listando todas as tarefas que VOCÊ (${userName}) precisa executar após a reunião, em formato de checklist.
+
+2. "suggestions": Array de objetos. Cada sugestão representa uma demanda NOVA ou AJUSTE em demanda existente que deve ser criada no sistema com base NA REUNIÃO. Seja criterioso: só crie sugestões quando houver conteúdo suficiente na reunião para justificar.
+
+   Para cada sugestão, forneça:
+   - suggested_type: "NOVA_DEMANDA" se for algo novo, "AJUSTE_DEMANDA" se for alteração em demanda existente
+   - target_demand_id: ID da demanda existente se for ajuste, ou null
+   - suggested_title: Título claro e profissional da demanda
+   - suggested_description: BRIEFING COMPLETO E ESTRUTURADO contendo:
+       * Contexto (o que foi discutido na reunião que gerou essa demanda)
+       * Escopo (o que precisa ser feito, detalhado)
+       * Requisitos (entregáveis esperados, prazos mencionados, etc.)
+       * Observações (qualquer detalhe relevante da conversa)
+   - estimated_hours: estimativa realista de horas (não coloque 2h sempre — analise a complexidade do que foi falado)
+
+3. "diarized_transcript": A transcrição refeita com formatação limpa, identificando claramente quem falou o quê. Use os marcadores [${userName}]: e [${clientName}]:. Mantenha todo o conteúdo original, apenas reestruture para leitura clara.
+
+Retorne APENAS o JSON abaixo, sem blocos markdown, sem texto extra:
 {
-  "diarized_transcript": "[${userName} (Eu)]: Texto...\n[${clientName} (Cliente)]: Texto...",
-  "summary": ["Ponto principal 1", "Ponto principal 2"],
+  "diarized_transcript": "...",
+  "summary": [
+    "📋 **PRÓXIMAS AÇÕES (Eu)**: ...",
+    "🔹 **...**: ...",
+    "🔹 **...**: ..."
+  ],
   "suggestions": [
     {
-      "suggested_type": "NOVA_DEMANDA" ou "AJUSTE_DEMANDA",
-      "target_demand_id": "id-da-demanda-existente-ou-null",
-      "suggested_title": "Título claro da demanda",
-      "suggested_description": "Explicação detalhada do pedido do cliente",
-      "estimated_hours": 2.0
+      "suggested_type": "NOVA_DEMANDA",
+      "target_demand_id": null,
+      "suggested_title": "Título da demanda",
+      "suggested_description": "**Contexto:** ...\n**Escopo:** ...\n**Requisitos:** ...\n**Observações:** ...",
+      "estimated_hours": 4.0
     }
   ]
 }`;
 
         const parts = [{ text: promptText }];
 
-        const candidateModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite"];
+        const candidateModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash-preview-04-17", "gemini-2.0-flash-lite"];
         let res: Response | null = null;
         const errors: string[] = [];
 
         for (const model of candidateModels) {
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
             const tryRes = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
               {
@@ -428,14 +461,12 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos m
 
     // Heuristic fallback if AI key unavailable or error
     if (aiSummary.length === 0) {
-      aiSummary = [
-        "Reunião de alinhamento registrada pelo sistema.",
-        `Total de caracteres transcritos: ${transcript.length}`,
-      ];
+      aiSummary = transcript
+        ? ["📋 **PRÓXIMAS AÇÕES**: Reunião registrada no sistema — reveja a transcrição completa para extrair as ações manualmente."]
+        : ["Nenhum conteúdo de reunião foi capturado para análise."];
     }
 
-    if (aiSuggestions.length === 0) {
-      // Check if transcript mentions "ajustar", "alterar", "mudar" vs new tasks
+    if (aiSuggestions.length === 0 && transcript.trim()) {
       const isAdjustment = /ajustar|alterar|mudar|corrigir|refazer/i.test(transcript);
       const matchedDemand = demandsContext.find((d) =>
         transcript.toLowerCase().includes(d.title.toLowerCase())
@@ -446,8 +477,8 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos m
         target_demand_id: matchedDemand ? matchedDemand.id : null,
         suggested_title: matchedDemand
           ? `Ajuste solicitado em: ${matchedDemand.title}`
-          : title || "Nova demanda alinhada em reunião",
-        suggested_description: transcript,
+          : title || "Demanda da reunião",
+        suggested_description: `**Contexto:** Reunião registrada no sistema.\n**Escopo:** Reveja a transcrição completa para detalhar o escopo.\n**Observações:** ${transcript.substring(0, 500)}`,
         estimated_hours: 2.0,
       });
     }
