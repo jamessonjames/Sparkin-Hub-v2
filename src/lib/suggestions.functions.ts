@@ -372,8 +372,9 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos m
           });
         }
 
-        const candidateModels = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-8b"];
+        const candidateModels = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash-lite-preview-02-05", "gemini-1.5-flash-8b"];
         let res: Response | null = null;
+        let lastError = "";
 
         for (const model of candidateModels) {
           try {
@@ -388,17 +389,16 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos m
 
             if (tryRes.ok) {
               res = tryRes;
-              console.log(`[analyzeMeetingTranscript] Sucesso com modelo Gemini: ${model}`);
               break;
             } else if (tryRes.status === 429) {
-              console.warn(`[analyzeMeetingTranscript] Modelo ${model} atingiu 429. Tentando próximo modelo...`);
+              lastError = `Modelo ${model} atingiu limite de requisições (429)`;
               await new Promise((r) => setTimeout(r, 1500));
             } else {
               const errText = await tryRes.text();
-              console.warn(`[analyzeMeetingTranscript] Modelo ${model} retornou ${tryRes.status}:`, errText);
+              lastError = `Modelo ${model} erro ${tryRes.status}: ${errText}`;
             }
-          } catch (e) {
-            console.warn(`[analyzeMeetingTranscript] Falha ao tentar modelo ${model}:`, e);
+          } catch (e: any) {
+            lastError = `Falha ao tentar modelo ${model}: ${e.message}`;
           }
         }
 
@@ -407,17 +407,30 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos m
           const rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "";
           const jsonMatch = rawText.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            aiSummary = parsed.summary || [];
-            aiSuggestions = parsed.suggestions || [];
-            if (parsed.diarized_transcript) {
-              aiDiarizedTranscript = parsed.diarized_transcript;
+            try {
+              const parsed = JSON.parse(jsonMatch[0]);
+              aiSummary = parsed.summary || [];
+              aiSuggestions = parsed.suggestions || [];
+              if (parsed.diarized_transcript) {
+                aiDiarizedTranscript = parsed.diarized_transcript;
+              }
+            } catch {
+              lastError = "Resposta da IA não está no formato JSON esperado";
             }
+          } else {
+            lastError = `Resposta da IA não contém JSON: ${rawText.substring(0, 200)}`;
           }
+        } else if (lastError) {
+          throw new Error(lastError);
+        } else {
+          throw new Error("Nenhum modelo Gemini respondeu com sucesso");
         }
+      } else {
+        throw new Error("GEMINI_API_KEY não configurada no servidor");
       }
-    } catch (err) {
-      console.error("[analyzeMeetingTranscript] Error:", err);
+    } catch (err: any) {
+      console.error("[analyzeMeetingTranscript] Error:", err.message);
+      throw err;
     }
 
     // Heuristic fallback if AI key unavailable or error

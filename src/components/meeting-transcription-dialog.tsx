@@ -91,7 +91,6 @@ export function MeetingTranscriptionDialog({
       setClientId(defaultClientId || "");
       setMode("config");
       setFullLiveText("");
-      accumulatedTextRef.current = "";
       setSeconds(0);
       setAnalysisResult(null);
       setPastedText("");
