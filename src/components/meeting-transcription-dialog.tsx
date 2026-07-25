@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useUserContext } from "@/contexts/user-context";
 import { cn } from "@/lib/utils";
+import { transcribeAudio } from "@/lib/local-whisper";
 
 declare global {
   interface Window {
@@ -366,14 +367,28 @@ export function MeetingTranscriptionDialog({
 
   const handleFinishAndAnalyze = async () => {
     setIsAnalyzing(true);
-    await stopRecordingAndGetAudioBlob();
+    const audioBlob = await stopRecordingAndGetAudioBlob();
 
     let combinedTranscriptText = "";
     if (fullLiveText.trim()) {
-      combinedTranscriptText += fullLiveText.trim() + "\n\n";
+      combinedTranscriptText += `TRANSCRIÇÃO AO VIVO:\n${fullLiveText.trim()}\n\n`;
     }
+
+    // Transcribe full audio (mic + tab) locally via Whisper
+    if (audioBlob && audioBlob.size > 1000) {
+      try {
+        const whisperText = await transcribeAudio(audioBlob, (msg) => toast.info(msg));
+        if (whisperText.trim()) {
+          combinedTranscriptText += `TRANSCRIÇÃO COMPLETA DO ÁUDIO:\n${whisperText.trim()}\n\n`;
+        }
+      } catch (err: any) {
+        console.warn("[Sparkin Hub] Erro na transcrição Whisper:", err);
+        toast.error("Falha na transcrição do áudio: " + err.message);
+      }
+    }
+
     if (manualNotes.trim()) {
-      combinedTranscriptText += manualNotes.trim();
+      combinedTranscriptText += `ANOTAÇÕES:\n${manualNotes.trim()}`;
     }
     if (pastedText.trim() && !combinedTranscriptText) {
       combinedTranscriptText = pastedText.trim();
