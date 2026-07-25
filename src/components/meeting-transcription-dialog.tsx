@@ -63,9 +63,15 @@ export function MeetingTranscriptionDialog({
   const timerRef = useRef<any>(null);
   const displayStreamRef = useRef<MediaStream | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const isRecordingRef = useRef<boolean>(false);
+
+  // Tab-only MediaRecorder (client audio from browser tab)
+  const tabRecorderRef = useRef<MediaRecorder | null>(null);
+  const tabChunksRef = useRef<Blob[]>([]);
+
+  // SpeechRecognition for mic (Eu)
+  const recognitionRef = useRef<any>(null);
+  const [liveMicText, setLiveMicText] = useState("");
 
   // Audio visualizer refs
   const micCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -96,11 +102,12 @@ export function MeetingTranscriptionDialog({
       setClientId(defaultClientId || "");
       setMode("config");
       setFullLiveText("");
+      setLiveMicText("");
       setSeconds(0);
       setAnalysisResult(null);
       setPastedText("");
       setManualNotes("");
-      audioChunksRef.current = [];
+      tabChunksRef.current = [];
     } else {
       stopRecording();
     }
@@ -154,7 +161,6 @@ export function MeetingTranscriptionDialog({
     draw();
   };
 
-  // Start Dual Recording (Mic + Google Meet / Zoom Tab Audio) with AudioContext Mixing
   const startRecording = async () => {
     if (!clientId) {
       toast.error("Por favor, selecione o cliente antes de iniciar a gravação.");
@@ -164,14 +170,15 @@ export function MeetingTranscriptionDialog({
     setMode("recording");
     isRecordingRef.current = true;
     setFullLiveText("");
+    setLiveMicText("");
 
     let displayStream: MediaStream | null = null;
     let micStream: MediaStream | null = null;
 
-    // Step 1: Capture Tab Audio (Google Meet / Zoom / YouTube)
+    // Step 1: Capture Tab Audio
     if (captureTabAudio && navigator.mediaDevices?.getDisplayMedia) {
       try {
-        toast.info("👉 No seletor do Chrome, selecione 'Guia do Chrome' e marque 'Compartilhar áudio da guia'.", { duration: 6000 });
+        toast.info("👉 Selecione a aba da reunião e marque 'Compartilhar áudio da guia'.", { duration: 6000 });
         displayStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true,
@@ -179,7 +186,7 @@ export function MeetingTranscriptionDialog({
         displayStreamRef.current = displayStream;
 
         if (displayStream.getAudioTracks().length === 0) {
-          toast.error("Atenção: Áudio da aba não capturado! Selecione 'Guia do Chrome' e marque 'Compartilhar áudio da guia'.", { duration: 10000 });
+          toast.error("Atenção: marque 'Compartilhar áudio da guia' para capturar o áudio do cliente.", { duration: 10000 });
         }
 
         if (displayStream.getVideoTracks().length > 0) {
@@ -201,20 +208,15 @@ export function MeetingTranscriptionDialog({
       return;
     }
 
-    // Step 3: Mix Microphone and Tab Audio via Web Audio API into a Combined Stream
+    // Step 3: Create AudioContext for waveform visualizers (no combined recording needed)
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     audioCtxRef.current = audioCtx;
     if (audioCtx.state === "suspended") {
-      try {
-        await audioCtx.resume();
-      } catch (e) {
-        console.warn("[Sparkin Hub] Erro ao retomar AudioContext:", e);
-      }
+      try { await audioCtx.resume(); } catch (e) { console.warn("[Sparkin Hub] Erro ao retomar AudioContext:", e); }
     }
 
     const destNode = audioCtx.createMediaStreamDestination();
 
-    // Attach mic stream with analyser
     if (micStream && micStream.getAudioTracks().length > 0) {
       const micSource = audioCtx.createMediaStreamSource(micStream);
       const micAnalyser = audioCtx.createAnalyser();
@@ -225,7 +227,6 @@ export function MeetingTranscriptionDialog({
       if (micCanvasRef.current) drawWaveform(micCanvasRef.current, micAnalyser, "#a78bfa");
     }
 
-    // Attach display audio stream with analyser
     const displayAudioTracks = displayStream ? displayStream.getAudioTracks() : [];
     if (displayAudioTracks.length > 0) {
       const displayAudioStream = new MediaStream([displayAudioTracks[0]]);
@@ -238,112 +239,142 @@ export function MeetingTranscriptionDialog({
       if (tabCanvasRef.current) drawWaveform(tabCanvasRef.current, tabAnalyser, "#34d399");
     }
 
-    const combinedAudioStream = destNode.stream;
-
-    // Step 4: Attach MediaRecorder to capture combined audio into a webm blob
-    let recorderMimeType = "audio/webm";
+    // Step 4: MediaRecorder for TAB audio only (client's voice)
+    let mimeType = "audio/webm";
     if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
-      recorderMimeType = "audio/webm;codecs=opus";
+      mimeType = "audio/webm;codecs=opus";
     } else if (MediaRecorder.isTypeSupported("audio/webm")) {
-      recorderMimeType = "audio/webm";
+      mimeType = "audio/webm";
     } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
-      recorderMimeType = "audio/mp4";
+      mimeType = "audio/mp4";
+    }
+    if (displayAudioTracks.length > 0) {
+      const tabOnlyStream = new MediaStream([displayAudioTracks[0]]);
+      try {
+        tabChunksRef.current = [];
+        const tabRecorder = new MediaRecorder(tabOnlyStream, { mimeType });
+        tabRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) tabChunksRef.current.push(e.data);
+        };
+        tabRecorder.start(1000);
+        tabRecorderRef.current = tabRecorder;
+      } catch (err) {
+        console.warn("[Sparkin Hub] Erro ao iniciar MediaRecorder da aba:", err);
+      }
     }
 
-    try {
-      audioChunksRef.current = [];
-      const mediaRecorder = new MediaRecorder(combinedAudioStream, { mimeType: recorderMimeType });
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-      mediaRecorder.start(1000);
-      mediaRecorderRef.current = mediaRecorder;
-    } catch (err) {
-      console.warn("[Sparkin Hub] Erro ao iniciar MediaRecorder:", err);
+    // Step 5: SpeechRecognition for MIC (Eu)
+    const SR = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SR) {
+      try {
+        const rec = new SR();
+        rec.lang = "pt-BR";
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.onresult = (ev: any) => {
+          for (let i = ev.resultIndex; i < ev.results.length; i++) {
+            if (ev.results[i].isFinal) {
+              setLiveMicText((prev) => prev + ev.results[i][0].transcript + " ");
+            }
+          }
+        };
+        rec.onerror = () => {};
+        rec.start();
+        recognitionRef.current = rec;
+      } catch (err) {
+        console.warn("[Sparkin Hub] Erro ao iniciar SpeechRecognition:", err);
+      }
     }
 
-    toast.success("Gravação iniciada! Áudio sendo capturado.");
+    toast.success("Gravação iniciada! Microfone + Áudio da aba sendo capturados.");
   };
 
-  const stopRecordingAndGetAudioBlob = (): Promise<Blob | null> => {
+  const stopRecordingGetTabBlob = (): Promise<Blob | null> => {
     return new Promise((resolve) => {
       isRecordingRef.current = false;
       cancelAnimationFrame(animFrameRef.current);
 
-      if (audioCtxRef.current) {
-        audioCtxRef.current.close().catch(() => {});
-        audioCtxRef.current = null;
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch {}
+        recognitionRef.current = null;
       }
 
-      if (displayStreamRef.current) {
-        displayStreamRef.current.getTracks().forEach((t) => t.stop());
-        displayStreamRef.current = null;
-      }
-      if (micStreamRef.current) {
-        micStreamRef.current.getTracks().forEach((t) => t.stop());
-        micStreamRef.current = null;
-      }
-
-      const recorder = mediaRecorderRef.current;
-      if (recorder && recorder.state !== "inactive") {
-        recorder.onstop = () => {
-          if (audioChunksRef.current.length > 0) {
-            const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
-            resolve(blob);
+      const tabRecorder = tabRecorderRef.current;
+      if (tabRecorder && tabRecorder.state !== "inactive") {
+        tabRecorder.onstop = () => {
+          if (tabChunksRef.current.length > 0) {
+            resolve(new Blob(tabChunksRef.current, { type: tabRecorder.mimeType || "audio/webm" }));
           } else {
             resolve(null);
           }
         };
-        try {
-          recorder.requestData();
-          recorder.stop();
-        } catch {
-          resolve(null);
-        }
+        try { tabRecorder.requestData(); tabRecorder.stop(); } catch { resolve(null); }
       } else {
-        if (audioChunksRef.current.length > 0) {
-          resolve(new Blob(audioChunksRef.current, { type: "audio/webm" }));
-        } else {
-          resolve(null);
-        }
+        resolve(tabChunksRef.current.length > 0 ? new Blob(tabChunksRef.current, { type: "audio/webm" }) : null);
       }
     });
   };
 
   const stopRecording = () => {
-    stopRecordingAndGetAudioBlob();
+    isRecordingRef.current = false;
+    cancelAnimationFrame(animFrameRef.current);
+    if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch {} recognitionRef.current = null; }
+    if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null; }
+    if (displayStreamRef.current) { displayStreamRef.current.getTracks().forEach((t) => t.stop()); displayStreamRef.current = null; }
+    if (micStreamRef.current) { micStreamRef.current.getTracks().forEach((t) => t.stop()); micStreamRef.current = null; }
   };
 
   const handleFinishAndAnalyze = async () => {
     setIsAnalyzing(true);
-    const audioBlob = await stopRecordingAndGetAudioBlob();
 
-    let combinedTranscriptText = "";
-    if (fullLiveText.trim()) {
-      combinedTranscriptText += `TRANSCRIÇÃO AO VIVO:\n${fullLiveText.trim()}\n\n`;
+    // Stop SpeechRecognition and get mic text
+    const micText = liveMicText.trim();
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
+      recognitionRef.current = null;
     }
 
-    // Transcribe full audio (mic + tab) locally via Whisper
-    if (audioBlob && audioBlob.size > 1000) {
+    // Stop tab recorder and get tab audio blob
+    const tabBlob = await stopRecordingGetTabBlob();
+
+    // Clean up streams
+    cancelAnimationFrame(animFrameRef.current);
+    if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null; }
+    if (displayStreamRef.current) { displayStreamRef.current.getTracks().forEach((t) => t.stop()); displayStreamRef.current = null; }
+    if (micStreamRef.current) { micStreamRef.current.getTracks().forEach((t) => t.stop()); micStreamRef.current = null; }
+
+    let transcriptParts: string[] = [];
+
+    // [Eu]: text from SpeechRecognition (mic)
+    if (micText) {
+      transcriptParts.push(`[${userDisplayName} (Eu)]: ${micText}`);
+    }
+
+    // [Cliente]: text from Whisper (tab audio)
+    let clientText = "";
+    if (tabBlob && tabBlob.size > 1000) {
       try {
-        const whisperText = await transcribeAudio(audioBlob, (msg) => toast.info(msg));
-        if (whisperText.trim()) {
-          combinedTranscriptText += `TRANSCRIÇÃO COMPLETA DO ÁUDIO:\n${whisperText.trim()}\n\n`;
-        }
+        clientText = await transcribeAudio(tabBlob, (msg) => toast.info(msg));
       } catch (err: any) {
-        console.warn("[Sparkin Hub] Erro na transcrição Whisper:", err);
-        toast.error("Falha na transcrição do áudio: " + err.message);
+        console.warn("[Sparkin Hub] Erro na transcrição Whisper da aba:", err);
+        toast.error("Falha na transcrição do áudio da aba: " + err.message);
       }
     }
+    if (clientText.trim()) {
+      transcriptParts.push(`[${selectedClient?.name || "Cliente"} (Cliente)]: ${clientText.trim()}`);
+    }
 
+    // Manual notes appended
     if (manualNotes.trim()) {
-      combinedTranscriptText += `ANOTAÇÕES:\n${manualNotes.trim()}`;
+      transcriptParts.push(`[${userDisplayName} (Eu) - Anotações]: ${manualNotes.trim()}`);
     }
-    if (pastedText.trim() && !combinedTranscriptText) {
-      combinedTranscriptText = pastedText.trim();
+
+    // Pasted text (if no recording was done)
+    if (pastedText.trim() && transcriptParts.length === 0) {
+      transcriptParts.push(pastedText.trim());
     }
+
+    const combinedTranscriptText = transcriptParts.join("\n\n");
 
     if (!combinedTranscriptText.trim()) {
       toast.error("Nenhum texto foi capturado para análise.");
