@@ -390,12 +390,20 @@ export function MeetingTranscriptionDialog({
 
     addLog("info", "Enviando transcrição para IA (Gemini) gerar resumo e sugestões...");
 
+    const geminiKey = typeof import.meta !== "undefined" ? (import.meta as any).env?.VITE_GEMINI_API_KEY : "";
+    if (geminiKey) {
+      addLog("info", "Chave Gemini encontrada no VITE_GEMINI_API_KEY.");
+    } else {
+      addLog("info", "Chave Gemini NÃO encontrada no cliente — verificando no servidor...");
+    }
+
     try {
       const res = await analyzeFn({
         data: {
           clientId,
           title: title.trim() || "Reunião de Alinhamento",
           transcript: combinedTranscriptText,
+          clientApiKey: geminiKey || undefined,
         },
       });
 

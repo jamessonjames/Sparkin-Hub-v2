@@ -276,11 +276,12 @@ export const analyzeMeetingTranscript = createServerFn({ method: "POST" })
         clientId: z.string().uuid(),
         title: z.string().optional(),
         transcript: z.string().optional(),
+        clientApiKey: z.string().optional(),
       })
       .parse(input)
   )
   .handler(async ({ data, context }) => {
-    const { clientId, title, transcript = "" } = data;
+    const { clientId, title, transcript = "", clientApiKey } = data;
 
     // 1. Fetch active demands for this client to match existing items vs new ones
     const { data: existingDemands } = await context.supabase
@@ -323,8 +324,9 @@ export const analyzeMeetingTranscript = createServerFn({ method: "POST" })
       estimated_hours: number;
     }> = [];
 
+    let apiErrors: string[] = [];
     try {
-      const rawApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || (typeof import.meta !== "undefined" ? (import.meta as any).env?.VITE_GEMINI_API_KEY : "") || "";
+      const rawApiKey = process.env.GEMINI_API_KEY || clientApiKey || "";
       const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
       if (apiKey) {
         const promptText = `Você é um analista de projetos sênior em uma agência de marketing e tecnologia. Sua função é extrair o máximo de valor de reuniões com clientes.
@@ -395,7 +397,6 @@ Retorne APENAS o JSON abaixo, sem blocos markdown, sem texto extra:
 
         const candidateModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash-preview-04-17", "gemini-2.0-flash-lite"];
         let res: Response | null = null;
-        const errors: string[] = [];
 
         for (const model of candidateModels) {
           try {
@@ -416,17 +417,17 @@ Retorne APENAS o JSON abaixo, sem blocos markdown, sem texto extra:
               res = tryRes;
               break;
             } else if (tryRes.status === 429) {
-              errors.push(`Modelo ${model}: limite de requisições (429)`);
+              apiErrors.push(`Modelo ${model}: limite de requisições (429)`);
               await new Promise((r) => setTimeout(r, 1500));
             } else {
               const errText = await tryRes.text();
-              errors.push(`Modelo ${model} erro ${tryRes.status}: ${errText.substring(0, 200)}`);
+              apiErrors.push(`Modelo ${model} erro ${tryRes.status}: ${errText.substring(0, 200)}`);
             }
           } catch (e: any) {
             if (e.name === "AbortError") {
-              errors.push(`Modelo ${model}: timeout (15s)`);
+              apiErrors.push(`Modelo ${model}: timeout (30s)`);
             } else {
-              errors.push(`Modelo ${model}: ${e.message}`);
+              apiErrors.push(`Modelo ${model}: ${e.message}`);
             }
           }
         }
@@ -444,11 +445,12 @@ Retorne APENAS o JSON abaixo, sem blocos markdown, sem texto extra:
                 aiDiarizedTranscript = parsed.diarized_transcript;
               }
             } catch (e) {
+              apiErrors.push(`Falha ao fazer parse do JSON da IA: ${e}`);
               console.warn("[analyzeMeetingTranscript] Falha ao fazer parse do JSON da IA:", e);
             }
           }
-        } else if (errors.length > 0) {
-          console.warn("[analyzeMeetingTranscript] API Gemini indisponível. Usando fallback. Erros:", errors.join(" | "));
+        } else if (apiErrors.length > 0) {
+          console.warn("[analyzeMeetingTranscript] API Gemini indisponível. Usando fallback. Erros:", apiErrors.join(" | "));
         } else {
           console.warn("[analyzeMeetingTranscript] Nenhum modelo Gemini respondeu (erros vazios). Usando fallback.");
         }
@@ -461,8 +463,15 @@ Retorne APENAS o JSON abaixo, sem blocos markdown, sem texto extra:
 
     // Heuristic fallback if AI key unavailable or error
     if (aiSummary.length === 0) {
+      const hasKey = !!(process.env.GEMINI_API_KEY || clientApiKey);
+      const errMsg = apiErrors.length > 0 ? apiErrors.join(" | ") : "";
       aiSummary = transcript
-        ? ["📋 **PRÓXIMAS AÇÕES**: Reunião registrada no sistema — reveja a transcrição completa para extrair as ações manualmente."]
+        ? [
+            hasKey
+              ? `⚠️ **IA indisponível** — ${errMsg || "todos os modelos falharam (timeout/429/parse)"}`
+              : `⚠️ **IA não configurada** — Nenhuma chave Gemini encontrada. Adicione GEMINI_API_KEY no .env`,
+            `📋 **Ações**: Reveja a transcrição abaixo para extrair manualmente os próximos passos.`,
+          ]
         : ["Nenhum conteúdo de reunião foi capturado para análise."];
     }
 
