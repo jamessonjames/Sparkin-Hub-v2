@@ -228,17 +228,20 @@ export function MeetingTranscriptionDialog({
     const mimeType = getMimeType();
     const displayAudioTracks = displayStream ? displayStream.getAudioTracks() : [];
 
+    // Rota direta do microfone: gravação + waveform em paralelo
     if (micStream && micStream.getAudioTracks().length > 0) {
       const micSource = audioCtx.createMediaStreamSource(micStream);
+
+      // Rota direta para gravação (sem analisador no meio)
+      const micDestNode = audioCtx.createMediaStreamDestination();
+      micSource.connect(micDestNode);
+
+      // Rota paralela para waveform (não interfere na gravação)
       const micAnalyser = audioCtx.createAnalyser();
       micAnalyser.fftSize = 256;
       micSource.connect(micAnalyser);
       analyserMicRef.current = micAnalyser;
       if (micCanvasRef.current) drawWaveform(micCanvasRef.current, micAnalyser, "#a78bfa");
-
-      // Grava a partir do AudioContext para não conflitar com o stream original
-      const micDestNode = audioCtx.createMediaStreamDestination();
-      micAnalyser.connect(micDestNode);
 
       try {
         micChunksRef.current = [];
@@ -246,25 +249,28 @@ export function MeetingTranscriptionDialog({
         micRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) micChunksRef.current.push(e.data); };
         micRecorder.start(1000);
         micRecorderRef.current = micRecorder;
-        addLog("success", "MediaRecorder do microfone ativo (via AudioContext).");
+        addLog("success", "MediaRecorder do microfone ativo.");
       } catch (err: any) {
         addLog("error", "Erro ao iniciar MediaRecorder do microfone: " + err.message);
         console.warn("[Sparkin Hub] Erro ao iniciar MediaRecorder do microfone:", err);
       }
     }
 
+    // Rota direta da aba: gravação + waveform em paralelo
     if (displayAudioTracks.length > 0) {
       const displayAudioStream = new MediaStream([displayAudioTracks[0]]);
       const displaySource = audioCtx.createMediaStreamSource(displayAudioStream);
+
+      // Rota direta para gravação
+      const tabDestNode = audioCtx.createMediaStreamDestination();
+      displaySource.connect(tabDestNode);
+
+      // Rota paralela para waveform
       const tabAnalyser = audioCtx.createAnalyser();
       tabAnalyser.fftSize = 256;
       displaySource.connect(tabAnalyser);
       analyserTabRef.current = tabAnalyser;
       if (tabCanvasRef.current) drawWaveform(tabCanvasRef.current, tabAnalyser, "#34d399");
-
-      // Grava a partir do AudioContext para não conflitar com o stream original
-      const tabDestNode = audioCtx.createMediaStreamDestination();
-      tabAnalyser.connect(tabDestNode);
 
       try {
         tabChunksRef.current = [];
@@ -272,7 +278,7 @@ export function MeetingTranscriptionDialog({
         tabRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) tabChunksRef.current.push(e.data); };
         tabRecorder.start(1000);
         tabRecorderRef.current = tabRecorder;
-        addLog("success", "MediaRecorder da aba ativo (via AudioContext).");
+        addLog("success", "MediaRecorder da aba ativo.");
       } catch (err: any) {
         addLog("error", "Erro ao iniciar MediaRecorder da aba: " + err.message);
         console.warn("[Sparkin Hub] Erro ao iniciar MediaRecorder da aba:", err);

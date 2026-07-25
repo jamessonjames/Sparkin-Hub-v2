@@ -158,15 +158,15 @@ export const approveSuggestion = createServerFn({ method: "POST" })
           .eq("id", targetDemand.id);
       }
     } else {
-      // Create new demand
+      // Create new demand as rascunho (draft) for review
       await context.supabase.from("demands").insert({
         client_id: suggestion.client_id,
         title: finalTitle,
         description: finalDesc,
-        status: "nao_iniciado",
+        status: "rascunho",
         priority: "medium",
         estimated_hours: finalHours,
-        assignee_user_id: data.assignee_user_id || null,
+        assignee_user_id: data.assignee_user_id || context.userId,
         created_by_user_id: context.userId,
       });
     }
@@ -324,7 +324,7 @@ export const analyzeMeetingTranscript = createServerFn({ method: "POST" })
     }> = [];
 
     try {
-      const rawApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "";
+      const rawApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || (typeof import.meta !== "undefined" ? (import.meta as any).env?.VITE_GEMINI_API_KEY : "") || "";
       const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
       if (apiKey) {
         const promptText = `Você é um analista de projetos sênior em uma agência de marketing e tecnologia. Sua função é extrair o máximo de valor de reuniões com clientes.
