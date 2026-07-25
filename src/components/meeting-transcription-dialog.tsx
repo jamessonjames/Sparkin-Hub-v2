@@ -278,13 +278,20 @@ export function MeetingTranscriptionDialog({
             }
           }
         };
-        rec.onerror = () => {};
-        rec.start();
-        recognitionRef.current = rec;
-      } catch (err) {
-        console.warn("[Sparkin Hub] Erro ao iniciar SpeechRecognition:", err);
-      }
-    }
+    rec.onerror = (ev: any) => {
+      console.warn("[Sparkin Hub] SpeechRecognition error:", ev.error);
+      toast.error("Transcrição ao vivo indisponível: " + ev.error);
+    };
+    rec.start();
+    recognitionRef.current = rec;
+    toast.success("Microfone: transcrição ao vivo ativa!");
+  } catch (err) {
+    console.warn("[Sparkin Hub] Erro ao iniciar SpeechRecognition:", err);
+    toast.error("Não foi possível iniciar transcrição ao vivo do microfone.");
+  }
+} else {
+  toast.warning("SpeechRecognition não suportado neste navegador. Use Chrome/Edge.");
+}
 
     toast.success("Gravação iniciada! Microfone + Áudio da aba sendo capturados.");
   };
@@ -549,7 +556,7 @@ export function MeetingTranscriptionDialog({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0">
-              {/* Lado Esquerdo: Waveforms */}
+              {/* Lado Esquerdo: Waveforms + Transcrição ao Vivo */}
               <div className="flex flex-col min-h-0 space-y-3">
                 <div className="rounded-xl bg-black/40 border border-white/10 p-3 space-y-2">
                   <Label className="text-xs font-semibold text-purple-300 flex items-center gap-1.5">
@@ -562,6 +569,11 @@ export function MeetingTranscriptionDialog({
                     width={400}
                     height={48}
                   />
+                  {liveMicText && (
+                    <div className="mt-1 p-2 rounded-lg bg-purple-500/5 border border-purple-500/20 text-[11px] text-purple-200 leading-relaxed max-h-20 overflow-y-auto">
+                      {liveMicText}
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-xl bg-black/40 border border-white/10 p-3 space-y-2">
