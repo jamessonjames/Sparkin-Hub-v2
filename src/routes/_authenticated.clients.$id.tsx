@@ -19,6 +19,7 @@ import {
   createDemand,
   type DemandStatus,
 } from "@/lib/demands.functions";
+import { listSuggestions, approveSuggestion, dismissSuggestion, type DemandSuggestion } from "@/lib/suggestions.functions";
 import { KanbanBoard } from "@/components/kanban-board";
 import { DemandForm, type DemandFormValues } from "@/components/demand-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -145,8 +146,17 @@ function ClientPage() {
     }
   }, [client, clientEditions, selectedEditionId]);
 
+  const listSuggestionsFn = useServerFn(listSuggestions);
+  const approveSuggestionFn = useServerFn(approveSuggestion);
+  const dismissSuggestionFn = useServerFn(dismissSuggestion);
+
+  const { data: clientSuggestions = [] } = useQuery({
+    queryKey: ["demand_suggestions", id],
+    queryFn: () => listSuggestionsFn({ data: { clientId: id, status: "pending" } }),
+  });
+
   const filteredDemands = useMemo(() => {
-    if (client?.billing_model !== "seasonal") return clientDemands;
+    if (!client) return [];
     if (selectedEditionId === "all") return clientDemands;
     return clientDemands.filter((d) => d.client_edition_id === selectedEditionId);
   }, [clientDemands, client, selectedEditionId]);
@@ -272,16 +282,6 @@ function ClientPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsMeetingOpen(true)}
-              className="gap-1.5 text-xs font-medium border-purple-500/30 text-purple-300 hover:bg-purple-500/10 cursor-pointer"
-            >
-              <Mic className="h-3.5 w-3.5 text-purple-400" />
-              <span className="hidden sm:inline">Transcrever Reunião</span>
-            </Button>
-
             {client.slug && (
               <Button
                 variant="outline"
@@ -353,17 +353,24 @@ function ClientPage() {
 
       <Tabs defaultValue="demands" className="flex-1 flex flex-col min-h-0">
         <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
-          <TabsList>
-            <TabsTrigger value="demands">
-              Demandas ({filteredDemands.length})
+          <TabsList className="w-full justify-between bg-zinc-900/60 border border-zinc-800 p-1.5 rounded-xl h-auto flex-wrap sm:flex-nowrap gap-1">
+            <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap">
+              <TabsTrigger value="demands">
+                Demandas ({filteredDemands.length})
+              </TabsTrigger>
+              {client.billing_model === "seasonal" && (
+                <TabsTrigger value="editions">Edições</TabsTrigger>
+              )}
+              <TabsTrigger value="overview">Visão geral</TabsTrigger>
+              <TabsTrigger value="ai_agents">IA / Agentes</TabsTrigger>
+              <TabsTrigger value="notes">Notas</TabsTrigger>
+              {!client.is_project && <TabsTrigger value="reports">Relatórios</TabsTrigger>}
+            </div>
+
+            <TabsTrigger value="suggestions" className="gap-1.5 font-medium">
+              <Sparkles className="h-3.5 w-3.5 text-zinc-400" />
+              <span>Triagem IA ({clientSuggestions.length})</span>
             </TabsTrigger>
-            {client.billing_model === "seasonal" && (
-              <TabsTrigger value="editions">Edições</TabsTrigger>
-            )}
-            <TabsTrigger value="overview">Visão geral</TabsTrigger>
-            <TabsTrigger value="ai_agents">IA / Agentes</TabsTrigger>
-            <TabsTrigger value="notes">Notas</TabsTrigger>
-            {!client.is_project && <TabsTrigger value="reports">Relatórios</TabsTrigger>}
           </TabsList>
         </div>
 
@@ -709,7 +716,85 @@ function ClientPage() {
             </div>
           </TabsContent>
         )}
-        <MeetingTranscriptionDialog open={isMeetingOpen} onOpenChange={setIsMeetingOpen} defaultClientId={id} />
+        <TabsContent value="suggestions" className="mt-4 overflow-y-auto pb-8">
+          <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-purple-400" />
+                  Demandas e Ajustes Pré-analisados por IA
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Fila de triagem para este cliente capturada do WhatsApp, Reuniões e E-mails.
+                </p>
+              </div>
+            </div>
+
+            {clientSuggestions.length === 0 ? (
+              <Card className="p-8 text-center border-dashed border-border/60 bg-zinc-900/40">
+                <p className="text-xs text-muted-foreground italic">
+                  Nenhuma demanda ou ajuste pendente de triagem para este cliente no momento.
+                </p>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {clientSuggestions.map((sug) => (
+                  <Card key={sug.id} className="p-4 border-border/60 bg-zinc-900/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[10px] font-bold uppercase",
+                          sug.suggested_type === "AJUSTE_DEMANDA"
+                            ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                            : "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+                        )}
+                      >
+                        {sug.suggested_type === "AJUSTE_DEMANDA" ? "🔄 Ajuste em Demanda" : "🟢 Nova Demanda"}
+                      </Badge>
+                      <span className="text-[11px] text-muted-foreground">
+                        Origem: {sug.source === "meeting" ? "🎙️ Reunião" : sug.source === "whatsapp" ? "💬 WhatsApp" : "✉️ E-mail"}
+                      </span>
+                    </div>
+
+                    <h4 className="text-xs font-bold text-foreground">{sug.suggested_title}</h4>
+                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+                      {sug.suggested_description || sug.ai_summary}
+                    </p>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/30">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          await dismissSuggestionFn({ data: { id: sug.id } });
+                          toast.info("Sugestão descartada.");
+                          qc.invalidateQueries({ queryKey: ["demand_suggestions"] });
+                        }}
+                        className="h-7 text-xs text-muted-foreground hover:text-red-400"
+                      >
+                        Descartar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          await approveSuggestionFn({ data: { id: sug.id } });
+                          toast.success("Demanda criada e integrada!");
+                          qc.invalidateQueries({ queryKey: ["demands"] });
+                          qc.invalidateQueries({ queryKey: ["demand_suggestions"] });
+                        }}
+                        className="h-7 text-xs bg-purple-600 hover:bg-purple-700 text-white font-semibold gap-1"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Criar / Processar Demanda
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );

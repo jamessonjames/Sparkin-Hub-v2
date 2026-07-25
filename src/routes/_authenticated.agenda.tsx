@@ -198,9 +198,13 @@ function AgendaPage() {
   const activeUserId = selectedUserId ?? currentUser?.id ?? null;
   const isDefaultUser = defaultUserId ? defaultUserId === activeUserId : activeUserId === currentUser?.id;
 
+  const targetAgendaUserId = (selectedUserId && selectedUserId !== "all" && selectedUserId !== "unassigned")
+    ? selectedUserId
+    : (currentUser?.id ?? null);
+
   const { data: demands = [] } = useQuery({
-    queryKey: ["demands", activeUserId, isAdminOrOwner],
-    queryFn: () => listFn({ data: isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId, includeUnassigned: true } : {} }),
+    queryKey: ["demands", targetAgendaUserId, isAdminOrOwner],
+    queryFn: () => listFn({ data: isAdminOrOwner && targetAgendaUserId ? { assigneeUserId: targetAgendaUserId, includeUnassigned: false } : {} }),
   });
 
   const { data: allClients = [] } = useQuery({

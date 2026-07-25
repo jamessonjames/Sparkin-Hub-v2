@@ -43,7 +43,7 @@ export const listDemands = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({
-      assigneeUserId: z.string().uuid().optional(),
+      assigneeUserId: z.string().optional(),
       clientId: z.string().uuid().optional(),
       includeUnassigned: z.boolean().optional(),
     }).optional().parse(input ?? {})
@@ -68,8 +68,10 @@ export const listDemands = createServerFn({ method: "GET" })
 
     if (role === "collaborator") {
       query = query.eq("assignee_user_id", context.userId);
-    } else if (data?.assigneeUserId) {
-      if (data?.includeUnassigned) {
+    } else if (data?.assigneeUserId && data.assigneeUserId !== "all") {
+      if (data.assigneeUserId === "unassigned") {
+        query = query.is("assignee_user_id", null);
+      } else if (data?.includeUnassigned) {
         query = query.or(`assignee_user_id.eq.${data.assigneeUserId},assignee_user_id.is.null`);
       } else {
         query = query.eq("assignee_user_id", data.assigneeUserId);

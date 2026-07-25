@@ -267,3 +267,272 @@ export const triggerWhatsAppScan = createServerFn({ method: "POST" })
 
     return { ok: true, timestamp: nowISO };
   });
+
+export const analyzeMeetingTranscript = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        clientId: z.string().uuid(),
+        title: z.string().optional(),
+        transcript: z.string().optional(),
+        audioBase64: z.string().optional(),
+        mimeType: z.string().optional(),
+      })
+      .parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    const { clientId, title, transcript = "", audioBase64, mimeType = "audio/webm" } = data;
+
+    // 1. Fetch active demands for this client to match existing items vs new ones
+    const { data: existingDemands } = await context.supabase
+      .from("demands")
+      .select("id, title, description, status")
+      .eq("client_id", clientId)
+      .neq("status", "concluido");
+
+    const demandsContext = (existingDemands || []).map((d) => ({
+      id: d.id,
+      title: d.title,
+      description: d.description || "",
+      status: d.status,
+    }));
+
+    // Fetch client name for diarization
+    const { data: clientData } = await context.supabase
+      .from("clients")
+      .select("name")
+      .eq("id", clientId)
+      .maybeSingle();
+    const clientName = clientData?.name || "Cliente";
+
+    // Fetch user profile name for diarization
+    const { data: profileData } = await context.supabase
+      .from("profiles")
+      .select("name")
+      .eq("id", context.userId)
+      .maybeSingle();
+    const userName = profileData?.name || "Eu";
+
+    // 2. Perform AI analysis using Gemini 1.5 Flash (Audio + Text Multimodal)
+    let aiSummary: string[] = [];
+    let aiDiarizedTranscript = "";
+    let aiSuggestions: Array<{
+      suggested_type: "NOVA_DEMANDA" | "AJUSTE_DEMANDA";
+      target_demand_id?: string | null;
+      suggested_title: string;
+      suggested_description: string;
+      estimated_hours: number;
+    }> = [];
+
+    try {
+      const rawApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "";
+      const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
+      if (apiKey) {
+        const cleanMimeType = (mimeType || "audio/webm").split(";")[0];
+        const promptText = `Você é um gestor de projetos sênior em uma agência de marketing e tecnologia.
+Você está analisando a gravação de áudio de uma reunião entre a agência [${userName} (Eu)] e o cliente [${clientName} (Cliente)].
+
+INSTRUÇÕES CRÍTICAS DE TRANSCRIÇÃO DE ÁUDIO (MUITO IMPORTANTE):
+1. O arquivo de áudio em anexo contém a gravação MISTA da reunião (microfone do usuário + áudio da aba do navegador / cliente / vídeo).
+2. Faça a TRANSCRIÇÃO COMPLETA E LITERAL de 100% de tudo o que foi dito no áudio gravado.
+3. Identifique e separe os interlocutores no texto transcrito:
+   - Voz do usuário / microfone: [${userName} (Eu)]
+   - Voz do cliente / áudio do navegador / vídeo: [${clientName} (Cliente)]
+4. Retorne a transcrição completa diarizada no campo "diarized_transcript".
+
+LISTA DE DEMANDAS JÁ EXISTENTES DO CLIENTE NO SISTEMA:
+${JSON.stringify(demandsContext, null, 2)}
+
+ANOTAÇÕES ADICIONAIS / NOTAS DA REUNIÃO:
+"${transcript}"
+
+Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos markdown:
+{
+  "diarized_transcript": "[${userName} (Eu)]: Olá...\n[${clientName} (Cliente)]: Precisamos de...",
+  "summary": ["Ponto principal 1", "Ponto principal 2"],
+  "suggestions": [
+    {
+      "suggested_type": "NOVA_DEMANDA" ou "AJUSTE_DEMANDA",
+      "target_demand_id": "id-da-demanda-existente-ou-null",
+      "suggested_title": "Título claro da demanda",
+      "suggested_description": "Explicação detalhada do pedido do cliente",
+      "estimated_hours": 2.0
+    }
+  ]
+}`;
+
+        const parts: any[] = [{ text: promptText }];
+        if (audioBase64) {
+          parts.push({
+            inlineData: {
+              mimeType: cleanMimeType,
+              data: audioBase64,
+            },
+          });
+        }
+
+        const candidateModels = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-8b"];
+        let res: Response | null = null;
+
+        for (const model of candidateModels) {
+          try {
+            const tryRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contents: [{ parts }] }),
+              }
+            );
+
+            if (tryRes.ok) {
+              res = tryRes;
+              console.log(`[analyzeMeetingTranscript] Sucesso com modelo Gemini: ${model}`);
+              break;
+            } else if (tryRes.status === 429) {
+              console.warn(`[analyzeMeetingTranscript] Modelo ${model} atingiu 429. Tentando próximo modelo...`);
+              await new Promise((r) => setTimeout(r, 1500));
+            } else {
+              const errText = await tryRes.text();
+              console.warn(`[analyzeMeetingTranscript] Modelo ${model} retornou ${tryRes.status}:`, errText);
+            }
+          } catch (e) {
+            console.warn(`[analyzeMeetingTranscript] Falha ao tentar modelo ${model}:`, e);
+          }
+        }
+
+        if (res && res.ok) {
+          const resData = await res.json();
+          const rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            aiSummary = parsed.summary || [];
+            aiSuggestions = parsed.suggestions || [];
+            if (parsed.diarized_transcript) {
+              aiDiarizedTranscript = parsed.diarized_transcript;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[analyzeMeetingTranscript] Error:", err);
+    }
+
+    // Heuristic fallback if AI key unavailable or error
+    if (aiSummary.length === 0) {
+      aiSummary = [
+        "Reunião de alinhamento registrada pelo sistema.",
+        `Total de caracteres transcritos: ${transcript.length}`,
+      ];
+    }
+
+    if (aiSuggestions.length === 0) {
+      // Check if transcript mentions "ajustar", "alterar", "mudar" vs new tasks
+      const isAdjustment = /ajustar|alterar|mudar|corrigir|refazer/i.test(transcript);
+      const matchedDemand = demandsContext.find((d) =>
+        transcript.toLowerCase().includes(d.title.toLowerCase())
+      );
+
+      aiSuggestions.push({
+        suggested_type: matchedDemand || isAdjustment ? "AJUSTE_DEMANDA" : "NOVA_DEMANDA",
+        target_demand_id: matchedDemand ? matchedDemand.id : null,
+        suggested_title: matchedDemand
+          ? `Ajuste solicitado em: ${matchedDemand.title}`
+          : title || "Nova demanda alinhada em reunião",
+        suggested_description: transcript,
+        estimated_hours: 2.0,
+      });
+    }
+
+    // 3. Save generated suggestions into demand_suggestions table
+    const insertedRecords: DemandSuggestion[] = [];
+    for (const sug of aiSuggestions) {
+      const { data: inserted, error } = await context.supabase
+        .from("demand_suggestions")
+        .insert({
+          client_id: clientId,
+          source: "meeting",
+          suggested_type: sug.suggested_type,
+          target_demand_id: sug.target_demand_id || null,
+          suggested_title: sug.suggested_title,
+          suggested_description: sug.suggested_description,
+          ai_summary: aiSummary.join("\n"),
+          raw_content: aiDiarizedTranscript || transcript,
+          estimated_hours: sug.estimated_hours || 2.0,
+          status: "pending",
+        })
+        .select("*, clients(id, name)")
+        .single();
+
+      if (inserted) {
+        insertedRecords.push(inserted as DemandSuggestion);
+      }
+    }
+
+    return {
+      summary: aiSummary,
+      suggestions: insertedRecords,
+      rawTranscript: aiDiarizedTranscript || transcript,
+    };
+  });
+
+export const transcribeAudioChunk = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        audioBase64: z.string(),
+        mimeType: z.string().optional(),
+      })
+      .parse(input)
+  )
+  .handler(async ({ data }) => {
+    const rawApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "";
+    const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
+    if (!apiKey || !data.audioBase64) {
+      console.warn("[transcribeAudioChunk] API Key não configurada ou sem áudio.");
+      return { text: "" };
+    }
+
+    const cleanMimeType = (data.mimeType || "audio/webm").split(";")[0];
+    const candidateModels = ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash-8b"];
+    const promptText = "Transcreva literalmente o que é falado neste pequeno trecho de áudio. Retorne APENAS o texto transcrito em português sem saudações ou comentários.";
+
+    const parts = [
+      { text: promptText },
+      {
+        inlineData: {
+          mimeType: cleanMimeType,
+          data: data.audioBase64,
+        },
+      },
+    ];
+
+    for (const model of candidateModels) {
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts }] }),
+          }
+        );
+        if (res.ok) {
+          const resData = await res.json();
+          const text = resData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          console.log(`[transcribeAudioChunk] Transcrição com ${model}: "${text.trim()}"`);
+          return { text: text.trim() };
+        } else {
+          const errText = await res.text();
+          console.warn(`[transcribeAudioChunk] ${model} error ${res.status}:`, errText);
+        }
+      } catch (err) {
+        console.warn(`[transcribeAudioChunk] ${model} fetch error:`, err);
+      }
+    }
+
+    return { text: "" };
+  });

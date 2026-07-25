@@ -6,9 +6,9 @@ import { DemandOverlayProvider } from "@/contexts/demand-overlay";
 import { DemandOverlayRenderer } from "@/components/demand-overlay-renderer";
 import { ClientFormDialog } from "@/components/client-form-dialog";
 import { UserProvider } from "@/contexts/user-context";
-import { useNavigate, Link } from "@tanstack/react-router";
+import { useNavigate, Link, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, UserCircle, ChevronDown, Download, Eye, Star, Mic } from "lucide-react";
+import { LogOut, UserCircle, ChevronDown, Download, Eye, Star, Mic, Globe, UserX } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useUserContext } from "@/contexts/user-context";
@@ -27,7 +27,15 @@ import {
 
 function HeaderUserWorkSelector() {
   const { currentUserRole, selectedUserId, setSelectedUserId, defaultUserId, setDefaultUserId, profiles, currentUser } = useUserContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isAgendaPage = pathname.startsWith("/agenda");
   const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
+
+  useEffect(() => {
+    if (isAgendaPage && (selectedUserId === "all" || selectedUserId === "unassigned")) {
+      setSelectedUserId(defaultUserId || currentUser?.id || null);
+    }
+  }, [isAgendaPage, selectedUserId, defaultUserId, currentUser, setSelectedUserId]);
 
   if (!isAdminOrOwner || !currentUser?.id || profiles.length === 0) return null;
 
@@ -43,18 +51,38 @@ function HeaderUserWorkSelector() {
       </div>
 
       <Select
-        value={activeUserId}
-        onValueChange={(val) => setSelectedUserId(val === currentUser.id ? null : val)}
+        value={selectedUserId || currentUser.id}
+        onValueChange={(val) => setSelectedUserId(val)}
       >
         <SelectTrigger className="h-6 text-xs bg-transparent border-0 focus:ring-0 text-zinc-200 font-semibold py-0 px-1 hover:bg-zinc-800/50 rounded transition-colors w-auto min-w-[110px] shadow-none">
           <SelectValue placeholder="Selecione..." />
         </SelectTrigger>
-        <SelectContent align="end" className="bg-zinc-950 border border-zinc-800 text-zinc-200">
-          <SelectItem value={currentUser.id} className="text-xs font-semibold">
+        <SelectContent align="end" className="bg-zinc-950 border border-zinc-800 text-zinc-200 min-w-[200px]">
+          <SelectItem
+            value="all"
+            disabled={isAgendaPage}
+            className="text-xs font-semibold text-zinc-200 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <div className="flex items-center gap-2">
+              <Globe className="h-3.5 w-3.5 text-zinc-400" />
+              <span>Todos os Responsáveis</span>
+            </div>
+          </SelectItem>
+          <SelectItem
+            value="unassigned"
+            disabled={isAgendaPage}
+            className="text-xs font-semibold text-zinc-200 cursor-pointer border-b border-zinc-800/80 pb-1.5 mb-1.5 rounded-none disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <div className="flex items-center gap-2">
+              <UserX className="h-3.5 w-3.5 text-zinc-400" />
+              <span>Sem Responsável</span>
+            </div>
+          </SelectItem>
+          <SelectItem value={currentUser.id} className="text-xs font-semibold text-zinc-200 cursor-pointer">
             {profiles.find(p => p.id === currentUser.id)?.name ?? "Meu perfil"} (Eu)
           </SelectItem>
           {profiles.filter(p => p.id !== currentUser.id).map((p) => (
-            <SelectItem key={p.id} value={p.id} className="text-xs">
+            <SelectItem key={p.id} value={p.id} className="text-xs text-zinc-300 cursor-pointer">
               {p.name ?? p.email}
             </SelectItem>
           ))}
@@ -101,6 +129,10 @@ if (typeof window !== "undefined") {
 
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const clientMatch = pathname.match(/\/clients\/([a-f0-9-]+)/i);
+  const activeClientId = clientMatch ? clientMatch[1] : undefined;
+
   useAutoScheduler();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
@@ -236,7 +268,11 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
         {/* Global demand overlay — persists across page navigation */}
         <DemandOverlayRenderer />
         <ClientFormDialog />
-        <MeetingTranscriptionDialog open={isGlobalMeetingOpen} onOpenChange={setIsGlobalMeetingOpen} />
+        <MeetingTranscriptionDialog
+          open={isGlobalMeetingOpen}
+          onOpenChange={setIsGlobalMeetingOpen}
+          defaultClientId={activeClientId}
+        />
       </SidebarProvider>
     </DemandOverlayProvider>
     </UserProvider>

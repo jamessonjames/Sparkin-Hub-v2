@@ -37,6 +37,7 @@ import {
   Plus,
   ArrowRight,
   AlertTriangle,
+  FileText,
 } from "lucide-react";
 import { MeetingTranscriptionDialog } from "@/components/meeting-transcription-dialog";
 import { cn } from "@/lib/utils";
@@ -242,9 +243,9 @@ function InboxPage() {
               <InboxIcon className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Caixa de Entrada & Sugestões</h1>
+              <h1 className="text-2xl font-bold tracking-tight">Triagem de Demandas (IA)</h1>
               <p className="text-xs text-muted-foreground">
-                Resumos e demandas pré-analisadas pela IA (WhatsApp, Reuniões e E-mails)
+                Central de triagem de demandas e alterações pré-analisadas pela IA (WhatsApp, Reuniões e E-mails)
               </p>
             </div>
           </div>

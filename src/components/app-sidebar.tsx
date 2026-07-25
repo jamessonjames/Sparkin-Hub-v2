@@ -30,7 +30,7 @@ import type { ClientActivity } from "@/lib/activity.functions";
 type NavItem = { title: string; to: string; icon: typeof LayoutDashboard; exact?: boolean };
 const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Dashboard", to: "/", icon: LayoutDashboard, exact: true },
-  { title: "Caixa de Entrada", to: "/inbox", icon: InboxIcon },
+  { title: "Triagem de Demandas", to: "/inbox", icon: InboxIcon },
   { title: "Clientes", to: "/clients", icon: Users },
   { title: "Funil Comercial", to: "/crm", icon: TrendingUp },
   { title: "Financeiro", to: "/finance", icon: DollarSign },
