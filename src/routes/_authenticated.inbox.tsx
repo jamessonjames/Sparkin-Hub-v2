@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +38,7 @@ import {
   ArrowRight,
   AlertTriangle,
   FileText,
+  Eye,
 } from "lucide-react";
 import { MeetingTranscriptionDialog } from "@/components/meeting-transcription-dialog";
 import { cn } from "@/lib/utils";
@@ -516,6 +517,7 @@ function SuggestionCard({
   isReadonly?: boolean;
 }) {
   const [showRaw, setShowRaw] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const getSourceBadge = () => {
     switch (suggestion.source) {
@@ -620,7 +622,108 @@ function SuggestionCard({
             )}
           </div>
         )}
+
+        {/* Ver Detalhes */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setDetailOpen(true)}
+            className="text-[11px] text-primary/80 hover:text-primary flex items-center gap-1 font-medium transition-colors"
+          >
+            <Eye className="h-3 w-3" />
+            Ver detalhes completos
+          </button>
+        </div>
       </div>
+
+      {/* Detail Modal */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="sm:max-w-3xl max-h-[85vh] bg-[#18181b] border-white/10 text-foreground overflow-hidden flex flex-col">
+          <DialogHeader className="shrink-0 pb-2 border-b border-white/10">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <FileText className="h-4 w-4 text-primary" />
+              {suggestion.suggested_title}
+            </DialogTitle>
+          </DialogHeader>
+          <Tabs defaultValue="transcript" className="flex-1 flex flex-col min-h-0 mt-2">
+            <TabsList className="grid grid-cols-3 bg-zinc-900 border border-white/10 shrink-0">
+              <TabsTrigger value="transcript" className="text-xs gap-1.5 cursor-pointer">
+                <FileText className="h-3.5 w-3.5" /> Transcrição
+              </TabsTrigger>
+              <TabsTrigger value="summary" className="text-xs gap-1.5 cursor-pointer">
+                <Sparkles className="h-3.5 w-3.5" /> Resumo
+              </TabsTrigger>
+              <TabsTrigger value="suggestion" className="text-xs gap-1.5 cursor-pointer">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Sugestão
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="transcript" className="flex-1 min-h-0 mt-3 overflow-y-auto">
+              <div className="p-3 rounded-xl bg-black/40 border border-white/10">
+                <pre className="text-xs font-mono text-zinc-300 whitespace-pre-wrap leading-relaxed">
+                  {suggestion.raw_content || "Nenhuma transcrição disponível."}
+                </pre>
+              </div>
+            </TabsContent>
+            <TabsContent value="summary" className="flex-1 min-h-0 mt-3 overflow-y-auto">
+              <div className="p-4 rounded-xl bg-zinc-900 border border-white/10 space-y-3">
+                <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4" /> Principais Pontos
+                </h4>
+                {suggestion.ai_summary ? (
+                  <ul className="space-y-2 text-xs text-zinc-300">
+                    {suggestion.ai_summary.split("\n").filter(Boolean).map((item, idx) => (
+                      <li key={idx} className="flex items-start gap-2 bg-zinc-950/60 p-2.5 rounded-lg border border-white/5">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">Nenhum resumo disponível.</p>
+                )}
+              </div>
+            </TabsContent>
+            <TabsContent value="suggestion" className="flex-1 min-h-0 mt-3 overflow-y-auto">
+              <div className="p-4 rounded-xl bg-zinc-900 border border-white/10 space-y-4">
+                <div>
+                  <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wider mb-2">Briefing da Sugestão</h4>
+                  <div className="space-y-3 text-xs">
+                    <div className="flex items-start gap-2">
+                      <span className="font-bold text-zinc-400 shrink-0 w-24">Tipo:</span>
+                      <Badge variant="outline" className={cn(
+                        "text-[10px] uppercase font-bold",
+                        suggestion.suggested_type === "AJUSTE_DEMANDA"
+                          ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                          : "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+                      )}>
+                        {suggestion.suggested_type === "AJUSTE_DEMANDA" ? "Ajuste em Demanda" : "Nova Demanda"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="font-bold text-zinc-400 shrink-0 w-24">Título:</span>
+                      <span className="text-zinc-200">{suggestion.suggested_title}</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="font-bold text-zinc-400 shrink-0 w-24">Horas estimadas:</span>
+                      <span className="text-zinc-200">~{suggestion.estimated_hours || 2}h</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="font-bold text-zinc-400 shrink-0 w-24">Cliente:</span>
+                      <span className="text-zinc-200">{suggestion.clients?.name || "—"}</span>
+                    </div>
+                    {suggestion.suggested_description && (
+                      <div className="pt-2 border-t border-white/10">
+                        <span className="font-bold text-zinc-400 block mb-1">Descrição:</span>
+                        <p className="text-zinc-300 leading-relaxed">{suggestion.suggested_description}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
 
       {/* Footer Actions */}
       {!isReadonly && (
