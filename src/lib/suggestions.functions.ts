@@ -362,31 +362,39 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos m
 
         const candidateModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite"];
         let res: Response | null = null;
-        let lastError = "";
+        const errors: string[] = [];
 
         for (const model of candidateModels) {
           try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
             const tryRes = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ contents: [{ parts }] }),
+                signal: controller.signal,
               }
             );
+            clearTimeout(timeoutId);
 
             if (tryRes.ok) {
               res = tryRes;
               break;
             } else if (tryRes.status === 429) {
-              lastError = `Modelo ${model} atingiu limite de requisições (429)`;
+              errors.push(`Modelo ${model}: limite de requisições (429)`);
               await new Promise((r) => setTimeout(r, 1500));
             } else {
               const errText = await tryRes.text();
-              lastError = `Modelo ${model} erro ${tryRes.status}: ${errText}`;
+              errors.push(`Modelo ${model} erro ${tryRes.status}: ${errText.substring(0, 200)}`);
             }
           } catch (e: any) {
-            lastError = `Falha ao tentar modelo ${model}: ${e.message}`;
+            if (e.name === "AbortError") {
+              errors.push(`Modelo ${model}: timeout (15s)`);
+            } else {
+              errors.push(`Modelo ${model}: ${e.message}`);
+            }
           }
         }
 
@@ -406,17 +414,16 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido nesta estrutura exata sem blocos m
               console.warn("[analyzeMeetingTranscript] Falha ao fazer parse do JSON da IA:", e);
             }
           }
-        } else if (lastError) {
-          console.warn("[analyzeMeetingTranscript] Aviso da API da IA (usando parser local fallback):", lastError);
+        } else if (errors.length > 0) {
+          console.warn("[analyzeMeetingTranscript] API Gemini indisponível. Usando fallback. Erros:", errors.join(" | "));
         } else {
-          throw new Error("Nenhum modelo Gemini respondeu com sucesso");
+          console.warn("[analyzeMeetingTranscript] Nenhum modelo Gemini respondeu (erros vazios). Usando fallback.");
         }
       } else {
-        throw new Error("GEMINI_API_KEY não configurada no servidor");
+        console.warn("[analyzeMeetingTranscript] GEMINI_API_KEY não configurada no servidor. Usando fallback.");
       }
     } catch (err: any) {
-      console.error("[analyzeMeetingTranscript] Error:", err.message);
-      throw err;
+      console.error("[analyzeMeetingTranscript] Erro inesperado (usando fallback):", err.message);
     }
 
     // Heuristic fallback if AI key unavailable or error
