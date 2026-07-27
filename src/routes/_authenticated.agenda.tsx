@@ -782,8 +782,8 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
           targetDateTime: formattedTarget,
         });
       } else {
-        qc.setQueryData<typeof reminders>(["reminders", activeUserId], (prev) =>
-          (prev ?? []).map((r) => (r.id === reminderId ? { ...r, date_time: formattedTarget } as any : r))
+        qc.setQueryData<any>(["reminders", activeUserId], (prev: any) =>
+          (prev ?? []).map((r: any) => (r.id === reminderId ? { ...r, date_time: formattedTarget } : r))
         );
         try {
           await upsertReminderFn({
