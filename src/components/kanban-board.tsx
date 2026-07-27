@@ -579,7 +579,7 @@ export const KanbanBoard = memo(function KanbanBoard({
     if (hasMovedBoard.current) {
       e.preventDefault();
       hasMovedBoard.current = false;
-});
+    }
   };
 
   return (
