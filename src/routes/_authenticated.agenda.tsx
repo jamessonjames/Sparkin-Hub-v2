@@ -1671,7 +1671,7 @@ function DraggableDemandCard({
     const startY = e.clientY;
     const startHours = demand.estimated_hours ? Number(demand.estimated_hours) : 1.0;
     
-    const handleMouseMove = (moveEvent: MouseEvent) => {
+    const handlePointerMove = (moveEvent: PointerEvent) => {
       const deltaY = moveEvent.clientY - startY;
       // 1 slot = 40px = 0.5 hours. So 80px = 1 hour.
       const deltaHours = Math.round((deltaY / 80) * 2) / 2; // round to nearest 0.5
@@ -1679,9 +1679,9 @@ function DraggableDemandCard({
       setTempHours(newHours);
     };
     
-    const handleMouseUp = async (upEvent: MouseEvent) => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+    const handlePointerUp = async (upEvent: PointerEvent) => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
       setIsResizing(false);
       
       const deltaY = upEvent.clientY - startY;
@@ -1693,8 +1693,8 @@ function DraggableDemandCard({
       }
     };
     
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
   };
 
   // Compute if the event time has passed (Google Calendar style transparency)
