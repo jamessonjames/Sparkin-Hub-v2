@@ -193,7 +193,7 @@ export function DemandTriageView({ clientId: defaultClientId }: DemandTriageView
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os Clientes</SelectItem>
-                {clients.map((c) => (
+                {(clients as any[]).map((c: any) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
                   </SelectItem>

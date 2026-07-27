@@ -635,7 +635,7 @@ export function MeetingTranscriptionDialog({
                     <SelectValue placeholder="Selecione o cliente" />
                   </SelectTrigger>
                   <SelectContent>
-                    {clients.map((c) => (
+                    {(clients as any[]).map((c: any) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -970,7 +970,7 @@ export function MeetingTranscriptionDialog({
                                 Briefing da IA
                               </span>
                               <div className="bg-zinc-950 p-3.5 rounded-lg border border-white/5 text-xs text-zinc-200 leading-relaxed font-sans">
-                                <MarkdownView content={sug.suggested_description || sug.ai_summary} />
+                                <MarkdownView content={sug.suggested_description || sug.ai_summary || ""} />
                               </div>
                             </div>
 
