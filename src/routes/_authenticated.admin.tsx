@@ -82,7 +82,7 @@ function AdminPage() {
   const currentUserRole = users.find((u: any) => u.id === currentUser?.id)?.user_roles?.[0]?.role ?? null;
 
   // Local storage branding settings
-  const [systemName, setSystemName] = useState("Creative Flow");
+  const [systemName, setSystemName] = useState("Sparkin Hub");
   const [faviconUrl, setFaviconUrl] = useState("");
   const [highlightColor, setHighlightColor] = useState<HighlightColor>("roxo");
   const [customHex, setCustomHex] = useState("#4f46e5");
@@ -299,7 +299,7 @@ function AdminPage() {
   // Load configuration from localstorage and user preferences from DB
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
+      const savedName = localStorage.getItem("CF_SystemName") || "Sparkin Hub";
       const savedFavicon = localStorage.getItem("CF_Favicon") || "";
 
       setSystemName(savedName);

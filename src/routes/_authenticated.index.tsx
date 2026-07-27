@@ -11,7 +11,7 @@ import { getClientActivityStatus, getStatusColor, getStatusLabel } from "@/lib/a
 import type { ClientActivity } from "@/lib/activity.functions";
 
 export const Route = createFileRoute("/_authenticated/")({
-  head: () => ({ meta: [{ title: "Dashboard — Creative Flow Hub" }] }),
+  head: () => ({ meta: [{ title: "Dashboard — Sparkin Hub" }] }),
   component: Dashboard,
 });
 

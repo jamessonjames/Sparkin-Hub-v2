@@ -220,11 +220,11 @@ export const getSystemBranding = createServerFn({ method: "GET" })
 
       const val = data?.value as any;
       return {
-        system_name: val?.system_name || "Creative Flow",
+        system_name: val?.system_name || "Sparkin Hub",
         favicon_url: val?.favicon_url || "",
       };
     } catch (e) {
-      return { system_name: "Creative Flow", favicon_url: "" };
+      return { system_name: "Sparkin Hub", favicon_url: "" };
     }
   });
 
@@ -238,13 +238,16 @@ export const saveSystemBranding = createServerFn({ method: "POST" })
     try {
       const { error } = await context.supabase
         .from("system_settings")
-        .upsert({
-          key: "system_branding",
-          value: {
-            system_name,
-            favicon_url: favicon_url || "",
+        .upsert(
+          {
+            key: "system_branding",
+            value: {
+              system_name,
+              favicon_url: favicon_url || "",
+            },
           },
-        });
+          { onConflict: "key" }
+        );
 
       if (error) throw error;
       return { success: true };

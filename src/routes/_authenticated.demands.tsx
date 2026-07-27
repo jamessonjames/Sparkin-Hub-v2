@@ -22,7 +22,7 @@ import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { useUserContext } from "@/contexts/user-context";
 
 export const Route = createFileRoute("/_authenticated/demands")({
-  head: () => ({ meta: [{ title: "Demandas — Creative Flow Hub" }] }),
+  head: () => ({ meta: [{ title: "Demandas — Sparkin Hub" }] }),
   component: DemandsPage,
 });
 

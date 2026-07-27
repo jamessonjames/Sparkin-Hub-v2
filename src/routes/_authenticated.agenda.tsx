@@ -45,7 +45,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/agenda")({
-  head: () => ({ meta: [{ title: "Agenda — Creative Flow Hub" }] }),
+  head: () => ({ meta: [{ title: "Agenda — Sparkin Hub" }] }),
   component: AgendaPage,
 });
 

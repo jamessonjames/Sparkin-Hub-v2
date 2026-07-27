@@ -100,7 +100,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "theme-color", content: "#0f1117" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
-      { name: "apple-mobile-web-app-title", content: "Creative Flow" },
+      { name: "apple-mobile-web-app-title", content: "Sparkin Hub" },
       { name: "mobile-web-app-capable", content: "yes" },
       { title: "Sparkin Hub" },
       { name: "description", content: "Portal leve para organização de demandas de clientes, anotações e controle comercial." },

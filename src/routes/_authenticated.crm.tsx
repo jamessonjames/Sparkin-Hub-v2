@@ -37,7 +37,7 @@ import { ClientColorPicker } from "@/components/client-color-picker";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/crm")({
-  head: () => ({ meta: [{ title: "Funil Comercial — Creative Flow Hub" }] }),
+  head: () => ({ meta: [{ title: "Funil Comercial — Sparkin Hub" }] }),
   component: CrmPage,
 });
 

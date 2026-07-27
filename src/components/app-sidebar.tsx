@@ -74,13 +74,13 @@ export function AppSidebar() {
     },
   });
 
-  const [systemName, setSystemName] = useState("Creative Flow");
+  const [systemName, setSystemName] = useState("Sparkin Hub");
   const [faviconUrl, setFaviconUrl] = useState("");
   const getBrandingFn = useServerFn(getSystemBranding);
 
   useEffect(() => {
     const handleBrandingChange = () => {
-      const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
+      const savedName = localStorage.getItem("CF_SystemName") || "Sparkin Hub";
       const savedFavicon = localStorage.getItem("CF_Favicon") || "";
       setSystemName(savedName);
       setFaviconUrl(savedFavicon);

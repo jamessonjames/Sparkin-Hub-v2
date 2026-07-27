@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Search } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/clients/")({
-  head: () => ({ meta: [{ title: "Clientes — Creative Flow Hub" }] }),
+  head: () => ({ meta: [{ title: "Clientes — Sparkin Hub" }] }),
   component: ClientsList,
 });
 

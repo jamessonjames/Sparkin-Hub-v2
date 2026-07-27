@@ -11,7 +11,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { useUserContext } from "@/contexts/user-context";
 
 export const Route = createFileRoute("/_authenticated/profile")({
-  head: () => ({ meta: [{ title: "Minha Conta — Creative Flow Hub" }] }),
+  head: () => ({ meta: [{ title: "Minha Conta — Sparkin Hub" }] }),
   component: ProfilePage,
 });
 

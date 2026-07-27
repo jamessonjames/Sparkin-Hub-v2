@@ -57,16 +57,14 @@ export function applyThemeAndHighlight() {
   document.documentElement.classList.remove("light");
 
   const savedColor = (localStorage.getItem("CF_HighlightColor") || "roxo") as HighlightColor;
-  const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
+  const savedName = localStorage.getItem("CF_SystemName") || "Sparkin Hub";
   const savedFavicon = localStorage.getItem("CF_Favicon") || "";
 
-  // 2. Custom System Name/Title
+  // 2. Custom System Name/Title — replace any legacy placeholder with actual saved name
   if (savedName) {
-    if (document.title.includes("Creative Flow")) {
-      document.title = document.title.replace(/Creative Flow/g, savedName);
-    }
-    if (document.title.includes("Sparkin Hub") && savedName !== "Sparkin Hub") {
-      document.title = document.title.replace(/Sparkin Hub/g, savedName);
+    document.title = document.title
+      .replace(/Creative Flow/g, savedName)
+      .replace(/Sparkin Hub/g, savedName);
     }
     
     const appleTitle = document.querySelector("meta[name='apple-mobile-web-app-title']");
@@ -119,7 +117,7 @@ export function applyThemeAndHighlight() {
 function updateDynamicManifest() {
   if (typeof window === "undefined") return;
 
-  const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
+  const savedName = localStorage.getItem("CF_SystemName") || "Sparkin Hub";
   const savedFavicon = localStorage.getItem("CF_Favicon") || "";
 
   const iconSrc = savedFavicon || "/icon-512.png";

@@ -23,11 +23,11 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const [systemName, setSystemName] = useState("Creative Flow");
+  const [systemName, setSystemName] = useState("Sparkin Hub");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedName = localStorage.getItem("CF_SystemName") || "Creative Flow";
+      const savedName = localStorage.getItem("CF_SystemName") || "Sparkin Hub";
       setSystemName(savedName);
       document.title = `Entrar — ${savedName} Hub`;
     }
