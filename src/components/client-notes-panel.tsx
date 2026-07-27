@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -20,7 +20,7 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
-import { RichEditor } from "@/components/rich-editor";
+const RichEditorLazy = lazy(() => import("@/components/rich-editor").then(m => ({ default: m.RichEditor })));
 import { cn } from "@/lib/utils";
 import {
   Plus,
@@ -547,13 +547,15 @@ function NoteEditorDialog({
         </DialogHeader>
 
         <div className="flex-1 min-h-0 flex flex-col p-6 pt-4">
-          <RichEditor
-            content={content}
-            onChange={setContent}
-            placeholder="Comece a escrever... Selecione texto para formatar."
-            enableTables
-            gDrivePath={gDrivePath}
-          />
+          <Suspense fallback={<div className="text-xs text-muted-foreground p-6">Carregando editor...</div>}>
+            <RichEditorLazy
+              content={content}
+              onChange={setContent}
+              placeholder="Comece a escrever... Selecione texto para formatar."
+              enableTables
+              gDrivePath={gDrivePath}
+            />
+          </Suspense>
         </div>
 
         <div className="flex items-center justify-end gap-2 px-6 py-3 border-t border-border">

@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/ui/dialog";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoreHorizontal, X, Trash2, CheckCircle2, Calendar, Repeat } from "lucide-react";
-import { RichEditor } from "@/components/rich-editor";
+const RichEditorLazy = lazy(() => import("@/components/rich-editor").then(m => ({ default: m.RichEditor })));
 import { cn } from "@/lib/utils";
 import { REMINDER_COLORS, RECURRENCE_TYPES } from "@/lib/reminders.functions";
 
@@ -385,12 +385,14 @@ export function ReminderDialog({
             />
 
             <div className="min-h-[140px] border border-white/5 rounded-xl bg-[#242424] p-1">
-              <RichEditor
-                content={content}
-                onChange={setContent}
-                placeholder="Digite suas anotações ou checklist..."
-                borderless
-              />
+              <Suspense fallback={<div className="text-xs text-muted-foreground p-3">Carregando editor...</div>}>
+                <RichEditorLazy
+                  content={content}
+                  onChange={setContent}
+                  placeholder="Digite suas anotações ou checklist..."
+                  borderless
+                />
+              </Suspense>
             </div>
 
             {/* Footer controls */}

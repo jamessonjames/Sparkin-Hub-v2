@@ -1,10 +1,11 @@
+import { lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
-import { DemandDetailDialog } from "@/components/demand-detail-dialog";
 import { listClients } from "@/lib/clients.functions";
 import { listDemands } from "@/lib/demands.functions";
 import { Layers, X } from "lucide-react";
+const DemandDetailDialogLazy = lazy(() => import("@/components/demand-detail-dialog").then(m => ({ default: m.DemandDetailDialog })));
 
 export function DemandOverlayRenderer() {
   const {
@@ -79,16 +80,18 @@ export function DemandOverlayRenderer() {
 
       {/* Full dialog for the active demand */}
       {activeDemand && (
-        <DemandDetailDialog
-          id={activeDemand.demandId}
-          onClose={close}
-          onMinimize={minimize}
-          clients={resolvedClients}
-          defaultClientId={activeDemand.defaultClientId}
-          defaultStatus={activeDemand.defaultStatus}
-          defaultClientEditionId={activeDemand.defaultClientEditionId}
-          defaultAssigneeId={activeDemand.defaultAssigneeId}
-        />
+        <Suspense fallback={<div className="fixed inset-0 z-50 grid place-items-center bg-black/60 text-sm text-muted-foreground">Carregando...</div>}>
+          <DemandDetailDialogLazy
+            id={activeDemand.demandId}
+            onClose={close}
+            onMinimize={minimize}
+            clients={resolvedClients}
+            defaultClientId={activeDemand.defaultClientId}
+            defaultStatus={activeDemand.defaultStatus}
+            defaultClientEditionId={activeDemand.defaultClientEditionId}
+            defaultAssigneeId={activeDemand.defaultAssigneeId}
+          />
+        </Suspense>
       )}
     </>
   );

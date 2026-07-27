@@ -1,10 +1,12 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { useRef, useState, useEffect, useMemo } from "react";
+import { useRef, useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPublicPortal, updatePortalDemandsOrder } from "@/lib/portal.functions";
-import { DemandDetailDialog, type PortalInitialDemand } from "@/components/demand-detail-dialog";
-import { KanbanBoard, type KanbanDemand } from "@/components/kanban-board";
+import { type PortalInitialDemand } from "@/components/demand-detail-dialog";
+import { type KanbanDemand } from "@/components/kanban-board";
+const DemandDetailDialogLazy = lazy(() => import("@/components/demand-detail-dialog").then(m => ({ default: m.DemandDetailDialog })));
+const KanbanBoardLazy = lazy(() => import("@/components/kanban-board").then(m => ({ default: m.KanbanBoard })));
 import type { DemandStatus } from "@/lib/demands.functions";
 import { cn } from "@/lib/utils";
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
@@ -270,21 +272,23 @@ function PortalPage() {
               className="flex flex-col flex-1 min-w-0 min-h-0 overflow-x-auto"
               style={{ paddingLeft: `max(0px, calc((100vw - 1400px) / 2))` }}
             >
-            <KanbanBoard
-              scrollRef={scrollRef}
-              demands={kanbanDemands}
-              onMove={handleMove}
-              onOpen={(id) => setOpenDialogId(id)}
-              onAdd={(status) => {
-                if (status === "fazendo") return;
-                openNew(status);
-              }}
-              onReorder={handleReorder}
-              isClientPortal={true}
-              showSearch={false}
-              search={search}
-              onSearchChange={setSearch}
-            />
+            <Suspense fallback={<div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">Carregando quadro...</div>}>
+              <KanbanBoardLazy
+                scrollRef={scrollRef}
+                demands={kanbanDemands}
+                onMove={handleMove}
+                onOpen={(id) => setOpenDialogId(id)}
+                onAdd={(status) => {
+                  if (status === "fazendo") return;
+                  openNew(status);
+                }}
+                onReorder={handleReorder}
+                isClientPortal={true}
+                showSearch={false}
+                search={search}
+                onSearchChange={setSearch}
+              />
+            </Suspense>
             </div>
           </div>
         )}
@@ -292,26 +296,28 @@ function PortalPage() {
 
       {/* The one shared DemandDetailDialog — in portal mode */}
       {openDialogId && (
-        <DemandDetailDialog
-          id={openDialogId}
-          onClose={() => setOpenDialogId(null)}
-          clients={[]}
-          defaultStatus={defaultStatus}
-          portalMode={true}
-          portalSlug={slug}
-          portalClientName={client.name}
-          portalBillingModel={client.billing_model}
-          portalCreditsEnabled={creditConfig?.show_progress_bar ?? false}
-          initialDemandData={selectedDemand ?? undefined}
-          onPortalDemandCreated={(newDemand) => {
-            setDemands((prev) => [{ ...newDemand, created_at: new Date().toISOString() }, ...prev]);
-          }}
-          onPortalDemandUpdated={(updated) => {
-            setDemands((prev) =>
-              prev.map((d) => (d.id === updated.id ? { ...d, ...updated } : d)),
-            );
-          }}
-        />
+        <Suspense fallback={<div className="fixed inset-0 z-50 grid place-items-center bg-black/60 text-sm text-muted-foreground">Carregando...</div>}>
+          <DemandDetailDialogLazy
+            id={openDialogId}
+            onClose={() => setOpenDialogId(null)}
+            clients={[]}
+            defaultStatus={defaultStatus}
+            portalMode={true}
+            portalSlug={slug}
+            portalClientName={client.name}
+            portalBillingModel={client.billing_model}
+            portalCreditsEnabled={creditConfig?.show_progress_bar ?? false}
+            initialDemandData={selectedDemand ?? undefined}
+            onPortalDemandCreated={(newDemand) => {
+              setDemands((prev) => [{ ...newDemand, created_at: new Date().toISOString() }, ...prev]);
+            }}
+            onPortalDemandUpdated={(updated) => {
+              setDemands((prev) =>
+                prev.map((d) => (d.id === updated.id ? { ...d, ...updated } : d)),
+              );
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

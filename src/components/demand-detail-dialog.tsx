@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect, lazy, Suspense } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
-import { RichEditor } from "@/components/rich-editor";
+const RichEditorLazy = lazy(() => import("@/components/rich-editor").then(m => ({ default: m.RichEditor })));
 import { deleteFromGDrive } from "@/lib/gdrive.functions";
 import { getFileIdFromUrl } from "@/lib/gdrive-token";
 import { listClientGems, type ClientGem } from "@/lib/client-gems.functions";
@@ -1101,8 +1101,8 @@ export function DemandDetailDialog({
                </div>
 
               <div className="ml-auto flex items-center gap-2">
-                {/* ✨ Criar layout com IA Button */}
-                {clientGems.length > 1 ? (
+                {/* ✨ Criar layout com IA Button — oculto no portal do cliente */}
+                {!portalMode && clientGems.length > 1 ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -1516,14 +1516,16 @@ export function DemandDetailDialog({
 
                 {/* Description editor — Maximize vertical space, borderless */}
                 <div className="description-editor-wrapper flex-1 flex flex-col min-h-[300px]">
-                  <RichEditor
-                    content={description}
-                    onChange={(html) => setDescription(html)}
-                    borderless={true}
-                    readOnly={!descriptionEditable}
-                    placeholder="Descreva a demanda em detalhes..."
-                    gDrivePath={gDrivePath}
-                  />
+                  <Suspense fallback={<div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">Carregando editor...</div>}>
+                    <RichEditorLazy
+                      content={description}
+                      onChange={(html) => setDescription(html)}
+                      borderless={true}
+                      readOnly={!descriptionEditable}
+                      placeholder="Descreva a demanda em detalhes..."
+                      gDrivePath={gDrivePath}
+                    />
+                  </Suspense>
                 </div>
               </div>
 
@@ -1692,14 +1694,16 @@ export function DemandDetailDialog({
 
                   {/* Comment input */}
                   <div className="px-3.5 py-2.5 border-t border-border bg-muted/10 shrink-0">
-                    <RichEditor
-                      content={comment}
-                      onChange={(html) => setComment(html)}
-                      isChatInput={true}
-                      onSubmitChat={handleAddComment}
-                      placeholder={!portalMode && activeCommentTab === "internal" ? "Escrever nota/comentário interno (apenas equipe)..." : "Escrever comentário..."}
-                      gDrivePath={gDrivePath}
-                    />
+                    <Suspense fallback={<div className="text-xs text-muted-foreground p-2">Carregando editor...</div>}>
+                      <RichEditorLazy
+                        content={comment}
+                        onChange={(html) => setComment(html)}
+                        isChatInput={true}
+                        onSubmitChat={handleAddComment}
+                        placeholder={!portalMode && activeCommentTab === "internal" ? "Escrever nota/comentário interno (apenas equipe)..." : "Escrever comentário..."}
+                        gDrivePath={gDrivePath}
+                      />
+                    </Suspense>
                   </div>
                 </div>
               )}
