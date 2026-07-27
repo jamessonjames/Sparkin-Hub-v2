@@ -33,8 +33,8 @@ export const listUsersWithRoles = createServerFn({ method: "GET" })
     if (re) throw new Error(re.message);
 
     // Merge locally
-    return (profiles ?? []).map((p) => {
-      const roleRow = (roles ?? []).find((r) => r.user_id === p.id);
+    return (profiles ?? []).map((p: any) => {
+      const roleRow = (roles ?? []).find((r: any) => r.user_id === p.id);
       return {
         ...p,
         user_roles: roleRow ? [{ id: roleRow.user_id, role: roleRow.role }] : [],
