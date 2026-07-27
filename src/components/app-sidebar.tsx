@@ -380,9 +380,9 @@ export function AppSidebar() {
   function renderClientsNavItem(item: NavItem, index: number) {
     const isDrag = isDragging && dragIdx === index;
 
-    const masterClients = (clients ?? []).filter((c) => !c.parent_id && !c.is_project);
+    const masterClients = (clients ?? []).filter((c: any) => !c.parent_id && !c.is_project);
     const projectsByParent = new Map<string, typeof clients>();
-    for (const c of clients ?? []) {
+    for (const c of (clients ?? []) as any[]) {
       if (c.parent_id) {
         const arr = projectsByParent.get(c.parent_id) ?? [];
         arr.push(c);
@@ -450,7 +450,7 @@ export function AppSidebar() {
           </div>
           {!collapsed && clientsOpen && isAdminOrOwner && (
             <SidebarMenuSub className="gap-[1px] pl-4">
-              {masterClients.slice(0, 20).map((mc) => {
+              {masterClients.slice(0, 20).map((mc: any) => {
                 const projectList = (projectsByParent.get(mc.id) ?? []).slice(0, 10);
                 const isProjOpen = projectsOpen[mc.id] ?? true;
                 return (
@@ -497,7 +497,7 @@ export function AppSidebar() {
                     </SidebarMenuSubItem>
                     {isProjOpen && projectList.length > 0 && (
                       <div className="pl-3 space-y-[1px] border-l border-border/40 ml-1.5">
-                        {projectList.map((p) => (
+                        {projectList.map((p: any) => (
                           <SidebarMenuSubItem key={p.id}>
                             <SidebarMenuSubButton asChild size="sm" isActive={pathname === `/clients/${p.id}`}>
                               <Link
