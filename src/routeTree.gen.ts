@@ -16,7 +16,6 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated.admin'
 import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated.agenda'
 import { Route as AuthenticatedCrmRouteImport } from './routes/_authenticated.crm'
-import { Route as AuthenticatedDemandsRouteImport } from './routes/_authenticated.demands'
 import { Route as AuthenticatedFinanceRouteImport } from './routes/_authenticated.finance'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated.inbox'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated.profile'
@@ -57,11 +56,6 @@ const AuthenticatedAgendaRoute = AuthenticatedAgendaRouteImport.update({
 const AuthenticatedCrmRoute = AuthenticatedCrmRouteImport.update({
   id: '/crm',
   path: '/crm',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedDemandsRoute = AuthenticatedDemandsRouteImport.update({
-  id: '/demands',
-  path: '/demands',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedFinanceRoute = AuthenticatedFinanceRouteImport.update({
@@ -108,7 +102,6 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRoute
   '/agenda': typeof AuthenticatedAgendaRoute
   '/crm': typeof AuthenticatedCrmRoute
-  '/demands': typeof AuthenticatedDemandsRoute
   '/finance': typeof AuthenticatedFinanceRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/profile': typeof AuthenticatedProfileRoute
@@ -123,7 +116,6 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminRoute
   '/agenda': typeof AuthenticatedAgendaRoute
   '/crm': typeof AuthenticatedCrmRoute
-  '/demands': typeof AuthenticatedDemandsRoute
   '/finance': typeof AuthenticatedFinanceRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/profile': typeof AuthenticatedProfileRoute
@@ -141,7 +133,6 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
   '/_authenticated/crm': typeof AuthenticatedCrmRoute
-  '/_authenticated/demands': typeof AuthenticatedDemandsRoute
   '/_authenticated/finance': typeof AuthenticatedFinanceRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
@@ -160,7 +151,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/agenda'
     | '/crm'
-    | '/demands'
     | '/finance'
     | '/inbox'
     | '/profile'
@@ -175,7 +165,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/agenda'
     | '/crm'
-    | '/demands'
     | '/finance'
     | '/inbox'
     | '/profile'
@@ -192,7 +181,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/agenda'
     | '/_authenticated/crm'
-    | '/_authenticated/demands'
     | '/_authenticated/finance'
     | '/_authenticated/inbox'
     | '/_authenticated/profile'
@@ -261,13 +249,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCrmRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/demands': {
-      id: '/_authenticated/demands'
-      path: '/demands'
-      fullPath: '/demands'
-      preLoaderRoute: typeof AuthenticatedDemandsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/finance': {
       id: '/_authenticated/finance'
       path: '/finance'
@@ -324,7 +305,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAgendaRoute: typeof AuthenticatedAgendaRoute
   AuthenticatedCrmRoute: typeof AuthenticatedCrmRoute
-  AuthenticatedDemandsRoute: typeof AuthenticatedDemandsRoute
   AuthenticatedFinanceRoute: typeof AuthenticatedFinanceRoute
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
@@ -338,7 +318,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedAgendaRoute: AuthenticatedAgendaRoute,
   AuthenticatedCrmRoute: AuthenticatedCrmRoute,
-  AuthenticatedDemandsRoute: AuthenticatedDemandsRoute,
   AuthenticatedFinanceRoute: AuthenticatedFinanceRoute,
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
@@ -361,3 +340,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

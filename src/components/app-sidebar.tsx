@@ -34,7 +34,6 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Clientes", to: "/clients", icon: Users },
   { title: "Funil Comercial", to: "/crm", icon: TrendingUp },
   { title: "Financeiro", to: "/finance", icon: DollarSign },
-  { title: "Demandas", to: "/demands", icon: ListChecks },
   { title: "Agenda", to: "/agenda", icon: CalendarDays },
 ];
 
