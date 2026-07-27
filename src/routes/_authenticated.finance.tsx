@@ -495,7 +495,7 @@ function FinancePage() {
       recipient_provider: entryModalType === "expense" ? formRecipient : null,
     };
 
-    if (editingEntry?.recurrence_group_id) {
+    if ((editingEntry as any)?.recurrence_group_id) {
       const hasChanged =
         editingEntry.title !== formTitle ||
         editingEntry.total_value !== Number(formTotalValue) ||
