@@ -122,8 +122,6 @@ function ClientPage() {
     queryFn: () => getFn({ data: { id } }),
   });
 
-  if (clientLoading) return <LoadingSpinner />;
-
   const { data: parentClient } = useQuery({
     queryKey: ["client", client?.parent_id],
     queryFn: () => getFn({ data: { id: client!.parent_id! } }),
@@ -229,7 +227,7 @@ function ClientPage() {
     }
   }
 
-  if (!client) return <div className="p-6 text-muted-foreground">Carregando...</div>;
+  if (!client) return <LoadingSpinner />;
 
   const kanbanPaddingLeft = `max(0px, calc((100vw - ${sidebarWidth}px - 1400px) / 2))`;
 
