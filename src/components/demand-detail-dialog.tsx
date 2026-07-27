@@ -1723,9 +1723,6 @@ export function DemandDetailDialog({
                 </span>
               </div>
               <div className="flex gap-2">
-                <Button variant="ghost" onClick={handleClose} className="h-9 px-4 text-xs">
-                  {isNew ? "Cancelar" : "Fechar"}
-                </Button>
                 <Button
                   onClick={handleSave}
                   disabled={saving || !isDirty}
