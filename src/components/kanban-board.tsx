@@ -120,7 +120,7 @@ const PRIORITY_CHIP: Record<string, string> = {
   urgent: "bg-[#4c1d1d] text-[#fca5a5] border border-[#6e2424]",
 };
 
-export const KanbanBoard = memo(function KanbanBoard({
+export function KanbanBoard({
   demands,
   onMove,
   onOpen,
@@ -729,7 +729,7 @@ function KanbanColumn({
   } = useSortable({
     id: status,
     disabled: isClientPortal,
-  });
+}
 
   const style = {
     transform: CSS.Transform.toString(transform),
