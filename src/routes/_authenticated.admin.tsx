@@ -1093,32 +1093,53 @@ function AdminPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-emerald-500/10">
-                      <div className="text-[11px] text-emerald-400/90 font-medium flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                        Extensão Zero-Config Pronta para Instalação no Chrome
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-emerald-500/10">
+                      <div className="flex flex-col gap-1">
+                        <div className="text-[11px] text-emerald-400/90 font-medium flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                          Extensão Zero-Config Pronta para Instalação no Chrome
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">Instale para capturar demandas automaticamente do WhatsApp Web.</p>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={isScanningNow}
-                        onClick={async () => {
-                          setIsScanningNow(true);
-                          try {
-                            await triggerScanFn();
-                            toast.success("Varredura manual disparada!");
-                          } catch {
-                            toast.error("Erro ao disparar varredura.");
-                          } finally {
-                            setIsScanningNow(false);
-                          }
-                        }}
-                        className="h-8 text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 gap-1.5"
-                      >
-                        <Loader2 className={cn("h-3.5 w-3.5", isScanningNow && "animate-spin")} />
-                        Varrer WhatsApp Agora
-                      </Button>
+                      
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-[11px] border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 gap-1.5 flex-1 sm:flex-none cursor-pointer"
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = '/extension.zip';
+                            link.download = 'whatsapp-extension.zip';
+                            link.click();
+                          }}
+                        >
+                          <Download className="h-3 w-3" />
+                          Download (.zip)
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isScanningNow}
+                          onClick={async () => {
+                            setIsScanningNow(true);
+                            try {
+                              await triggerScanFn();
+                              toast.success("Varredura manual disparada!");
+                            } catch {
+                              toast.error("Erro ao disparar varredura.");
+                            } finally {
+                              setIsScanningNow(false);
+                            }
+                          }}
+                          className="h-8 text-[11px] border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 gap-1.5 flex-1 sm:flex-none"
+                        >
+                          <Loader2 className={cn("h-3.5 w-3.5", isScanningNow && "animate-spin")} />
+                          Varrer Agora
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
