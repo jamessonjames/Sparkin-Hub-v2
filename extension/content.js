@@ -12,11 +12,22 @@ console.log("[Sparkin Hub] Content Script ativo e monitorando WhatsApp Web...");
 // Cache to avoid sending same message multiple times
 const processedMessages = new Set();
 
+// Listen for messages from the browser extension runtime
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "RUN_WHATSAPP_SCAN") {
     const extractedData = scanActiveChats();
     if (extractedData.length > 0) sendToSparkinHub(extractedData);
     sendResponse({ count: extractedData.length, items: extractedData });
+  }
+});
+
+// Listen for messages from the Sparkin Hub web app (via window.postMessage)
+window.addEventListener("message", (event) => {
+  if (event.source !== window) return;
+  if (event.data && event.data.action === "SPARKIN_WHATSAPP_SCAN") {
+    console.log("[Sparkin Hub] Trigger manual recebido via Web App");
+    const extractedData = scanActiveChats();
+    if (extractedData.length > 0) sendToSparkinHub(extractedData);
   }
 });
 
