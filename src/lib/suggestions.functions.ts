@@ -719,7 +719,7 @@ Retorne APENAS o JSON abaixo, sem blocos markdown extras de código (retorne raw
             raw_content: newRawTranscript,
           })
           .eq("raw_content", updatedRecord.raw_content)
-          .ne("id", existingSuggestionId);
+          .neq("id", existingSuggestionId);
       }
     } else {
       // New recording mode: Insert new records into demand_suggestions table
