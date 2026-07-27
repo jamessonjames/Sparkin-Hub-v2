@@ -729,7 +729,7 @@ function KanbanColumn({
   } = useSortable({
     id: status,
     disabled: isClientPortal,
-}
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
