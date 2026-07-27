@@ -220,6 +220,7 @@ function FinancePage() {
   const { data: clients } = useQuery({
     queryKey: ["clients"],
     queryFn: () => listClientsFn(),
+    staleTime: 2 * 60 * 1000,
   });
 
   // Generate receivables in background once per month session (not blocking summary)
@@ -232,11 +233,13 @@ function FinancePage() {
   const { data: summary, isLoading: isLoadingSummary } = useQuery({
     queryKey: ["financialSummary", currentMonth, currentYear, chartMonths],
     queryFn: () => summaryFn({ data: { month: currentMonth, year: currentYear, chartMonths } }),
+    staleTime: 2 * 60 * 1000,
   });
 
   const { data: entries, isLoading: isLoadingEntries } = useQuery({
     queryKey: ["financialEntries", currentMonth, currentYear],
     queryFn: () => listEntriesFn({ data: { month: currentMonth, year: currentYear } }),
+    staleTime: 2 * 60 * 1000,
   });
 
   // Mutations

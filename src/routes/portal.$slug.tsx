@@ -70,8 +70,8 @@ function PortalPage() {
     queryKey: ["portal-data", slug],
     queryFn: () => getPortalFn({ data: { slug } }),
     initialData: Route.useLoaderData(),
-    staleTime: 30 * 1000,
-    refetchInterval: 30_000,
+    staleTime: 60 * 1000,
+    refetchInterval: 60_000,
   });
 
   const client = data.client;

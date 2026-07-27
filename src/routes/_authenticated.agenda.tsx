@@ -206,6 +206,7 @@ function AgendaPage() {
   const { data: demands = [], isPending: demandsLoading } = useQuery({
     queryKey: ["demands", targetAgendaUserId, isAdminOrOwner],
     queryFn: () => listFn({ data: isAdminOrOwner && targetAgendaUserId ? { assigneeUserId: targetAgendaUserId, includeUnassigned: false } : {} }),
+    staleTime: 2 * 60 * 1000,
   });
 
   const { data: allClients = [] } = useQuery({
@@ -257,6 +258,7 @@ function AgendaPage() {
   const { data: reminders = [] } = useQuery({
     queryKey: ["reminders", activeUserId],
     queryFn: () => listRemindersFn({ data: isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId } : {} }),
+    staleTime: 2 * 60 * 1000,
   });
 
   // Slot modal state (Choice between Nova Demanda or Novo Lembrete)
