@@ -89,7 +89,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           .from("profiles")
           .select("id, name, email")
           .order("name", { ascending: true });
-        setProfiles(profilesData.map((p: any) => ({ id: p.id, name: p.name, email: p.email })) ?? []);
+        setProfiles((profilesData || []).map((p: any) => ({ id: p.id, name: p.name, email: p.email })) ?? []);
       }
   };
 
@@ -125,8 +125,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         .select("sidebar_order")
         .eq("id", user.id)
         .maybeSingle();
-      if (profileData?.sidebar_order) {
-        setSidebarOrder(profileData.sidebar_order as string[]);
+      if ((profileData as any)?.sidebar_order) {
+        setSidebarOrder((profileData as any).sidebar_order as string[]);
       }
 
       await refreshProfiles();

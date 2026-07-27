@@ -146,8 +146,8 @@ export function DemandDetailDialog({
   const updateCommentFn = useServerFn(updateComment);
   const listProfilesFn = useServerFn(listProfiles);
   const qc = useQueryClient();
-
-
+  const { selectedUserId } = useUserContext();
+  const activeUserId = selectedUserId;
 
   const [lightbox, setLightbox] = useState<{
     src: string;
@@ -451,7 +451,7 @@ export function DemandDetailDialog({
   useEffect(() => {
     if (portalMode || !pricingConfig || isPriceManuallyEdited) return;
 
-    const selectedClient = fullClients.find((c) => c.id === clientId);
+    const selectedClient = (fullClients as any[]).find((c) => c.id === clientId);
     if (!selectedClient) return;
 
     const isOneOff = selectedClient.billing_model === "fixed" && selectedClient.fixed_type === "one_off";
@@ -494,7 +494,7 @@ export function DemandDetailDialog({
     enabled: !!clientId && !portalMode,
   });
 
-  const selectedClient = !portalMode ? fullClients.find((c) => c.id === clientId) : null;
+  const selectedClient = !portalMode ? (fullClients as any[]).find((c) => c.id === clientId) : null;
   const clientName = portalMode ? (portalClientName || "Desconhecido") : (selectedClient?.name || "Desconhecido");
   const demandTitle = title.trim() || "Nova Demanda";
   const gDrivePath = useMemo(() => ["Clients", clientName, "Demands", demandTitle], [clientName, demandTitle]);

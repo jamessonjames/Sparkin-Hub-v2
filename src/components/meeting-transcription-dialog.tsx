@@ -323,7 +323,7 @@ export function MeetingTranscriptionDialog({
       return;
     }
 
-    const selectedClient = clients.find((c) => c.id === clientId);
+    const selectedClient = (clients as any[]).find((c) => c.id === clientId);
     const clientName = selectedClient?.name || "Cliente";
 
     addLog("info", "Iniciando gravação...");
@@ -570,7 +570,7 @@ export function MeetingTranscriptionDialog({
     }
   };
 
-  const selectedClient = clients.find((c) => c.id === clientId);
+  const selectedClient = (clients as any[]).find((c) => c.id === clientId);
 
   // Formatted continuous markdown summary string
   const formattedSummaryText = Array.isArray(analysisResult?.summary)
