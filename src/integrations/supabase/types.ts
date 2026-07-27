@@ -14,6 +14,85 @@ export type Database = {
   }
   public: {
     Tables: {
+      client_editions: {
+        Row: {
+          billing_month: number | null
+          billing_year: number | null
+          client_id: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          price: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          billing_month?: number | null
+          billing_year?: number | null
+          client_id: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          price?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          billing_month?: number | null
+          billing_year?: number | null
+          client_id?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          price?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_editions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_gems: {
+        Row: {
+          category: string
+          client_id: string
+          created_at: string | null
+          gem_url: string
+          id: string
+          name: string
+        }
+        Insert: {
+          category: string
+          client_id: string
+          created_at?: string | null
+          gem_url: string
+          id?: string
+          name: string
+        }
+        Update: {
+          category?: string
+          client_id?: string
+          created_at?: string | null
+          gem_url?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_gems_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_sessions: {
         Row: {
           client_id: string
@@ -47,6 +126,7 @@ export type Database = {
         Row: {
           access_active: boolean
           billing_model: Database["public"]["Enums"]["billing_model"]
+          color: string | null
           commercial_notes: string | null
           contact_name: string | null
           created_at: string
@@ -56,8 +136,10 @@ export type Database = {
           fixed_type: Database["public"]["Enums"]["fixed_type"] | null
           id: string
           internal_notes: string | null
+          is_project: boolean | null
           monthly_value: number | null
           name: string
+          parent_id: string | null
           password_hash: string | null
           phone: string | null
           require_password: boolean
@@ -69,6 +151,7 @@ export type Database = {
         Insert: {
           access_active?: boolean
           billing_model?: Database["public"]["Enums"]["billing_model"]
+          color?: string | null
           commercial_notes?: string | null
           contact_name?: string | null
           created_at?: string
@@ -78,8 +161,10 @@ export type Database = {
           fixed_type?: Database["public"]["Enums"]["fixed_type"] | null
           id?: string
           internal_notes?: string | null
+          is_project?: boolean | null
           monthly_value?: number | null
           name: string
+          parent_id?: string | null
           password_hash?: string | null
           phone?: string | null
           require_password?: boolean
@@ -91,6 +176,7 @@ export type Database = {
         Update: {
           access_active?: boolean
           billing_model?: Database["public"]["Enums"]["billing_model"]
+          color?: string | null
           commercial_notes?: string | null
           contact_name?: string | null
           created_at?: string
@@ -100,8 +186,10 @@ export type Database = {
           fixed_type?: Database["public"]["Enums"]["fixed_type"] | null
           id?: string
           internal_notes?: string | null
+          is_project?: boolean | null
           monthly_value?: number | null
           name?: string
+          parent_id?: string | null
           password_hash?: string | null
           phone?: string | null
           require_password?: boolean
@@ -111,6 +199,13 @@ export type Database = {
           work_type_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "clients_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "clients_work_type_id_fkey"
             columns: ["work_type_id"]
@@ -299,6 +394,42 @@ export type Database = {
           },
         ]
       }
+      file_attachments: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          entity_id: string
+          entity_type: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          mime_type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          entity_id: string
+          entity_type: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          entity_id?: string
+          entity_type?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+        }
+        Relationships: []
+      }
       notes: {
         Row: {
           client_id: string
@@ -431,7 +562,7 @@ export type Database = {
     }
     Enums: {
       app_role: "owner" | "admin" | "collaborator"
-      billing_model: "fixed" | "credits"
+      billing_model: "fixed" | "credits" | "seasonal"
       demand_priority: "low" | "medium" | "high" | "urgent"
       demand_status:
         | "rascunho"
@@ -577,7 +708,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["owner", "admin", "collaborator"],
-      billing_model: ["fixed", "credits"],
+      billing_model: ["fixed", "credits", "seasonal"],
       demand_priority: ["low", "medium", "high", "urgent"],
       demand_status: [
         "rascunho",
