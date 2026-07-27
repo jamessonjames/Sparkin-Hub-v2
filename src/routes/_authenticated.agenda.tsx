@@ -855,7 +855,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
   const activeDragReminder = useMemo(() => {
     if (!activeDragId || !activeDragId.startsWith("reminder:")) return null;
     const remId = activeDragId.split(":")[1];
-    return (reminders.find((r) => r.id === remId) as ReminderData) || null;
+    return (reminders.find((r) => (r as any).id === remId) as any) || null;
   }, [activeDragId, reminders]);
 
   async function handleSaveReminder(data: ReminderData) {
