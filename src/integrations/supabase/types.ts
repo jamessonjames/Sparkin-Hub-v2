@@ -462,35 +462,50 @@ export type Database = {
         Row: {
           created_at: string | null
           created_by: string | null
+          deleted_at: string | null
+          drive_file_id: string | null
+          drive_url: string | null
           entity_id: string
           entity_type: string
           file_name: string
           file_path: string
           file_size: number | null
+          file_type: string | null
           id: string
           mime_type: string | null
+          uploaded_by: string | null
         }
         Insert: {
           created_at?: string | null
           created_by?: string | null
+          deleted_at?: string | null
+          drive_file_id?: string | null
+          drive_url?: string | null
           entity_id: string
           entity_type: string
           file_name: string
           file_path: string
           file_size?: number | null
+          file_type?: string | null
           id?: string
           mime_type?: string | null
+          uploaded_by?: string | null
         }
         Update: {
           created_at?: string | null
           created_by?: string | null
+          deleted_at?: string | null
+          drive_file_id?: string | null
+          drive_url?: string | null
           entity_id?: string
           entity_type?: string
           file_name?: string
           file_path?: string
           file_size?: number | null
+          file_type?: string | null
           id?: string
           mime_type?: string | null
+          uploaded_by?: string | null
         }
         Relationships: []
       }
@@ -505,6 +520,7 @@ export type Database = {
           notes: string | null
           paid_value: number | null
           recipient_provider: string | null
+          recurrence_group_id: string | null
           status: string
           title: string
           total_value: number
@@ -521,6 +537,7 @@ export type Database = {
           notes?: string | null
           paid_value?: number | null
           recipient_provider?: string | null
+          recurrence_group_id?: string | null
           status?: string
           title: string
           total_value: number
@@ -537,6 +554,7 @@ export type Database = {
           notes?: string | null
           paid_value?: number | null
           recipient_provider?: string | null
+          recurrence_group_id?: string | null
           status?: string
           title?: string
           total_value?: number
@@ -631,6 +649,24 @@ export type Database = {
           email?: string | null
           id?: string
           name?: string | null
+        }
+        Relationships: []
+      }
+      system_settings: {
+        Row: {
+          key: string
+          updated_at: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string | null
+          value?: Json
         }
         Relationships: []
       }

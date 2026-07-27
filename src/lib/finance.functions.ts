@@ -191,15 +191,15 @@ export const checkAndGenerateMonthlyReceivables = createServerFn({ method: "POST
         } else {
           // If it exists, but the total_value doesn't match the client's monthly_value AND status is not paid:
           // Update it to sync with the current client value!
-          if (existing.status !== "paid" && Number(existing.total_value) !== currentVal) {
+          if ((existing as any).status !== "paid" && Number((existing as any).total_value) !== currentVal) {
             const { error: updErr } = await context.supabase
-              .from("financial_entries")
+              .from("financial_entries" as any)
               .update({
                 total_value: currentVal,
                 title: `Mensalidade — ${client.name} (${monthStr}/${year})`,
                 updated_at: new Date().toISOString(),
               })
-              .eq("id", existing.id);
+              .eq("id", (existing as any).id);
 
             if (updErr) throw updErr;
           }
@@ -222,9 +222,9 @@ export const upsertFinancialEntry = createServerFn({ method: "POST" })
       const { error } = await context.supabase
         .from("financial_entries")
         .upsert({
-          ...data,
+          ...(data as any),
           updated_at: new Date().toISOString(),
-        });
+        } as any);
 
       if (error) throw error;
       return { success: true };
@@ -242,7 +242,7 @@ export const deleteFinancialEntry = createServerFn({ method: "POST" })
     try {
       // Fetch the entry first to check if it's a subscription billing
       const { data: entry, error: fetchErr } = await context.supabase
-        .from("financial_entries")
+        .from("financial_entries" as any)
         .select("*")
         .eq("id", id)
         .maybeSingle();
@@ -251,7 +251,7 @@ export const deleteFinancialEntry = createServerFn({ method: "POST" })
 
       // Delete the entry
       const { error } = await context.supabase
-        .from("financial_entries")
+        .from("financial_entries" as any)
         .delete()
         .eq("id", id);
 
@@ -597,7 +597,7 @@ export const deleteFinancialEntryWithRecurrence = createServerFn({ method: "POST
         const { error } = await context.supabase
           .from("financial_entries")
           .delete()
-          .eq("recurrence_group_id", entry.recurrence_group_id)
+          .eq("recurrence_group_id" as any, (entry as any).recurrence_group_id)
           .gte("due_date", entry.due_date)
           .neq("status", "paid");
 
