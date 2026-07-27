@@ -208,8 +208,8 @@ function CrmPage() {
     }
   };
 
-  function handleDragStart(event: { active: { id: string } }) {
-    const lead = leads.find((l) => l.id === event.active.id);
+  function handleDragStart(event: any) {
+    const lead = leads.find((l) => l.id === String(event.active.id));
     if (lead) setActiveLead(lead);
   }
 

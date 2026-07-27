@@ -23,6 +23,7 @@ import { Route as PortalSlugRouteImport } from './routes/portal.$slug'
 import { Route as AuthenticatedClientsIndexRouteImport } from './routes/_authenticated.clients.index'
 import { Route as AuthenticatedClientsIdRouteImport } from './routes/_authenticated.clients.$id'
 import { Route as AuthenticatedClientsNewRouteImport } from './routes/_authenticated.clients.new'
+import { Route as ApiPublicCaptureRouteImport } from './routes/api/public/capture'
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
@@ -94,6 +95,11 @@ const AuthenticatedClientsNewRoute = AuthenticatedClientsNewRouteImport.update({
   path: '/clients/new',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const ApiPublicCaptureRoute = ApiPublicCaptureRouteImport.update({
+  id: '/api/public/capture',
+  path: '/api/public/capture',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/portal/$slug': typeof PortalSlugRoute
   '/clients/$id': typeof AuthenticatedClientsIdRoute
   '/clients/new': typeof AuthenticatedClientsNewRoute
+  '/api/public/capture': typeof ApiPublicCaptureRoute
   '/clients/': typeof AuthenticatedClientsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/clients/$id': typeof AuthenticatedClientsIdRoute
   '/clients/new': typeof AuthenticatedClientsNewRoute
+  '/api/public/capture': typeof ApiPublicCaptureRoute
   '/clients': typeof AuthenticatedClientsIndexRoute
 }
 export interface FileRoutesById {
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/clients/$id': typeof AuthenticatedClientsIdRoute
   '/_authenticated/clients/new': typeof AuthenticatedClientsNewRoute
+  '/api/public/capture': typeof ApiPublicCaptureRoute
   '/_authenticated/clients/': typeof AuthenticatedClientsIndexRoute
 }
 export interface FileRouteTypes {
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
     | '/portal/$slug'
     | '/clients/$id'
     | '/clients/new'
+    | '/api/public/capture'
     | '/clients/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -172,6 +182,7 @@ export interface FileRouteTypes {
     | '/'
     | '/clients/$id'
     | '/clients/new'
+    | '/api/public/capture'
     | '/clients'
   id:
     | '__root__'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/clients/$id'
     | '/_authenticated/clients/new'
+    | '/api/public/capture'
     | '/_authenticated/clients/'
   fileRoutesById: FileRoutesById
 }
@@ -196,6 +208,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   PortalSlugRoute: typeof PortalSlugRoute
+  ApiPublicCaptureRoute: typeof ApiPublicCaptureRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -298,6 +311,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedClientsNewRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/public/capture': {
+      id: '/api/public/capture'
+      path: '/api/public/capture'
+      fullPath: '/api/public/capture'
+      preLoaderRoute: typeof ApiPublicCaptureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -336,17 +356,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   PortalSlugRoute: PortalSlugRoute,
+  ApiPublicCaptureRoute: ApiPublicCaptureRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

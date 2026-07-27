@@ -132,6 +132,18 @@ export const createSuggestion = createServerFn({ method: "POST" })
       .parse(input)
   )
   .handler(async ({ data, context }) => {
+    // Check if we already have a suggestion with this raw_content to avoid duplicates
+    if (data.raw_content) {
+      const { data: existing } = await context.supabase
+        .from("demand_suggestions")
+        .select("id")
+        .eq("client_id", data.client_id)
+        .eq("raw_content", data.raw_content)
+        .maybeSingle();
+      
+      if (existing) return existing as any as DemandSuggestion;
+    }
+
     const { data: row, error } = await context.supabase
       .from("demand_suggestions")
       .insert({
@@ -153,6 +165,7 @@ export const createSuggestion = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return row as any as DemandSuggestion;
   });
+
 
 export function markdownToHtml(markdown: string): string {
   if (!markdown) return "";
