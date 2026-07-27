@@ -242,6 +242,54 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_leads: {
+        Row: {
+          billing_model: string | null
+          client_color: string | null
+          contact_name: string | null
+          created_at: string | null
+          email: string | null
+          estimated_value: number | null
+          id: string
+          internal_notes: string | null
+          name: string
+          phone: string | null
+          source: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          billing_model?: string | null
+          client_color?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          estimated_value?: number | null
+          id?: string
+          internal_notes?: string | null
+          name: string
+          phone?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          billing_model?: string | null
+          client_color?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          estimated_value?: number | null
+          id?: string
+          internal_notes?: string | null
+          name?: string
+          phone?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       demand_comments: {
         Row: {
           author_label: string | null
@@ -251,6 +299,7 @@ export type Database = {
           created_at: string
           demand_id: string
           id: string
+          is_internal: boolean | null
         }
         Insert: {
           author_label?: string | null
@@ -260,6 +309,7 @@ export type Database = {
           created_at?: string
           demand_id: string
           id?: string
+          is_internal?: boolean | null
         }
         Update: {
           author_label?: string | null
@@ -269,6 +319,7 @@ export type Database = {
           created_at?: string
           demand_id?: string
           id?: string
+          is_internal?: boolean | null
         }
         Relationships: [
           {

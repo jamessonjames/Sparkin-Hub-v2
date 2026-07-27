@@ -571,7 +571,7 @@ export function DemandDetailDialog({
         setClientEditionId(defaultClientEditionId);
       } else {
         const activeEdition = (clientEditions as any[]).find((e: any) => e.is_active);
-        setClientEditionId(activeEdition?.id || clientEditions[0]?.id || "");
+        setClientEditionId((activeEdition as any)?.id || (clientEditions as any[])[0]?.id || "");
       }
     }
   }, [isNew, clientEditions, defaultClientEditionId, clientEditionId]);
@@ -828,7 +828,7 @@ export function DemandDetailDialog({
             due_date: finalDueDate,
             estimated_credits: estimatedCredits,
             estimated_hours: estimatedHours,
-            assignee_user_id: assigneeId || profiles.find((p) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
+            assignee_user_id: assigneeId || (profiles as any[]).find((p: any) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
             client_edition_id: clientEditionId || null,
             price: price ?? null,
           },
@@ -849,7 +849,7 @@ export function DemandDetailDialog({
             estimated_credits: estimatedCredits,
             estimated_hours: estimatedHours,
             internal_notes: demand?.internal_notes,
-            assignee_user_id: assigneeId || profiles.find((p) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
+            assignee_user_id: assigneeId || (profiles as any[]).find((p: any) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
             client_edition_id: clientEditionId || null,
             price: price ?? null,
           },
