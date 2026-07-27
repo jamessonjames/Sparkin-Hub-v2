@@ -6,7 +6,7 @@ const captureSchema = z.object({
   source: z.enum(['whatsapp', 'email']).default('whatsapp'),
   clientName: z.string(),
   content: z.string(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   timestamp: z.string().optional(),
 })
 
