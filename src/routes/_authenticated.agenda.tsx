@@ -457,6 +457,11 @@ function AgendaPage() {
           priority: dObj.priority,
           due_date: dObj.due_date,
           estimated_hours: hours,
+          estimated_credits: dObj.estimated_credits,
+          internal_notes: dObj.internal_notes,
+          assignee_user_id: dObj.assignee_user_id,
+          client_edition_id: dObj.client_edition_id,
+          price: dObj.price,
         },
       });
       qc.invalidateQueries({ queryKey: ["demands"] });
@@ -1658,7 +1663,7 @@ function DraggableDemandCard({
   const [isResizing, setIsResizing] = useState(false);
   const [tempHours, setTempHours] = useState(demand.estimated_hours ? Number(demand.estimated_hours) : 1.0);
 
-  const startResize = (e: React.MouseEvent) => {
+  const startResize = (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
     setIsResizing(true);
@@ -1779,7 +1784,7 @@ function DraggableDemandCard({
 
       {/* Dynamic Resize Handle at the bottom border */}
       <div
-        onMouseDown={startResize}
+        onPointerDown={startResize}
         className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize hover:bg-primary/40 flex items-center justify-center group z-30"
       >
         <span className="w-5 h-0.5 bg-zinc-600 group-hover:bg-primary rounded-full transition-colors" />
