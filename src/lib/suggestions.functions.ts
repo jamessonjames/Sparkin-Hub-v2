@@ -978,7 +978,7 @@ Retorne APENAS o JSON no formato:
         .from("demand_suggestions")
         .update({ ai_summary: newSummaryMarkdown })
         .eq("raw_content", suggestion.raw_content)
-        .ne("id", data.suggestionId);
+        .neq("id", data.suggestionId);
     }
 
     return { summary_markdown: newSummaryMarkdown };
