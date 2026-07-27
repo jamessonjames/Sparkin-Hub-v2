@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      agenda_reminders: {
+        Row: {
+          color: string | null
+          content: string | null
+          created_at: string | null
+          date_time: string
+          id: string
+          is_completed: boolean | null
+          recurrence_end_date: string | null
+          recurrence_interval: number | null
+          recurrence_type: string | null
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          content?: string | null
+          created_at?: string | null
+          date_time: string
+          id?: string
+          is_completed?: boolean | null
+          recurrence_end_date?: string | null
+          recurrence_interval?: number | null
+          recurrence_type?: string | null
+          title: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          content?: string | null
+          created_at?: string | null
+          date_time?: string
+          id?: string
+          is_completed?: boolean | null
+          recurrence_end_date?: string | null
+          recurrence_interval?: number | null
+          recurrence_type?: string | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       client_editions: {
         Row: {
           billing_month: number | null

@@ -29,7 +29,7 @@ export const uploadAttachment = createServerFn({ method: "POST" })
       const viewUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
 
       const { error: insErr } = await context.supabase
-        .from("file_attachments")
+        .from("file_attachments" as any)
         .insert({
           entity_type: entityType,
           entity_id: entityId,
@@ -39,7 +39,8 @@ export const uploadAttachment = createServerFn({ method: "POST" })
           drive_file_id: fileId,
           drive_url: viewUrl,
           uploaded_by: context.userId,
-        });
+          file_path: fileName, // fallback
+        } as any);
 
       if (insErr) throw insErr;
 
@@ -59,7 +60,7 @@ export const listAttachments = createServerFn({ method: "GET" })
   }))
   .handler(async ({ data: { entityType, entityId }, context }) => {
     const { data, error } = await context.supabase
-      .from("file_attachments")
+      .from("file_attachments" as any)
       .select("id, file_name, file_type, file_size, drive_url, created_at, uploaded_by")
       .eq("entity_type", entityType)
       .eq("entity_id", entityId)
@@ -76,7 +77,7 @@ export const deleteAttachment = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data: { id }, context }) => {
     const { error } = await context.supabase
-      .from("file_attachments")
+      .from("file_attachments" as any)
       .update({ deleted_at: new Date().toISOString() })
       .eq("id", id);
 

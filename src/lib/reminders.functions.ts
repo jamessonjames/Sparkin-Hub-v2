@@ -13,7 +13,7 @@ export const listReminders = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const targetUser = data?.assigneeUserId || context.userId;
     const { data: rows, error } = await context.supabase
-      .from("agenda_reminders")
+      .from("agenda_reminders" as any)
       .select("*")
       .eq("user_id", targetUser)
       .order("date_time", { ascending: true });
@@ -41,7 +41,7 @@ export const upsertReminder = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     if (data.id) {
       const { error } = await context.supabase
-        .from("agenda_reminders")
+        .from("agenda_reminders" as any)
         .update({
           title: data.title,
           content: data.content,
@@ -52,7 +52,7 @@ export const upsertReminder = createServerFn({ method: "POST" })
           recurrence_end_date: data.recurrence_end_date,
           is_completed: data.is_completed,
           updated_at: new Date().toISOString(),
-        })
+        } as any)
         .eq("id", data.id)
         .eq("user_id", context.userId);
       if (error) throw new Error(error.message);
@@ -60,7 +60,7 @@ export const upsertReminder = createServerFn({ method: "POST" })
     }
 
     const { data: row, error } = await context.supabase
-      .from("agenda_reminders")
+      .from("agenda_reminders" as any)
       .insert({
         user_id: context.userId,
         title: data.title,
@@ -71,7 +71,7 @@ export const upsertReminder = createServerFn({ method: "POST" })
         recurrence_interval: data.recurrence_interval,
         recurrence_end_date: data.recurrence_end_date,
         is_completed: data.is_completed,
-      })
+      } as any)
       .select("id")
       .single();
     if (error) throw new Error(error.message);
@@ -85,44 +85,44 @@ export const completeReminder = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { data: reminder, error: fetchErr } = await context.supabase
-      .from("agenda_reminders")
+      .from("agenda_reminders" as any)
       .select("*")
       .eq("id", data.id)
       .single();
     if (fetchErr || !reminder) throw new Error("Reminder not found");
 
-    if (reminder.recurrence_type && reminder.recurrence_type !== "none") {
-      const dt = new Date(reminder.date_time);
-      const interval = reminder.recurrence_interval || 1;
+    if ((reminder as any).recurrence_type && (reminder as any).recurrence_type !== "none") {
+      const dt = new Date((reminder as any).date_time);
+      const interval = (reminder as any).recurrence_interval || 1;
 
-      if (reminder.recurrence_type === "daily") {
+      if ((reminder as any).recurrence_type === "daily") {
         dt.setDate(dt.getDate() + interval);
-      } else if (reminder.recurrence_type === "weekly") {
+      } else if ((reminder as any).recurrence_type === "weekly") {
         dt.setDate(dt.getDate() + 7 * interval);
-      } else if (reminder.recurrence_type === "monthly") {
+      } else if ((reminder as any).recurrence_type === "monthly") {
         dt.setMonth(dt.getMonth() + interval);
-      } else if (reminder.recurrence_type === "yearly") {
+      } else if ((reminder as any).recurrence_type === "yearly") {
         dt.setFullYear(dt.getFullYear() + interval);
       }
 
-      const endDt = reminder.recurrence_end_date ? new Date(reminder.recurrence_end_date) : null;
+      const endDt = (reminder as any).recurrence_end_date ? new Date((reminder as any).recurrence_end_date) : null;
       if (!endDt || dt <= endDt) {
-        await context.supabase.from("agenda_reminders").insert({
-          user_id: reminder.user_id,
-          title: reminder.title,
-          content: reminder.content,
-          color: reminder.color,
+        await context.supabase.from("agenda_reminders" as any).insert({
+          user_id: (reminder as any).user_id,
+          title: (reminder as any).title,
+          content: (reminder as any).content,
+          color: (reminder as any).color,
           date_time: dt.toISOString(),
-          recurrence_type: reminder.recurrence_type,
-          recurrence_interval: reminder.recurrence_interval,
-          recurrence_end_date: reminder.recurrence_end_date,
+          recurrence_type: (reminder as any).recurrence_type,
+          recurrence_interval: (reminder as any).recurrence_interval,
+          recurrence_end_date: (reminder as any).recurrence_end_date,
           is_completed: false,
-        });
+        } as any);
       }
     }
 
     const { error } = await context.supabase
-      .from("agenda_reminders")
+      .from("agenda_reminders" as any)
       .update({ is_completed: true, updated_at: new Date().toISOString() })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -136,7 +136,7 @@ export const deleteReminder = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
-      .from("agenda_reminders")
+      .from("agenda_reminders" as any)
       .delete()
       .eq("id", data.id);
     if (error) throw new Error(error.message);

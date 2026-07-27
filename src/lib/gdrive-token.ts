@@ -4,7 +4,7 @@ let tokenExpiry = 0;
 
 async function ensureGISLoaded(): Promise<void> {
   if (typeof window === "undefined" || typeof document === "undefined") return;
-  if (typeof google !== "undefined" && google.accounts?.oauth2) return;
+  if (typeof (window as any).google !== "undefined" && (window as any).google.accounts?.oauth2) return;
   await new Promise<void>((resolve) => {
     const s = document.createElement("script");
     s.src = "https://accounts.google.com/gsi/client";
@@ -20,7 +20,7 @@ export async function getGDriveAccessToken(): Promise<string> {
   if (cachedToken && Date.now() < tokenExpiry - 60000) return cachedToken;
   await ensureGISLoaded();
   if (!tokenClient) {
-    tokenClient = google.accounts.oauth2.initTokenClient({
+    tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
       scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive",
       callback: (response: any) => {
@@ -46,7 +46,7 @@ export async function connectGDriveCode(): Promise<string> {
   if (typeof window === "undefined") throw new Error("Apenas no cliente.");
   await ensureGISLoaded();
   return new Promise((resolve, reject) => {
-    const codeClient = google.accounts.oauth2.initCodeClient({
+    const codeClient = (window as any).google.accounts.oauth2.initCodeClient({
       client_id: GOOGLE_CLIENT_ID,
       scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email email",
       ux_mode: "popup",
@@ -68,7 +68,7 @@ export async function connectGDrive(): Promise<{ accessToken: string; email: str
   if (typeof window === "undefined") throw new Error("Apenas no cliente.");
   await ensureGISLoaded();
   return new Promise((resolve, reject) => {
-    const tc = google.accounts.oauth2.initTokenClient({
+    const tc = (window as any).google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
       scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email email",
       callback: async (response: any) => {
