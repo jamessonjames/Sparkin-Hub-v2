@@ -1,8 +1,22 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
+import {
+  DndContext,
+  useDraggable,
+  useDroppable,
+  DragOverlay,
+  PointerSensor,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  pointerWithin,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import {
   listLeads,
   createLead,
@@ -17,7 +31,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -32,8 +45,9 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, X, Trash2, DollarSign, Phone, Mail, User } from "lucide-react";
+import { Plus, Trash2, DollarSign, Phone, Mail, User } from "lucide-react";
 import { ClientColorPicker } from "@/components/client-color-picker";
+import { useSidebar } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/crm")({
@@ -96,6 +110,8 @@ function CrmPage() {
   const updateFn = useServerFn(updateLead);
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { state: sidebarState } = useSidebar();
+  const sidebarWidth = sidebarState === "collapsed" ? 48 : 256;
 
   const { data: leads = [] } = useQuery({
     queryKey: ["crm_leads"],
@@ -107,6 +123,7 @@ function CrmPage() {
   const [editingLead, setEditingLead] = useState<CrmLead | null>(null);
   const [convertOpen, setConvertOpen] = useState(false);
   const [convertingLead, setConvertingLead] = useState<CrmLead | null>(null);
+  const [activeLead, setActiveLead] = useState<CrmLead | null>(null);
   const [createForm, setCreateForm] = useState({
     name: "",
     contact_name: "",
@@ -132,7 +149,89 @@ function CrmPage() {
     {} as Record<string, CrmLead[]>,
   );
 
-  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+  );
+
+  const kanbanPaddingLeft = `max(0px, calc((100vw - ${sidebarWidth}px - 1400px) / 2))`;
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isDraggingBoard = useRef(false);
+  const startX = useRef(0);
+  const startScrollLeft = useRef(0);
+  const hasMovedBoard = useRef(false);
+
+  const handleBoardMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 2) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    isDraggingBoard.current = true;
+    hasMovedBoard.current = false;
+    startX.current = e.pageX - container.offsetLeft;
+    startScrollLeft.current = container.scrollLeft;
+    document.body.style.userSelect = "none";
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingBoard.current) return;
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      const x = e.pageX - container.offsetLeft;
+      const walk = (x - startX.current) * 1.5;
+      if (Math.abs(walk) > 3) {
+        hasMovedBoard.current = true;
+      }
+      container.scrollLeft = startScrollLeft.current - walk;
+    };
+
+    const handleMouseUp = () => {
+      if (isDraggingBoard.current) {
+        isDraggingBoard.current = false;
+        document.body.style.userSelect = "";
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
+  const handleBoardContextMenu = (e: React.MouseEvent) => {
+    if (hasMovedBoard.current) {
+      e.preventDefault();
+      hasMovedBoard.current = false;
+    }
+  };
+
+  function handleDragStart(event: { active: { id: string } }) {
+    const lead = leads.find((l) => l.id === event.active.id);
+    if (lead) setActiveLead(lead);
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setActiveLead(null);
+    if (!over) return;
+
+    const leadId = String(active.id);
+    const targetId = String(over.id);
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead) return;
+
+    const isColumn = COLUMNS.some((c) => c.status === targetId);
+    const targetStatus: LeadStatus | null = isColumn
+      ? (targetId as LeadStatus)
+      : (leads.find((l) => l.id === targetId)?.status as LeadStatus) ?? null;
+
+    if (!targetStatus || targetStatus === lead.status) return;
+
+    handleStatusChange(lead, targetStatus);
+  }
 
   async function handleCreate() {
     if (!createForm.name.trim()) return;
@@ -276,7 +375,7 @@ function CrmPage() {
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 pt-4 md:pt-6 pb-2 flex items-center justify-between shrink-0">
         <div>
           <h2 className="font-display text-2xl font-bold text-foreground">Funil Comercial</h2>
@@ -287,73 +386,49 @@ function CrmPage() {
         </Button>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto flex-1 min-h-0 px-4 md:px-6 pb-6">
-        {COLUMNS.map((col) => {
-          const items = byStatus[col.status] ?? [];
-          const theme = STATUS_THEME[col.status];
-
-          return (
-            <div
-              key={col.status}
-              className={cn(
-                "min-w-[272px] w-[272px] flex-shrink-0 flex flex-col rounded-xl p-3 transition-all duration-150",
-                theme.columnBg,
-                dragOverCol === col.status && "ring-1 ring-primary/20",
-              )}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOverCol(col.status);
-              }}
-              onDragLeave={() => setDragOverCol(null)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOverCol(null);
-                const id = e.dataTransfer.getData("text/lead-id");
-                if (id) {
-                  const lead = leads.find((l) => l.id === id);
-                  if (lead && lead.status !== col.status) {
-                    handleStatusChange(lead, col.status);
-                  }
-                }
-              }}
-            >
-              <div className="flex items-center justify-between mb-3 px-1">
-                <div className="flex items-center gap-1.5">
-                  <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", theme.dot)} />
-                  <span className={cn("text-xs font-medium px-2 py-0.5 rounded-md", theme.pill)}>
-                    {col.label}
-                  </span>
-                  <span className="text-xs text-zinc-500 font-medium ml-0.5">{items.length}</span>
-                </div>
-                {col.status === "novo" && (
-                  <button
-                    onClick={() => setCreateOpen(true)}
-                    className="text-muted-foreground hover:text-foreground transition-colors rounded p-0.5 hover:bg-zinc-800 light:hover:bg-zinc-200"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-
-              <div className="flex-1 space-y-2 min-h-[100px]">
-                {items.map((lead) => (
-                  <CrmCard
-                    key={lead.id}
-                    lead={lead}
-                    onStatusChange={handleStatusChange}
+      <div className="flex-1 flex min-h-0">
+        <div
+          ref={scrollContainerRef}
+          onMouseDown={handleBoardMouseDown}
+          onContextMenu={handleBoardContextMenu}
+          className="flex flex-col flex-1 min-w-0 min-h-0 overflow-x-auto select-none md:select-auto"
+          style={{ paddingLeft: kanbanPaddingLeft }}
+        >
+          <DndContext
+            sensors={sensors}
+            collisionDetection={pointerWithin}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="flex gap-3 flex-1 min-h-0 px-2 pb-6 select-none items-stretch">
+              {COLUMNS.map((col) => {
+                const items = byStatus[col.status] ?? [];
+                return (
+                  <KanbanColumn
+                    key={col.status}
+                    status={col.status}
+                    label={col.label}
+                    theme={STATUS_THEME[col.status]}
+                    leads={items}
+                    onAdd={() => setCreateOpen(true)}
                     onEdit={openEdit}
                     onDelete={handleDelete}
                   />
-                ))}
-                {items.length === 0 && (
-                  <div className="flex items-center justify-center h-20 text-xs text-muted-foreground">
-                    Nenhum lead
-                  </div>
-                )}
-              </div>
+                );
+              })}
             </div>
-          );
-        })}
+
+            <DragOverlay>
+              {activeLead && (
+                <CrmCard
+                  lead={activeLead}
+                  theme={STATUS_THEME[activeLead.status]}
+                  isOverlay
+                />
+              )}
+            </DragOverlay>
+          </DndContext>
+        </div>
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -589,35 +664,108 @@ function CrmPage() {
   );
 }
 
-function CrmCard({
+function KanbanColumn({
+  status,
+  label,
+  theme,
+  leads,
+  onAdd,
+  onEdit,
+  onDelete,
+}: {
+  status: string;
+  label: string;
+  theme: { dot: string; pill: string; cardBg: string; cardBorder: string; columnBg: string };
+  leads: CrmLead[];
+  onAdd: () => void;
+  onEdit: (lead: CrmLead) => void;
+  onDelete: (id: string) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: status });
+
+  return (
+    <div className="min-w-[272px] w-[272px] flex-shrink-0 flex flex-col transition-all duration-150 group/column">
+      <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex items-center gap-1.5">
+          <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", theme.dot)} />
+          <span className={cn("text-xs font-medium px-2 py-0.5 rounded-md", theme.pill)}>
+            {label}
+          </span>
+          <span className="text-xs text-zinc-500 font-medium ml-0.5">{leads.length}</span>
+        </div>
+        <button
+          onClick={onAdd}
+          className="opacity-0 group-hover/column:opacity-100 text-muted-foreground hover:text-foreground transition-all rounded p-0.5 hover:bg-zinc-800 light:hover:bg-zinc-200"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "flex-1 rounded-xl p-2.5 min-h-[150px] transition-all duration-150 space-y-2",
+          theme.columnBg,
+          isOver && "ring-1 ring-primary/20",
+        )}
+      >
+        {leads.length === 0 && (
+          <div className="flex items-center justify-center h-20 text-xs text-muted-foreground">
+            Nenhum lead
+          </div>
+        )}
+        {leads.map((lead) => (
+          <DraggableCard
+            key={lead.id}
+            lead={lead}
+            theme={theme}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+
+        <button
+          onClick={onAdd}
+          className="flex items-center justify-start gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold w-full transition-all cursor-pointer border shadow-xs text-muted-foreground hover:text-foreground border-border hover:border-foreground/30 bg-surface-2/40 hover:bg-surface-2"
+        >
+          <Plus className="h-3.5 w-3.5 shrink-0" />
+          <span>Lead</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DraggableCard({
   lead,
-  onStatusChange,
+  theme,
   onEdit,
   onDelete,
 }: {
   lead: CrmLead;
-  onStatusChange: (lead: CrmLead, status: LeadStatus) => void;
+  theme: { dot: string; pill: string; cardBg: string; cardBorder: string; columnBg: string };
   onEdit: (lead: CrmLead) => void;
   onDelete: (id: string) => void;
 }) {
-  const theme = STATUS_THEME[lead.status];
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: lead.id,
+  });
+
+  const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined;
 
   return (
     <div
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData("text/lead-id", lead.id);
-        e.currentTarget.classList.add("opacity-50");
-      }}
-      onDragEnd={(e) => {
-        e.currentTarget.classList.remove("opacity-50");
-      }}
-      onClick={() => onEdit(lead)}
+      ref={setNodeRef}
+      style={style}
       className={cn(
-        "rounded-lg border p-3.5 cursor-pointer group select-none relative transition-all duration-100 shadow-sm",
+        "rounded-lg border p-3.5 cursor-grab active:cursor-grabbing group select-none relative transition-all duration-100 shadow-sm",
         theme.cardBg,
         theme.cardBorder,
+        isDragging && "opacity-50",
       )}
+      onClick={() => onEdit(lead)}
+      {...attributes}
+      {...listeners}
     >
       <div className="flex flex-col gap-2">
         <div className="flex items-start justify-between gap-2">
@@ -669,24 +817,68 @@ function CrmCard({
             <span>{lead.estimated_value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
 
-        <div className="flex items-center gap-1.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {COLUMNS.filter((c) => c.status !== lead.status).map((col) => (
-            <button
-              key={col.status}
-              onClick={(e) => {
-                e.stopPropagation();
-                onStatusChange(lead, col.status);
-              }}
-              className={cn(
-                "text-[10px] px-2 py-0.5 rounded-md border border-border bg-surface-2/40 hover:bg-surface-2 text-muted-foreground hover:text-foreground transition-all",
-                STATUS_THEME[col.status].dot.replace("bg-", "hover:bg-").replace("-400", "-600"),
-              )}
-            >
-              {col.label}
-            </button>
-          ))}
+function CrmCard({
+  lead,
+  theme,
+  isOverlay,
+}: {
+  lead: CrmLead;
+  theme: { dot: string; pill: string; cardBg: string; cardBorder: string; columnBg: string };
+  isOverlay?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border p-3.5 select-none shadow-2xl",
+        isOverlay && "rotate-1 scale-[1.02] opacity-95",
+        theme.cardBg,
+        theme.cardBorder,
+      )}
+    >
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span
+            className="h-2 w-2 rounded-full shrink-0"
+            style={{ backgroundColor: lead.client_color || "#3b82f6" }}
+          />
+          <p className="text-sm font-semibold text-foreground leading-tight truncate">
+            {lead.name}
+          </p>
         </div>
+
+        {lead.contact_name && (
+          <p className="text-xs text-zinc-400 truncate flex items-center gap-1">
+            <User className="h-3 w-3 shrink-0" />
+            <span>{lead.contact_name}</span>
+          </p>
+        )}
+
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-500">
+          {lead.email && (
+            <span className="flex items-center gap-1 truncate max-w-[140px]">
+              <Mail className="h-3 w-3 shrink-0" />
+              <span className="truncate">{lead.email}</span>
+            </span>
+          )}
+          {lead.phone && (
+            <span className="flex items-center gap-1">
+              <Phone className="h-3 w-3 shrink-0" />
+              <span>{lead.phone}</span>
+            </span>
+          )}
+        </div>
+
+        {lead.estimated_value != null && lead.estimated_value > 0 && (
+          <div className="flex items-center gap-1 text-xs font-medium text-zinc-300 pt-1.5 border-t border-zinc-800/10">
+            <DollarSign className="h-3 w-3 text-emerald-400" />
+            <span>{lead.estimated_value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+          </div>
+        )}
       </div>
     </div>
   );
