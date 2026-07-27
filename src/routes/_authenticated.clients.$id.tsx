@@ -120,17 +120,19 @@ function ClientPage() {
   const { data: client, isPending: clientLoading } = useQuery({
     queryKey: ["client", id],
     queryFn: () => getFn({ data: { id } }),
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: parentClient } = useQuery({
     queryKey: ["client", client?.parent_id],
     queryFn: () => getFn({ data: { id: client!.parent_id! } }),
     enabled: !!client?.parent_id,
+    staleTime: 5 * 60 * 1000,
   });
-  const { data: clientDemands = [] } = useQuery({
+  const { data: clientDemands = [], isPending: demandsLoading } = useQuery({
     queryKey: ["demands", activeUserId, id],
     queryFn: () => demandsFn({ data: { clientId: id, ...(isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId } : {}) } }),
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const editionsFn = useServerFn(listClientEditions);
@@ -377,7 +379,12 @@ function ClientPage() {
           </TabsList>
         </div>
 
-        <TabsContent value="demands" className="flex-1 flex flex-col min-h-0 gap-8">
+        <TabsContent value="demands" className="flex-1 flex flex-col min-h-0 gap-8 relative">
+          {demandsLoading && (
+            <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-50 flex items-center justify-center">
+              <LoadingSpinner />
+            </div>
+          )}
           <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 flex flex-col gap-4 shrink-0 pt-6">
             <div className="flex justify-between items-center gap-3">
               <div className="relative w-56">
