@@ -61,7 +61,7 @@ export function ClientFormDialog() {
           <DialogTitle>{state.isProject ? "Novo Projeto" : "Novo Cliente"}</DialogTitle>
           <p className="text-xs text-muted-foreground">
             {state.isProject && parentClient
-              ? `Vincular ao cliente: ${parentClient.name}`
+              ? `Vincular ao cliente: ${(parentClient as any).name}`
               : "Cadastre os dados principais."}
           </p>
         </DialogHeader>

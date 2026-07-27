@@ -151,7 +151,7 @@ export function KanbanBoard({
 
   const profilesMap = useMemo(() => {
     const map = new Map<string, { id: string; name: string; avatar_url?: string | null }>();
-    profiles.forEach((p) => map.set(p.id, p));
+    profiles.forEach((p: any) => map.set(p.id, p));
     return map;
   }, [profiles]);
 
