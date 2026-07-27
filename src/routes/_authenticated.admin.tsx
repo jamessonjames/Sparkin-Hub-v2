@@ -1113,6 +1113,7 @@ function AdminPage() {
                             const link = document.createElement('a');
                             link.href = '/extension.zip';
                             link.download = 'whatsapp-extension.zip';
+                            link.target = '_blank';
                             link.click();
                           }}
                         >
