@@ -210,9 +210,9 @@ export const deleteUserAdmin = createServerFn({ method: "POST" })
 
 // Server functions to get and save global system branding (system name & favicon) across devices
 export const getSystemBranding = createServerFn({ method: "GET" })
-  .handler(async ({ context }) => {
+  .handler(async ({ context }: any) => {
     try {
-      const { data } = await (context.supabase as any)
+      const { data } = await context.supabase
         .from("system_settings")
         .select("value")
         .eq("key", "system_branding")
