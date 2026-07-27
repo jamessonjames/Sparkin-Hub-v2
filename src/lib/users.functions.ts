@@ -147,7 +147,7 @@ export const saveUserPreferences = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    const updates: Record<string, string> = {};
+    const updates: any = {};
     if (data.highlight_color) updates.highlight_color = data.highlight_color;
     if (data.custom_hex) updates.custom_hex = data.custom_hex;
 
