@@ -16,8 +16,8 @@ const newClientSearchSchema = z.object({
 
 export const Route = createFileRoute("/_authenticated/clients/new")({
   validateSearch: (search) => newClientSearchSchema.parse(search),
-  head: ({ search }) => ({
-    meta: [{ title: search.is_project ? "Novo Projeto" : "Novo cliente" }],
+  head: (ctx) => ({
+    meta: [{ title: (ctx as any).search.is_project ? "Novo Projeto" : "Novo cliente" }],
   }),
   component: NewClient,
 });
