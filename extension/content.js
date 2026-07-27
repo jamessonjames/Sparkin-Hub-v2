@@ -1,16 +1,33 @@
 // Content Script running inside web.whatsapp.com
-const SPARKIN_API_URL = "http://localhost:8080/api/public/capture"; 
+const SPARKIN_API_URL = window.location.origin.includes("localhost") 
+  ? "http://localhost:8080/api/public/capture" 
+  : "/api/public/capture"; // Path-based for same-origin if possible, but actually we need absolute for cross-origin
+
+// Note: In production, the extension should point to the correct Lovable project URL.
+// We'll use a placeholder that the user can replace or we can try to detect.
+const PRODUCTION_URL = "https://sparkinhub-v2.lovable.app/api/public/capture";
 
 console.log("[Sparkin Hub] Content Script ativo e monitorando WhatsApp Web...");
 
 // Cache to avoid sending same message multiple times
 const processedMessages = new Set();
 
+// Listen for messages from the browser extension runtime
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "RUN_WHATSAPP_SCAN") {
     const extractedData = scanActiveChats();
     if (extractedData.length > 0) sendToSparkinHub(extractedData);
     sendResponse({ count: extractedData.length, items: extractedData });
+  }
+});
+
+// Listen for messages from the Sparkin Hub web app (via window.postMessage)
+window.addEventListener("message", (event) => {
+  if (event.source !== window) return;
+  if (event.data && event.data.action === "SPARKIN_WHATSAPP_SCAN") {
+    console.log("[Sparkin Hub] Trigger manual recebido via Web App");
+    const extractedData = scanActiveChats();
+    if (extractedData.length > 0) sendToSparkinHub(extractedData);
   }
 });
 
