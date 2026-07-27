@@ -280,7 +280,6 @@ export const getGoogleDriveStatus = createServerFn({ method: "GET" })
                 })
                 .eq("key", "google_drive_credentials")
                 .then(() => {})
-                .catch(() => {});
             }
           }
         } catch (healErr) {
@@ -373,7 +372,7 @@ export async function getOrCreateFolderPath(accessToken: string, pathParts: stri
   if (!currentParentId) {
     // Search/create the default root "Sparkin Hub" folder
     const rootName = "Sparkin Hub";
-    currentParentId = await findFolder(accessToken, rootName);
+    currentParentId = (await findFolder(accessToken, rootName)) || undefined;
     if (!currentParentId) {
       currentParentId = await createFolder(accessToken, rootName);
     }

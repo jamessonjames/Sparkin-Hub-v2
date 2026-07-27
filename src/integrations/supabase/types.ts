@@ -59,6 +59,42 @@ export type Database = {
         }
         Relationships: []
       }
+      capture_settings: {
+        Row: {
+          ai_provider: string | null
+          api_key: string | null
+          enabled_clients: Json | null
+          key: string
+          last_scan_at: string | null
+          max_messages: number | null
+          ollama_url: string | null
+          scan_frequency: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ai_provider?: string | null
+          api_key?: string | null
+          enabled_clients?: Json | null
+          key: string
+          last_scan_at?: string | null
+          max_messages?: number | null
+          ollama_url?: string | null
+          scan_frequency?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ai_provider?: string | null
+          api_key?: string | null
+          enabled_clients?: Json | null
+          key?: string
+          last_scan_at?: string | null
+          max_messages?: number | null
+          ollama_url?: string | null
+          scan_frequency?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       client_editions: {
         Row: {
           billing_month: number | null
@@ -370,6 +406,72 @@ export type Database = {
           {
             foreignKeyName: "demand_comments_demand_id_fkey"
             columns: ["demand_id"]
+            isOneToOne: false
+            referencedRelation: "demands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demand_suggestions: {
+        Row: {
+          ai_summary: string | null
+          audio_url: string | null
+          client_id: string
+          created_at: string | null
+          estimated_hours: number | null
+          id: string
+          raw_content: string | null
+          source: string
+          status: string
+          suggested_description: string | null
+          suggested_title: string
+          suggested_type: string
+          target_demand_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ai_summary?: string | null
+          audio_url?: string | null
+          client_id: string
+          created_at?: string | null
+          estimated_hours?: number | null
+          id?: string
+          raw_content?: string | null
+          source: string
+          status?: string
+          suggested_description?: string | null
+          suggested_title: string
+          suggested_type: string
+          target_demand_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ai_summary?: string | null
+          audio_url?: string | null
+          client_id?: string
+          created_at?: string | null
+          estimated_hours?: number | null
+          id?: string
+          raw_content?: string | null
+          source?: string
+          status?: string
+          suggested_description?: string | null
+          suggested_title?: string
+          suggested_type?: string
+          target_demand_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demand_suggestions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demand_suggestions_target_demand_id_fkey"
+            columns: ["target_demand_id"]
             isOneToOne: false
             referencedRelation: "demands"
             referencedColumns: ["id"]
