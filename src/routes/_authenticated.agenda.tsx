@@ -770,7 +770,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
     if (activeIdStr.startsWith("reminder:")) {
       const parts = activeIdStr.split(":");
       const reminderId = parts[1];
-      const rem = reminders.find((r) => r.id === reminderId);
+      const rem = reminders.find((r) => (r as any).id === reminderId) as any;
       if (!rem) return;
 
       const formattedTarget = formatTzString(targetDate);
