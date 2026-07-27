@@ -275,8 +275,13 @@ export function MeetingTranscriptionDialog({
 
       // Every 10 minutes: flush current chunks to Gemini silently
       const INTERVAL_MS = 10 * 60 * 1000;
+      let chunkStartTime = new Date(); // track when this chunk period started
       tabChunkIntervalRef.current = setInterval(async () => {
         if (!isRecordingRef.current) return;
+        const chunkStart = chunkStartTime;
+        const chunkEnd = new Date();
+        chunkStartTime = chunkEnd; // next interval starts from now
+
         const chunksToSend = [...tabCurrentChunksRef.current];
         tabCurrentChunksRef.current = []; // reset for next interval
         if (chunksToSend.length === 0) return;
@@ -284,7 +289,9 @@ export function MeetingTranscriptionDialog({
         const chunkBlob = new Blob(chunksToSend, { type: mimeType });
         if (chunkBlob.size < 5000) return; // skip near-silent/empty chunks
 
-        addLog("info", "[Aba] Enviando trecho de 10min para transcrição em background...");
+        const tsStart = chunkStart.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        const tsEnd = chunkEnd.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        addLog("info", `[Aba] Transcrevendo trecho ${tsStart} → ${tsEnd} em background...`);
         try {
           const audioBase64 = await blobToBase64(chunkBlob);
           const mimeBase = mimeType.split(";")[0] || "audio/webm";
@@ -293,8 +300,11 @@ export function MeetingTranscriptionDialog({
             data: { audioBase64, mimeType: mimeBase, clientApiKey: geminiKey || undefined },
           });
           if (res.text && res.text.trim()) {
-            tabTranscriptAccumulatorRef.current += (tabTranscriptAccumulatorRef.current ? "\n" : "") + res.text.trim();
-            addLog("success", `[Aba] Trecho transcrito e salvo.`);
+            // Store with timestamp range for chronological merge
+            tabTranscriptAccumulatorRef.current +=
+              (tabTranscriptAccumulatorRef.current ? "\n" : "") +
+              `[${tsStart} → ${tsEnd}]\n${res.text.trim()}`;
+            addLog("success", `[Aba] Trecho ${tsStart} → ${tsEnd} transcrito e salvo.`);
           }
         } catch (err: any) {
           addLog("error", "[Aba] Erro ao transcrever trecho: " + err.message);
@@ -374,8 +384,9 @@ export function MeetingTranscriptionDialog({
           if (event.results[i].isFinal) {
             const phrase = event.results[i][0].transcript.trim();
             if (phrase) {
-              micTranscriptRef.current += (micTranscriptRef.current ? " " : "") + phrase;
-              addTranscriptLine(`${userDisplayName} (Eu)`, phrase);
+              // Store with precise timestamp for chronological merge at the end
+              const ts = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+              micTranscriptRef.current += `[${ts}] ${phrase}\n`;
               addLog("success", `[Eu]: ${phrase}`);
             }
           }
@@ -451,7 +462,9 @@ export function MeetingTranscriptionDialog({
       const mimeType = getSupportedMimeType();
       const remainingBlob = new Blob(remainingChunks, { type: mimeType });
       if (remainingBlob.size > 5000) {
-        addLog("info", "[Aba] Transcrevendo trecho final da aba...");
+        const finalEnd = new Date();
+        const tsFinalEnd = finalEnd.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        addLog("info", `[Aba] Transcrevendo trecho final até ${tsFinalEnd}...`);
         try {
           const audioBase64 = await blobToBase64(remainingBlob);
           const mimeBase = mimeType.split(";")[0] || "audio/webm";
@@ -460,7 +473,9 @@ export function MeetingTranscriptionDialog({
             data: { audioBase64, mimeType: mimeBase, clientApiKey: geminiKey || undefined },
           });
           if (res.text && res.text.trim()) {
-            tabTranscriptAccumulatorRef.current += (tabTranscriptAccumulatorRef.current ? "\n" : "") + res.text.trim();
+            tabTranscriptAccumulatorRef.current +=
+              (tabTranscriptAccumulatorRef.current ? "\n" : "") +
+              `[... → ${tsFinalEnd}]\n${res.text.trim()}`;
             addLog("success", "[Aba] Trecho final transcrito.");
           }
         } catch (err: any) {
@@ -472,17 +487,26 @@ export function MeetingTranscriptionDialog({
     if (displayStreamRef.current) { displayStreamRef.current.getTracks().forEach((t) => t.stop()); displayStreamRef.current = null; }
     if (micStreamRef.current) { micStreamRef.current.getTracks().forEach((t) => t.stop()); micStreamRef.current = null; }
 
-    // Build combined transcript: mic (real-time Web Speech) + tab (10-min Gemini chunks)
+    // Build combined transcript with timestamps so Gemini can interleave chronologically
     let combinedTranscript = "";
     const micText = micTranscriptRef.current.trim();
     const tabText = tabTranscriptAccumulatorRef.current.trim();
 
     if (micText && tabText) {
-      combinedTranscript = `[${userDisplayName} (Eu)]:\n${micText}\n\n[Cliente (Aba)]:\n${tabText}`;
+      // Provide both streams with timestamps and ask Gemini to interleave chronologically
+      combinedTranscript =
+        `INSTRUÇÃO PARA ANÁLISE: As falas abaixo vêm de duas fontes captadas simultaneamente.` +
+        ` Cada linha do microfone tem um timestamp exato [HH:MM:SS].` +
+        ` As falas do cliente (aba) têm intervalos de tempo [início → fim].` +
+        ` Ao analisar, INTERCALE as falas em ordem cronológica para reconstruir o diálogo real da reunião.\n\n` +
+        `=== MICROFONE — ${userDisplayName} (Eu) ===\n` +
+        `${micText}\n\n` +
+        `=== ÁUDIO DA ABA — Cliente ===\n` +
+        `${tabText}`;
     } else if (micText) {
-      combinedTranscript = `[${userDisplayName} (Eu)]: ${micText}`;
+      combinedTranscript = `[${userDisplayName} (Eu)]:\n${micText}`;
     } else if (tabText) {
-      combinedTranscript = `[Cliente (Aba)]: ${tabText}`;
+      combinedTranscript = `[Cliente (Aba)]:\n${tabText}`;
     } else if (transcriptLines.length > 0) {
       combinedTranscript = transcriptLines.map((l) => `[${l.speaker}]: ${l.text}`).join("\n\n");
     }
