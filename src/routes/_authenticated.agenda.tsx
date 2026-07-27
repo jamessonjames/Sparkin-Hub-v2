@@ -467,7 +467,7 @@ function AgendaPage() {
     const currentDemand = demands.find((d) => d.id === demandId) as AgendaDemand | undefined;
     const effectiveDueDate = currentDemand ? (scheduledMap[demandId] ?? currentDemand.due_date ?? null) : null;
 
-    qc.setQueryData<typeof demands>(["demands", activeUserId], (prev) =>
+    qc.setQueryData<typeof demands>(["demands", targetAgendaUserId, isAdminOrOwner], (prev) =>
       (prev ?? []).map((d) =>
         d.id === demandId
           ? ({ ...d, due_date: nextValue ? effectiveDueDate : null, is_manually_scheduled: nextValue } as any)
@@ -815,7 +815,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
     const updates = calculateCascadingPushDown(demandId, targetDate, demands as AgendaDemand[], config);
     if (updates.length === 0) return;
 
-    qc.setQueryData<typeof demands>(["demands", activeUserId], (prev) => {
+    qc.setQueryData<typeof demands>(["demands", targetAgendaUserId, isAdminOrOwner], (prev) => {
       const updateMap = new Map(updates.map(u => [u.id, u]));
       return (prev ?? []).map((d) => {
         const patch = updateMap.get(d.id);
