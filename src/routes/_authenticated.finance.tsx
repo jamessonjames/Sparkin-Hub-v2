@@ -868,7 +868,7 @@ function FinancePage() {
                       <AlertCircle className="h-4 w-4" />
                       Recebimentos Vencidos ({summary?.overdueReceivables.length || 0})
                     </h3>
-                    {summary?.overdueReceivables.length > 0 && (
+                    {(summary?.overdueReceivables?.length ?? 0) > 0 && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 font-sans border border-red-500/20">
                         Ação Necessária
                       </span>
