@@ -636,7 +636,7 @@ export function MeetingTranscriptionDialog({
                   </SelectTrigger>
                   <SelectContent>
                     {(clients as any[]).map((c: any) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      <SelectItem key={(c as any).id} value={(c as any).id}>{(c as any).name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -869,7 +869,7 @@ export function MeetingTranscriptionDialog({
                     </Button>
                   </div>
                   <div className="w-full h-[360px] overflow-y-auto pr-1">
-                    <MarkdownView content={formattedSummaryText} />
+                    <MarkdownView content={formattedSummaryText || ""} />
                   </div>
                 </div>
               </TabsContent>

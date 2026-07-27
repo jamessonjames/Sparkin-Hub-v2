@@ -512,7 +512,7 @@ export function DemandDetailDialog({
     } else if (selectedClient) {
       parts.push(selectedClient.name);
       if (selectedClient.billing_model === "seasonal" && clientEditionId) {
-        const ed = clientEditions.find((e: any) => e.id === clientEditionId);
+        const ed = (clientEditions as any[]).find((e: any) => e.id === clientEditionId);
         if (ed) {
           parts.push(ed.name);
         }
@@ -570,7 +570,7 @@ export function DemandDetailDialog({
       if (defaultClientEditionId) {
         setClientEditionId(defaultClientEditionId);
       } else {
-        const activeEdition = clientEditions.find((e: any) => e.is_active);
+        const activeEdition = (clientEditions as any[]).find((e: any) => e.is_active);
         setClientEditionId(activeEdition?.id || clientEditions[0]?.id || "");
       }
     }
