@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect, memo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listProfiles } from "@/lib/users.functions";
@@ -120,7 +120,7 @@ const PRIORITY_CHIP: Record<string, string> = {
   urgent: "bg-[#4c1d1d] text-[#fca5a5] border border-[#6e2424]",
 };
 
-export function KanbanBoard({
+export const KanbanBoard = memo(function KanbanBoard({
   demands,
   onMove,
   onOpen,
@@ -579,7 +579,7 @@ export function KanbanBoard({
     if (hasMovedBoard.current) {
       e.preventDefault();
       hasMovedBoard.current = false;
-    }
+});
   };
 
   return (
