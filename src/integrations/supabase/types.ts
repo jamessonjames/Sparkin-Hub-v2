@@ -779,23 +779,32 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          custom_hex: string | null
           email: string | null
+          highlight_color: string | null
           id: string
           name: string | null
+          sidebar_order: Json | null
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          custom_hex?: string | null
           email?: string | null
+          highlight_color?: string | null
           id: string
           name?: string | null
+          sidebar_order?: Json | null
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
+          custom_hex?: string | null
           email?: string | null
+          highlight_color?: string | null
           id?: string
           name?: string | null
+          sidebar_order?: Json | null
         }
         Relationships: []
       }
