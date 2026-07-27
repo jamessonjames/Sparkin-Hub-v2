@@ -40,6 +40,50 @@ export interface CaptureSettings {
   last_scan_at?: string | null;
 }
 
+/**
+ * Safely parses JSON strings returned by LLMs, repairing unescaped control characters inside string literals (e.g. raw newlines in markdown fields)
+ */
+function safeParseJSON(raw: string): any {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    let inString = false;
+    let isEscaped = false;
+    let result = "";
+
+    for (let i = 0; i < raw.length; i++) {
+      const char = raw[i];
+      if (inString) {
+        if (isEscaped) {
+          result += char;
+          isEscaped = false;
+        } else if (char === "\\") {
+          result += char;
+          isEscaped = true;
+        } else if (char === '"') {
+          result += char;
+          inString = false;
+        } else if (char === "\n") {
+          result += "\\n";
+        } else if (char === "\r") {
+          result += "\\r";
+        } else if (char === "\t") {
+          result += "\\t";
+        } else {
+          result += char;
+        }
+      } else {
+        if (char === '"') {
+          inString = true;
+        }
+        result += char;
+      }
+    }
+
+    return JSON.parse(result);
+  }
+}
+
 export const listSuggestions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -110,6 +154,96 @@ export const createSuggestion = createServerFn({ method: "POST" })
     return row as DemandSuggestion;
   });
 
+export function markdownToHtml(markdown: string): string {
+  if (!markdown) return "";
+
+  // If already full HTML without markdown symbols, return as is
+  if (/<(p|h1|h2|h3|h4|ul|ol|li|blockquote|div)[^>]*>/i.test(markdown) && !markdown.includes("###") && !markdown.includes("**")) {
+    return markdown;
+  }
+
+  // Pre-process: split inline concatenated section markers like "🎯 **Objetivo:** text 📦 **Escopo:**" into separate lines
+  let text = markdown
+    .replace(/(🎯|📦|🎨|⚙️|📅|📌|📑|💬|📋)\s*\*\*/g, "\n\n$1 **")
+    .replace(/(🎯|📦|🎨|⚙️|📅|📌|📑|💬|📋)\s*###/g, "\n\n### $1")
+    .replace(/(🎯|📦|🎨|⚙️|📅|📌|📑|💬|📋)\s*<strong>/g, "\n\n$1 <strong>");
+
+  const lines = text.split("\n");
+  let htmlResult = "";
+  let inList = false;
+
+  for (let rawLine of lines) {
+    let line = rawLine.trim();
+
+    if (!line) {
+      if (inList) {
+        htmlResult += "</ul>";
+        inList = false;
+      }
+      continue;
+    }
+
+    // Convert bold **text** to <strong>text</strong>
+    line = line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+    // Convert italic *text* to <em>text</em>
+    line = line.replace(/\*(.*?)\*/g, "<em>$1</em>");
+
+    // Check for Heading syntax: ### Heading or ## Heading or # Heading
+    if (line.startsWith("### ")) {
+      if (inList) { htmlResult += "</ul>"; inList = false; }
+      htmlResult += `<h3>${line.replace(/^###\s+/, "")}</h3>`;
+    } else if (line.startsWith("## ")) {
+      if (inList) { htmlResult += "</ul>"; inList = false; }
+      htmlResult += `<h2>${line.replace(/^##\s+/, "")}</h2>`;
+    } else if (line.startsWith("# ")) {
+      if (inList) { htmlResult += "</ul>"; inList = false; }
+      htmlResult += `<h1>${line.replace(/^#\s+/, "")}</h1>`;
+    }
+    // Check if line starts with an emoji or label like "🎯 <strong>Objetivo:</strong> ..."
+    else if (/^(🎯|📦|🎨|⚙️|📅|📌|📑|💬|📋)\s*<strong>(.*?):?<\/strong>(.*)$/i.test(line)) {
+      if (inList) { htmlResult += "</ul>"; inList = false; }
+      const match = line.match(/^(🎯|📦|🎨|⚙️|📅|📌|📑|💬|📋)\s*<strong>(.*?):?<\/strong>(.*)$/i);
+      if (match) {
+        const emoji = match[1];
+        const title = match[2].trim();
+        const rest = match[3].trim();
+        htmlResult += `<h3>${emoji} ${title}</h3>`;
+        if (rest) {
+          if (rest.startsWith("- ") || rest.startsWith("* ")) {
+            htmlResult += `<ul><li>${rest.replace(/^[-*]\s+/, "")}</li></ul>`;
+          } else {
+            htmlResult += `<p>${rest}</p>`;
+          }
+        }
+      } else {
+        htmlResult += `<p>${line}</p>`;
+      }
+    }
+    // Check for List item syntax: - Item or * Item
+    else if (line.startsWith("- ") || line.startsWith("* ")) {
+      if (!inList) {
+        htmlResult += "<ul>";
+        inList = true;
+      }
+      htmlResult += `<li>${line.replace(/^[-*]\s+/, "")}</li>`;
+    }
+    // Otherwise standard paragraph
+    else {
+      if (inList) {
+        htmlResult += "</ul>";
+        inList = false;
+      }
+      htmlResult += `<p>${line}</p>`;
+    }
+  }
+
+  if (inList) {
+    htmlResult += "</ul>";
+  }
+
+  return htmlResult;
+}
+
 export const approveSuggestion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -134,7 +268,8 @@ export const approveSuggestion = createServerFn({ method: "POST" })
     if (fetchErr || !suggestion) throw new Error("Sugestão não encontrada");
 
     const finalTitle = data.title || suggestion.suggested_title;
-    const finalDesc = data.description || suggestion.suggested_description || "";
+    const rawDesc = data.description || suggestion.suggested_description || "";
+    const finalDesc = markdownToHtml(rawDesc);
     const finalHours = data.estimated_hours ?? Number(suggestion.estimated_hours || 1.0);
 
     if (suggestion.suggested_type === "AJUSTE_DEMANDA" && suggestion.target_demand_id) {
@@ -190,6 +325,39 @@ export const dismissSuggestion = createServerFn({ method: "POST" })
       .update({ status: "dismissed", updated_at: new Date().toISOString() })
       .eq("id", data.id);
 
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteSuggestionPermanently = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("demand_suggestions")
+      .delete()
+      .eq("id", data.id);
+
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const clearAllDismissedSuggestions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input?: { clientId?: string }) =>
+    z.object({ clientId: z.string().uuid().optional() }).optional().parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    let query = context.supabase
+      .from("demand_suggestions")
+      .delete()
+      .eq("status", "dismissed");
+
+    if (data?.clientId) {
+      query = query.eq("client_id", data.clientId);
+    }
+
+    const { error } = await query;
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -277,11 +445,12 @@ export const analyzeMeetingTranscript = createServerFn({ method: "POST" })
         title: z.string().optional(),
         transcript: z.string().optional(),
         clientApiKey: z.string().optional(),
+        existingSuggestionId: z.string().optional(),
       })
       .parse(input)
   )
   .handler(async ({ data, context }) => {
-    const { clientId, title, transcript = "", clientApiKey } = data;
+    const { clientId, title, transcript = "", clientApiKey, existingSuggestionId } = data;
 
     // 1. Fetch active demands for this client to match existing items vs new ones
     const { data: existingDemands } = await context.supabase
@@ -329,10 +498,12 @@ export const analyzeMeetingTranscript = createServerFn({ method: "POST" })
       const rawApiKey = process.env.GEMINI_API_KEY || clientApiKey || "";
       const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
       if (apiKey) {
-        const promptText = `Você é um analista de projetos sênior em uma agência de marketing e tecnologia. Sua função é extrair o máximo de valor de reuniões com clientes.
+        const promptText = `Você é um analista de projetos sênior e gerente de produto em uma agência de tecnologia e marketing. Sua função é analisar detalhadamente reuniões com clientes e produzir:
+1. Uma **Ata de Reunião Profissional e Completa** (Resumo Executivo).
+2. **Sugestões de Demandas Estruturadas** com briefings detalhados e acionáveis.
 
 Reunião entre: [${userName} (Eu/Agência)] e [${clientName} (Cliente)]
-Título da reunião: ${title || "Não informado"}
+Título da reunião: ${title || "Alinhamento de Projeto"}
 
 DEMANDAS EXISTENTES DO CLIENTE (para referência):
 ${JSON.stringify(demandsContext, null, 2)}
@@ -340,54 +511,72 @@ ${JSON.stringify(demandsContext, null, 2)}
 TRANSCRIÇÃO COMPLETA DA REUNIÃO:
 ${transcript}
 
-Com base na transcrição acima, gere uma análise completa no formato JSON abaixo.
-
-REGRAS IMPORTANTES:
-- Seja detalhista e específico. Extraia o máximo de informação possível da reunião.
-- Se a transcrição for curta ou vaga, ainda assim extraia o que for possível.
-- As sugestões devem ser acionáveis e específicas, não genéricas.
+Com base na transcrição acima, gere uma análise no formato JSON exato abaixo.
 
 ---
 
-1. "summary": Um ARRAY de strings, cada string sendo um tópico ESTRUTURADO. Para cada tópico importante discutido na reunião, crie UM item no array contendo:
-   - O assunto discutido
-   - O que foi decidido ou alinhado
-   - Próximos passos e quem é responsável
+### INSTRUÇÕES DE FORMATAÇÃO DO SUMMARY (ATA DA REUNIÃO):
+Gere um texto corrido em Markdown extremamente rico, profissional, dividido em seções bem claras com emojis e títulos. O resumo DEVE seguir exatamente a estrutura abaixo:
 
-   Exemplo de formato para cada item:
-   "🔹 **Redesign do Site** — Foi decidido focar no redesign da seção de portfólio. Próximo passo: [${userName}] enviar 3 propostas de layout até sexta. [${clientName}] vai levantar referências visuais."
+# 📌 Tema: [Assunto Principal da Reunião]
 
-   IMPORTANTE: O PRIMEIRO item do array DEVE ser uma seção "📋 **PRÓXIMAS AÇÕES (Eu)**" listando todas as tarefas que VOCÊ (${userName}) precisa executar após a reunião, em formato de checklist.
+### 📑 Resumo Executivo
+[Um texto descritivo detalhando o contexto geral da reunião, o estado do projeto e os objetivos alinhados]
 
-2. "suggestions": Array de objetos. Cada sugestão representa uma demanda NOVA ou AJUSTE em demanda existente que deve ser criada no sistema com base NA REUNIÃO. Seja criterioso: só crie sugestões quando houver conteúdo suficiente na reunião para justificar.
+### 💬 Tópicos Discutidos
+- **[Tópico 1]**: [Detalhamento do que foi discutido, argumentos, dúvidas trazidas e explicações]
+- **[Tópico 2]**: [Detalhamento de outro ponto relevante discutido]
+- **[Tópico N]**: [...]
 
-   Para cada sugestão, forneça:
-   - suggested_type: "NOVA_DEMANDA" se for algo novo, "AJUSTE_DEMANDA" se for alteração em demanda existente
-   - target_demand_id: ID da demanda existente se for ajuste, ou null
-   - suggested_title: Título claro e profissional da demanda
-   - suggested_description: BRIEFING COMPLETO E ESTRUTURADO contendo:
-       * Contexto (o que foi discutido na reunião que gerou essa demanda)
-       * Escopo (o que precisa ser feito, detalhado)
-       * Requisitos (entregáveis esperados, prazos mencionados, etc.)
-       * Observações (qualquer detalhe relevante da conversa)
-   - estimated_hours: estimativa realista de horas (não coloque 2h sempre — analise a complexidade do que foi falado)
+### 🎯 Decisões Chave
+- [Decisão 1 tomada na reunião]
+- [Decisão 2 alinhada entre as partes]
 
-3. "diarized_transcript": A transcrição refeita com formatação limpa, identificando claramente quem falou o quê. Use os marcadores [${userName}]: e [${clientName}]:. Mantenha todo o conteúdo original, apenas reestruture para leitura clara.
+### 📋 Próximos Passos (Action Items)
+- **[Nome do Responsável]**: [Ação específica a ser realizada] — *Prazo: [Data ou período se mencionado, ex: 29/07/2026]*
+- **[Outro Responsável]**: [Outra ação] — *Prazo: [Prazo]*
 
-Retorne APENAS o JSON abaixo, sem blocos markdown, sem texto extra:
+---
+
+### INSTRUÇÕES PARA SUGESTÕES DE DEMANDAS (suggestions):
+Analise a transcrição completa e identifique TODAS as tarefas, entregáveis ou ações práticas necessárias faladas na reunião.
+regras OBRIGATÓRIAS:
+1. Todas as sugestões DEVEM ter o tipo "suggested_type": "NOVA_DEMANDA" e "target_demand_id": null.
+2. Se a reunião abordou mais de um assunto ou um projeto grande com entregas distintas, DIVIDA em múltiplas novas demandas independentes.
+3. Cada sugestão DEVE ter um 'suggested_description' em Markdown com um **BRIEFING DETALHADO E ESTRUTURADO** usando títulos '###' e pulando linhas entre seções:
+   ### 🎯 Objetivo & Assunto Geral
+   Contexto e objetivo principal da entrega.
+
+   ### 📦 Escopo & Entregáveis
+   - Lista detalhada do que deve ser entregue.
+   - Ponto 2.
+
+   ### 🎨 Direção Visual & Referências
+   Instruções de design, estilo ou referências mencionadas.
+
+   ### ⚙️ Requisitos Técnicos & Observações
+   Regras de negócio ou detalhes técnicos.
+
+   ### 📅 Prazo de Entrega
+   Data limite especificada ou sugerida com base na reunião.
+
+Retorne APENAS o JSON abaixo, sem blocos markdown extras de código (retorne raw json):
 {
   "diarized_transcript": "...",
+  "summary_markdown": "# 📌 Tema: ...\n\n### 📑 Resumo Executivo\n...\n\n### 💬 Tópicos Discutidos\n- ...\n\n### 🎯 Decisões Chave\n- ...\n\n### 📋 Próximos Passos (Action Items)\n- ...",
   "summary": [
-    "📋 **PRÓXIMAS AÇÕES (Eu)**: ...",
-    "🔹 **...**: ...",
-    "🔹 **...**: ..."
+    "📌 Tema: ...",
+    "📑 Resumo Executivo: ...",
+    "💬 Tópicos Discutidos: ...",
+    "🎯 Decisões Chave: ...",
+    "📋 Próximos Passos: ..."
   ],
   "suggestions": [
     {
       "suggested_type": "NOVA_DEMANDA",
       "target_demand_id": null,
-      "suggested_title": "Título da demanda",
-      "suggested_description": "**Contexto:** ...\n**Escopo:** ...\n**Requisitos:** ...\n**Observações:** ...",
+      "suggested_title": "Título claro e profissional da nova demanda",
+      "suggested_description": "### 🎯 Objetivo & Assunto Geral\n...\n\n### 📦 Escopo & Entregáveis\n- ...\n- ...\n\n### 🎨 Direção Visual & Referências\n...\n\n### ⚙️ Requisitos Técnicos\n...\n\n### 📅 Prazo de Entrega\n10 dias úteis",
       "estimated_hours": 4.0
     }
   ]
@@ -395,19 +584,32 @@ Retorne APENAS o JSON abaixo, sem blocos markdown, sem texto extra:
 
         const parts = [{ text: promptText }];
 
-        const candidateModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash-preview-04-17", "gemini-2.0-flash-lite"];
+        const candidateModels = [
+          "gemini-flash-latest",
+          "gemini-flash-lite-latest",
+          "gemini-pro-latest",
+          "gemini-2.0-flash",
+          "gemini-2.0-flash-lite",
+        ];
         let res: Response | null = null;
 
         for (const model of candidateModels) {
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000);
+            const timeoutId = setTimeout(() => controller.abort(), 45000);
             const tryRes = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ contents: [{ parts }] }),
+                body: JSON.stringify({
+                  contents: [{ parts }],
+                  generationConfig: {
+                    temperature: 0.2,
+                    maxOutputTokens: 8192,
+                    response_mime_type: "application/json",
+                  },
+                }),
                 signal: controller.signal,
               }
             );
@@ -425,7 +627,7 @@ Retorne APENAS o JSON abaixo, sem blocos markdown, sem texto extra:
             }
           } catch (e: any) {
             if (e.name === "AbortError") {
-              apiErrors.push(`Modelo ${model}: timeout (30s)`);
+              apiErrors.push(`Modelo ${model}: timeout (45s)`);
             } else {
               apiErrors.push(`Modelo ${model}: ${e.message}`);
             }
@@ -435,19 +637,30 @@ Retorne APENAS o JSON abaixo, sem blocos markdown, sem texto extra:
         if (res && res.ok) {
           const resData = await res.json();
           const rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            try {
-              const parsed = JSON.parse(jsonMatch[0]);
-              aiSummary = parsed.summary || [];
-              aiSuggestions = parsed.suggestions || [];
-              if (parsed.diarized_transcript) {
-                aiDiarizedTranscript = parsed.diarized_transcript;
-              }
-            } catch (e) {
-              apiErrors.push(`Falha ao fazer parse do JSON da IA: ${e}`);
-              console.warn("[analyzeMeetingTranscript] Falha ao fazer parse do JSON da IA:", e);
+          
+          let cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+          const firstBrace = cleaned.indexOf("{");
+          const lastBrace = cleaned.lastIndexOf("}");
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+          }
+
+          try {
+            const parsed = safeParseJSON(cleaned);
+            if (parsed.summary_markdown) {
+              aiSummary = [parsed.summary_markdown];
+            } else if (Array.isArray(parsed.summary)) {
+              aiSummary = parsed.summary;
+            } else if (typeof parsed.summary === "string") {
+              aiSummary = [parsed.summary];
             }
+            aiSuggestions = parsed.suggestions || [];
+            if (parsed.diarized_transcript) {
+              aiDiarizedTranscript = parsed.diarized_transcript;
+            }
+          } catch (e: any) {
+            apiErrors.push(`Falha ao fazer parse do JSON da IA: ${e.message || e}`);
+            console.warn("[analyzeMeetingTranscript] Falha ao fazer parse do JSON da IA:", e);
           }
         } else if (apiErrors.length > 0) {
           console.warn("[analyzeMeetingTranscript] API Gemini indisponível. Usando fallback. Erros:", apiErrors.join(" | "));
@@ -461,67 +674,495 @@ Retorne APENAS o JSON abaixo, sem blocos markdown, sem texto extra:
       console.error("[analyzeMeetingTranscript] Erro inesperado (usando fallback):", err.message);
     }
 
-    // Heuristic fallback if AI key unavailable or error
     if (aiSummary.length === 0) {
       const hasKey = !!(process.env.GEMINI_API_KEY || clientApiKey);
       const errMsg = apiErrors.length > 0 ? apiErrors.join(" | ") : "";
       aiSummary = transcript
         ? [
-            hasKey
-              ? `⚠️ **IA indisponível** — ${errMsg || "todos os modelos falharam (timeout/429/parse)"}`
-              : `⚠️ **IA não configurada** — Nenhuma chave Gemini encontrada. Adicione GEMINI_API_KEY no .env`,
-            `📋 **Ações**: Reveja a transcrição abaixo para extrair manualmente os próximos passos.`,
+            `# 📌 Tema: ${title || "Alinhamento de Reunião"}\n\n### 📑 Resumo Executivo\nReunião registrada no sistema. Transcrição gravada com sucesso.\n\n${
+              errMsg ? `> ⚠️ **Aviso de Processamento IA:** ${errMsg}\n\n` : ""
+            }### 💬 Tópicos Discutidos\n- **Transcrição**: O áudio da reunião foi capturado com sucesso.\n\n### 📋 Próximos Passos (Action Items)\n- **Equipe**: Reveja a transcrição bruta para extrair as ações necessárias.`,
           ]
-        : ["Nenhum conteúdo de reunião foi capturado para análise."];
+        : ["Ata indisponível."];
     }
 
-    if (aiSuggestions.length === 0 && transcript.trim()) {
-      const isAdjustment = /ajustar|alterar|mudar|corrigir|refazer/i.test(transcript);
-      const matchedDemand = demandsContext.find((d) =>
-        transcript.toLowerCase().includes(d.title.toLowerCase())
-      );
-
-      aiSuggestions.push({
-        suggested_type: matchedDemand || isAdjustment ? "AJUSTE_DEMANDA" : "NOVA_DEMANDA",
-        target_demand_id: matchedDemand ? matchedDemand.id : null,
-        suggested_title: matchedDemand
-          ? `Ajuste solicitado em: ${matchedDemand.title}`
-          : title || "Demanda da reunião",
-        suggested_description: `**Contexto:** Reunião registrada no sistema.\n**Escopo:** Reveja a transcrição completa para detalhar o escopo.\n**Observações:** ${transcript.substring(0, 500)}`,
-        estimated_hours: 2.0,
-      });
-    }
-
-    // 3. Save generated suggestions into demand_suggestions table
+    // 3. Save or update generated suggestions into demand_suggestions table
     const insertedRecords: DemandSuggestion[] = [];
-    for (const sug of aiSuggestions) {
-      const { data: inserted, error } = await context.supabase
+
+    if (existingSuggestionId) {
+      // Re-analysis mode: Update existing record in place (DO NOT create a new triage box)
+      const newSummaryStr = aiSummary.join("\n");
+      const newRawTranscript = aiDiarizedTranscript || transcript;
+
+      const { data: updatedRecord } = await context.supabase
         .from("demand_suggestions")
-        .insert({
-          client_id: clientId,
-          source: "meeting",
-          suggested_type: sug.suggested_type,
-          target_demand_id: sug.target_demand_id || null,
-          suggested_title: sug.suggested_title,
-          suggested_description: sug.suggested_description,
-          ai_summary: aiSummary.join("\n"),
-          raw_content: aiDiarizedTranscript || transcript,
-          estimated_hours: sug.estimated_hours || 2.0,
-          status: "pending",
+        .update({
+          ai_summary: newSummaryStr,
+          raw_content: newRawTranscript,
+          suggested_title: aiSuggestions[0]?.suggested_title || title || "Reunião de Alinhamento",
+          suggested_description: aiSuggestions[0]?.suggested_description || "",
         })
+        .eq("id", existingSuggestionId)
         .select("*, clients(id, name)")
         .single();
 
-      if (inserted) {
-        insertedRecords.push(inserted as DemandSuggestion);
+      if (updatedRecord) {
+        insertedRecords.push(updatedRecord as DemandSuggestion);
+      }
+
+      // Also update any sibling suggestions from the same meeting session
+      if (updatedRecord?.raw_content) {
+        await context.supabase
+          .from("demand_suggestions")
+          .update({
+            ai_summary: newSummaryStr,
+            raw_content: newRawTranscript,
+          })
+          .eq("raw_content", updatedRecord.raw_content)
+          .ne("id", existingSuggestionId);
+      }
+    } else {
+      // New recording mode: Insert new records into demand_suggestions table
+      for (const sug of aiSuggestions) {
+        const { data: inserted } = await context.supabase
+          .from("demand_suggestions")
+          .insert({
+            client_id: clientId,
+            source: "meeting",
+            suggested_type: sug.suggested_type,
+            target_demand_id: sug.target_demand_id || null,
+            suggested_title: sug.suggested_title,
+            suggested_description: sug.suggested_description,
+            ai_summary: aiSummary.join("\n"),
+            raw_content: aiDiarizedTranscript || transcript,
+            estimated_hours: sug.estimated_hours || 2.0,
+            status: "pending",
+          })
+          .select("*, clients(id, name)")
+          .single();
+
+        if (inserted) {
+          insertedRecords.push(inserted as DemandSuggestion);
+        }
+      }
+
+      // If no suggestions inserted by AI, create one fallback record
+      if (insertedRecords.length === 0) {
+        const { data: fallbackRecord } = await context.supabase
+          .from("demand_suggestions")
+          .insert({
+            client_id: clientId,
+            source: "meeting",
+            suggested_type: "NOVA_DEMANDA",
+            suggested_title: title || "Reunião de Alinhamento",
+            suggested_description: `**Contexto:** Reunião registrada.\n\n**Ata:**\n${aiSummary.join("\n")}`,
+            ai_summary: aiSummary.join("\n"),
+            raw_content: aiDiarizedTranscript || transcript,
+            estimated_hours: 2.0,
+            status: "pending",
+          })
+          .select("*, clients(id, name)")
+          .single();
+
+        if (fallbackRecord) {
+          insertedRecords.push(fallbackRecord as DemandSuggestion);
+        }
       }
     }
 
     return {
       summary: aiSummary,
-      suggestions: insertedRecords,
       rawTranscript: aiDiarizedTranscript || transcript,
+      suggestions: insertedRecords,
     };
   });
 
+export const transcribeAudioChunk = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        audioBase64: z.string(),
+        mimeType: z.string().optional(),
+        clientApiKey: z.string().optional(),
+      })
+      .parse(input)
+  )
+  .handler(async ({ data }) => {
+    const rawApiKey = process.env.GEMINI_API_KEY || data.clientApiKey || "";
+    const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
 
+    if (!apiKey || !data.audioBase64) {
+      console.warn("[transcribeAudioChunk] API Key ou áudio ausente.");
+      return { text: "" };
+    }
+
+    const cleanMimeType = (data.mimeType || "audio/webm").split(";")[0];
+    const candidateModels = [
+      "gemini-flash-latest",
+      "gemini-flash-lite-latest",
+      "gemini-pro-latest",
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-lite",
+    ];
+    const promptText =
+      "Transcreva literalmente TODO o conteúdo falado neste áudio em português brasileiro. Retorne APENAS o texto transcrito, sem comentários, sem saudações, sem introduções. Se houver música ou sons sem fala, escreva [MÚSICA] ou [SOM].";
+
+    const parts = [
+      { text: promptText },
+      {
+        inlineData: {
+          mimeType: cleanMimeType,
+          data: data.audioBase64,
+        },
+      },
+    ];
+
+    for (const model of candidateModels) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts }] }),
+            signal: controller.signal,
+          }
+        );
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const resData = await res.json();
+          const text = resData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          return { text: text.trim() };
+        } else if (res.status === 429) {
+          console.warn(`[transcribeAudioChunk] ${model} 429 — tentando próximo...`);
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      } catch (err: any) {
+        console.warn(`[transcribeAudioChunk] ${model} falhou:`, err.message);
+      }
+    }
+
+    return { text: "" };
+  });
+
+export const reanalyzeMeetingSummary = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        suggestionId: z.string(),
+        clientApiKey: z.string().optional(),
+      })
+      .parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    const { data: suggestion, error: fetchErr } = await context.supabase
+      .from("demand_suggestions")
+      .select("*, clients(id, name)")
+      .eq("id", data.suggestionId)
+      .single();
+
+    if (fetchErr || !suggestion) {
+      throw new Error("Sugestão não encontrada.");
+    }
+
+    const transcript = suggestion.raw_content || "";
+    if (!transcript.trim()) {
+      throw new Error("Nenhuma transcrição gravada nesta reunião para refazer o resumo.");
+    }
+
+    const rawApiKey = process.env.GEMINI_API_KEY || data.clientApiKey || "";
+    const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
+
+    if (!apiKey) {
+      throw new Error("API Key do Gemini não configurada.");
+    }
+
+    const clientName = suggestion.clients?.name || "Cliente";
+    const promptText = `Você é um analista de projetos sênior. Sua função é gerar APENAS a Ata de Reunião Estruturada da transcrição abaixo.
+
+Cliente: [${clientName}]
+Título: ${suggestion.suggested_title || "Reunião de Alinhamento"}
+
+TRANSCRIÇÃO COMPLETA DA REUNIÃO:
+${transcript}
+
+ESTRUTURA OBRIGATÓRIA DA ATA (em Markdown rico):
+# 📌 Tema: [Assunto Principal]
+
+### 📑 Resumo Executivo
+[Resumo geral e objetivos alinhados]
+
+### 💬 Tópicos Discutidos
+- **[Tópico 1]**: [Detalhamento]
+- **[Tópico 2]**: [Detalhamento]
+
+### 🎯 Decisões Chave
+- [Decisão 1]
+- [Decisão 2]
+
+### 📋 Próximos Passos (Action Items)
+- **[Responsável]**: [Ação] — *Prazo: [Prazo]*
+
+Retorne APENAS o JSON no formato:
+{
+  "summary_markdown": "# 📌 Tema: ..."
+}`;
+
+    const candidateModels = [
+      "gemini-flash-latest",
+      "gemini-flash-lite-latest",
+      "gemini-pro-latest",
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-lite",
+    ];
+
+    let newSummaryMarkdown = "";
+
+    for (const model of candidateModels) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: promptText }] }],
+              generationConfig: { response_mime_type: "application/json" },
+            }),
+            signal: controller.signal,
+          }
+        );
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const resData = await res.json();
+          const rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          let cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+          const firstBrace = cleaned.indexOf("{");
+          const lastBrace = cleaned.lastIndexOf("}");
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+          }
+          const parsed = safeParseJSON(cleaned);
+          if (parsed.summary_markdown) {
+            newSummaryMarkdown = parsed.summary_markdown;
+            break;
+          }
+        }
+      } catch (e: any) {
+        console.warn(`[reanalyzeMeetingSummary] ${model} falhou:`, e.message);
+      }
+    }
+
+    if (!newSummaryMarkdown) {
+      throw new Error("Não foi possível regerar o resumo com a IA. Tente novamente.");
+    }
+
+    // Update ONLY ai_summary in Supabase
+    await context.supabase
+      .from("demand_suggestions")
+      .update({ ai_summary: newSummaryMarkdown })
+      .eq("id", data.suggestionId);
+
+    if (suggestion.raw_content) {
+      await context.supabase
+        .from("demand_suggestions")
+        .update({ ai_summary: newSummaryMarkdown })
+        .eq("raw_content", suggestion.raw_content)
+        .ne("id", data.suggestionId);
+    }
+
+    return { summary_markdown: newSummaryMarkdown };
+  });
+
+export const reanalyzeMeetingSuggestionsList = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        suggestionId: z.string(),
+        clientApiKey: z.string().optional(),
+      })
+      .parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    const { data: suggestion, error: fetchErr } = await context.supabase
+      .from("demand_suggestions")
+      .select("*, clients(id, name)")
+      .eq("id", data.suggestionId)
+      .single();
+
+    if (fetchErr || !suggestion) {
+      throw new Error("Sugestão não encontrada.");
+    }
+
+    const transcript = suggestion.raw_content || "";
+    if (!transcript.trim()) {
+      throw new Error("Nenhuma transcrição gravada nesta reunião para refazer as sugestões.");
+    }
+
+    const rawApiKey = process.env.GEMINI_API_KEY || data.clientApiKey || "";
+    const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
+
+    if (!apiKey) {
+      throw new Error("API Key do Gemini não configurada.");
+    }
+
+    const clientName = suggestion.clients?.name || "Cliente";
+    const promptText = `Você é um gerente de produto sênior. Sua função é analisar a transcrição da reunião e gerar APENAS as Sugestões de Novas Demandas Estruturadas (briefings).
+
+Cliente: [${clientName}]
+Reunião: ${suggestion.suggested_title || "Alinhamento"}
+
+TRANSCRIÇÃO COMPLETA DA REUNIÃO:
+${transcript}
+
+REGRAS:
+1. Identifique todas as tarefas / entregáveis da reunião.
+2. Todas as sugestões DEVEM ter o tipo "NOVA_DEMANDA" e "target_demand_id": null.
+3. Se houver mais de um assunto ou entrega, divida em demandas separadas.
+4. Cada sugestão DEVE ter um "suggested_description" em Markdown com briefing detalhado usando títulos '###' e pulando linhas entre seções.
+
+Retorne APENAS o JSON no formato:
+{
+  "suggestions": [
+    {
+      "suggested_type": "NOVA_DEMANDA",
+      "target_demand_id": null,
+      "suggested_title": "Título da demanda",
+      "suggested_description": "### 🎯 Objetivo & Assunto Geral\n...\n\n### 📦 Escopo & Entregáveis\n- ...\n- ...\n\n### 🎨 Direção Visual & Referências\n...\n\n### ⚙️ Requisitos Técnicos\n...\n\n### 📅 Prazo de Entrega\n10 dias úteis",
+      "estimated_hours": 4.0
+    }
+  ]
+}`;
+
+    const candidateModels = [
+      "gemini-flash-latest",
+      "gemini-flash-lite-latest",
+      "gemini-pro-latest",
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-lite",
+    ];
+
+    let newSuggestions: Array<{
+      suggested_type: "NOVA_DEMANDA";
+      target_demand_id: null;
+      suggested_title: string;
+      suggested_description: string;
+      estimated_hours: number;
+    }> = [];
+
+    for (const model of candidateModels) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: promptText }] }],
+              generationConfig: { response_mime_type: "application/json" },
+            }),
+            signal: controller.signal,
+          }
+        );
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const resData = await res.json();
+          const rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          let cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+          const firstBrace = cleaned.indexOf("{");
+          const lastBrace = cleaned.lastIndexOf("}");
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+          }
+          const parsed = safeParseJSON(cleaned);
+          if (Array.isArray(parsed.suggestions) && parsed.suggestions.length > 0) {
+            newSuggestions = parsed.suggestions;
+            break;
+          }
+        }
+      } catch (e: any) {
+        console.warn(`[reanalyzeMeetingSuggestionsList] ${model} falhou:`, e.message);
+      }
+    }
+
+    if (newSuggestions.length === 0) {
+      throw new Error("Não foi possível regerar as sugestões com a IA. Tente novamente.");
+    }
+
+    // Update ONLY the suggestion briefings / titles of existing suggestion (DO NOT TOUCH ai_summary!)
+    const firstSug = newSuggestions[0];
+    await context.supabase
+      .from("demand_suggestions")
+      .update({
+        suggested_title: firstSug.suggested_title,
+        suggested_description: firstSug.suggested_description,
+        estimated_hours: firstSug.estimated_hours || 2.0,
+      })
+      .eq("id", data.suggestionId);
+
+    return { suggestions: newSuggestions };
+  });
+
+export const reanalyzeMeetingSuggestion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        suggestionId: z.string(),
+        clientApiKey: z.string().optional(),
+      })
+      .parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    const { data: suggestion, error: fetchErr } = await context.supabase
+      .from("demand_suggestions")
+      .select("*, clients(id, name)")
+      .eq("id", data.suggestionId)
+      .single();
+
+    if (fetchErr || !suggestion) {
+      throw new Error("Sugestão não encontrada.");
+    }
+
+    const transcript = suggestion.raw_content || "";
+    if (!transcript.trim()) {
+      throw new Error("Nenhuma transcrição gravada nesta reunião para refazer.");
+    }
+
+    const result = await analyzeMeetingTranscript({
+      data: {
+        clientId: suggestion.client_id,
+        title: suggestion.suggested_title,
+        transcript,
+        clientApiKey: data.clientApiKey,
+        existingSuggestionId: data.suggestionId,
+      },
+    });
+
+    await context.supabase
+      .from("demand_suggestions")
+      .update({
+        ai_summary: result.summary.join("\n"),
+        raw_content: result.rawTranscript || transcript,
+        suggested_description: result.suggestions[0]?.suggested_description || suggestion.suggested_description,
+        suggested_title: result.suggestions[0]?.suggested_title || suggestion.suggested_title,
+      })
+      .eq("id", data.suggestionId);
+
+    return result;
+  });

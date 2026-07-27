@@ -49,6 +49,7 @@ import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, DEFAU
 import { CreditProgressBar } from "@/components/credit-progress-bar";
 import { ClientGemsTab } from "@/components/client-gems-tab";
 import { MeetingTranscriptionDialog } from "@/components/meeting-transcription-dialog";
+import { DemandTriageView } from "@/components/demand-triage-view";
 
 export const Route = createFileRoute("/_authenticated/clients/$id")({
   head: () => ({ meta: [{ title: "Cliente" }] }),
@@ -718,81 +719,7 @@ function ClientPage() {
         )}
         <TabsContent value="suggestions" className="mt-4 overflow-y-auto pb-8">
           <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-purple-400" />
-                  Demandas e Ajustes Pré-analisados por IA
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Fila de triagem para este cliente capturada do WhatsApp, Reuniões e E-mails.
-                </p>
-              </div>
-            </div>
-
-            {clientSuggestions.length === 0 ? (
-              <Card className="p-8 text-center border-dashed border-border/60 bg-zinc-900/40">
-                <p className="text-xs text-muted-foreground italic">
-                  Nenhuma demanda ou ajuste pendente de triagem para este cliente no momento.
-                </p>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {clientSuggestions.map((sug) => (
-                  <Card key={sug.id} className="p-4 border-border/60 bg-zinc-900/60 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-[10px] font-bold uppercase",
-                          sug.suggested_type === "AJUSTE_DEMANDA"
-                            ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
-                            : "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
-                        )}
-                      >
-                        {sug.suggested_type === "AJUSTE_DEMANDA" ? "🔄 Ajuste em Demanda" : "🟢 Nova Demanda"}
-                      </Badge>
-                      <span className="text-[11px] text-muted-foreground">
-                        Origem: {sug.source === "meeting" ? "🎙️ Reunião" : sug.source === "whatsapp" ? "💬 WhatsApp" : "✉️ E-mail"}
-                      </span>
-                    </div>
-
-                    <h4 className="text-xs font-bold text-foreground">{sug.suggested_title}</h4>
-                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
-                      {sug.suggested_description || sug.ai_summary}
-                    </p>
-
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/30">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={async () => {
-                          await dismissSuggestionFn({ data: { id: sug.id } });
-                          toast.info("Sugestão descartada.");
-                          qc.invalidateQueries({ queryKey: ["demand_suggestions"] });
-                        }}
-                        className="h-7 text-xs text-muted-foreground hover:text-red-400"
-                      >
-                        Descartar
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          await approveSuggestionFn({ data: { id: sug.id } });
-                          toast.success("Demanda criada e integrada!");
-                          qc.invalidateQueries({ queryKey: ["demands"] });
-                          qc.invalidateQueries({ queryKey: ["demand_suggestions"] });
-                        }}
-                        className="h-7 text-xs bg-purple-600 hover:bg-purple-700 text-white font-semibold gap-1"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Criar / Processar Demanda
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
+            <DemandTriageView clientId={id} />
           </div>
         </TabsContent>
       </Tabs>
