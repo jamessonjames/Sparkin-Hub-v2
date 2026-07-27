@@ -321,7 +321,8 @@ function AgendaPage() {
   // Group active reminders by slot (including recurring occurrences)
   const remindersBySlot = useMemo(() => {
     const map = new Map<string, ReminderData[]>();
-    for (const r of reminders) {
+    for (const _r of reminders) {
+      const r = _r as any;
       if (r.is_completed) continue;
       
       const startDt = new Date(r.date_time);
