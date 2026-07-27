@@ -59,7 +59,7 @@ export const listDemands = createServerFn({ method: "GET" })
 
     let query = context.supabase
       .from("demands")
-      .select("id, title, status, status_id, client_id, priority, due_date, sort_order, assignee_user_id, client_edition_id, description, created_at, estimated_credits, estimated_hours, internal_notes, price, deleted_at, clients(id, name), demand_comments(count)")
+      .select("id, title, status, status_id, client_id, priority, due_date, sort_order, assignee_user_id, client_edition_id, description, created_at, estimated_credits, estimated_hours, internal_notes, price, deleted_at, is_manually_scheduled, clients(id, name), demand_comments(count)")
       .is("deleted_at", null);
 
     if (data?.clientId) {
@@ -99,7 +99,7 @@ export const getDemand = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: d, error } = await context.supabase
       .from("demands")
-      .select("id, title, status, status_id, client_id, priority, due_date, sort_order, assignee_user_id, client_edition_id, description, created_at, estimated_credits, estimated_hours, internal_notes, price, deleted_at, clients(id, name), demand_comments(count)")
+      .select("id, title, status, status_id, client_id, priority, due_date, sort_order, assignee_user_id, client_edition_id, description, created_at, estimated_credits, estimated_hours, internal_notes, price, deleted_at, is_manually_scheduled, clients(id, name), demand_comments(count)")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
