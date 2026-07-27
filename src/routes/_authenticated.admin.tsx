@@ -348,7 +348,7 @@ function AdminPage() {
       getStatusFn()
         .then((res) => {
           setGDriveConnected(res.connected);
-          setGDriveExpired(!!res.expired);
+          setGDriveExpired(!!(res as any).expired);
           setGDriveEmail(res.email || "");
           setLoadingGDriveStatus(false);
         })
