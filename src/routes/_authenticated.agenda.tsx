@@ -1282,7 +1282,7 @@ function DraggablePillItem({
     id: `pill_demand:${demand.id}`,
   });
 
-  const isUnassigned = !demand.assignee_user_id;
+  const isUnassigned = !(demand as any).assignee_user_id;
 
   return (
     <div
