@@ -348,7 +348,7 @@ function AdminPage() {
       getStatusFn()
         .then((res) => {
           setGDriveConnected(res.connected);
-          setGDriveExpired(!!res.expired);
+          setGDriveExpired(!!(res as any).expired);
           setGDriveEmail(res.email || "");
           setLoadingGDriveStatus(false);
         })
@@ -791,7 +791,7 @@ function AdminPage() {
                 ) : users.length === 0 ? (
                   <div className="py-6 text-center text-muted-foreground text-xs">Nenhum usuário encontrado.</div>
                 ) : (
-                  users.map((u) => {
+                  users.map((u: any) => {
                     const role = u.user_roles?.[0]?.role ?? "collaborator";
                     const initials = u.name
                       ? u.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()

@@ -495,15 +495,16 @@ function FinancePage() {
       recipient_provider: entryModalType === "expense" ? formRecipient : null,
     };
 
-    if (editingEntry?.recurrence_group_id) {
+    const entryToEdit = editingEntry as any;
+    if (entryToEdit?.recurrence_group_id) {
       const hasChanged =
-        editingEntry.title !== formTitle ||
-        editingEntry.total_value !== Number(formTotalValue) ||
-        editingEntry.category !== formCategory ||
-        (entryModalType === "expense" && editingEntry.recipient_provider !== (formRecipient || null));
+        entryToEdit.title !== formTitle ||
+        entryToEdit.total_value !== Number(formTotalValue) ||
+        entryToEdit.category !== formCategory ||
+        (entryModalType === "expense" && entryToEdit.recipient_provider !== (formRecipient || null));
 
       if (hasChanged) {
-        setTargetEditData({ id: editingEntry.id!, entry: payload });
+        setTargetEditData({ id: entryToEdit.id!, entry: payload });
         setEditRecurrenceOpen(true);
         return;
       }
@@ -868,7 +869,7 @@ function FinancePage() {
                       <AlertCircle className="h-4 w-4" />
                       Recebimentos Vencidos ({summary?.overdueReceivables.length || 0})
                     </h3>
-                    {summary?.overdueReceivables.length > 0 && (
+                    {(summary?.overdueReceivables?.length ?? 0) > 0 && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 font-sans border border-red-500/20">
                         Ação Necessária
                       </span>

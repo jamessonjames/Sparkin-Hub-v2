@@ -652,7 +652,7 @@ function ClientPage() {
                 setIsEditDialogOpen(false);
               }}
               submitting={saving}
-              hideBilling={client.is_project}
+              hideBilling={!!client.is_project}
             />
           </DialogContent>
         </Dialog>

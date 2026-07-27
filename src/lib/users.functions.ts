@@ -33,8 +33,8 @@ export const listUsersWithRoles = createServerFn({ method: "GET" })
     if (re) throw new Error(re.message);
 
     // Merge locally
-    return (profiles ?? []).map((p) => {
-      const roleRow = (roles ?? []).find((r) => r.user_id === p.id);
+    return (profiles ?? []).map((p: any) => {
+      const roleRow = (roles ?? []).find((r: any) => r.user_id === p.id);
       return {
         ...p,
         user_roles: roleRow ? [{ id: roleRow.user_id, role: roleRow.role }] : [],
@@ -147,7 +147,7 @@ export const saveUserPreferences = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ data, context }) => {
-    const updates: Record<string, string> = {};
+    const updates: any = {};
     if (data.highlight_color) updates.highlight_color = data.highlight_color;
     if (data.custom_hex) updates.custom_hex = data.custom_hex;
 
@@ -210,9 +210,9 @@ export const deleteUserAdmin = createServerFn({ method: "POST" })
 
 // Server functions to get and save global system branding (system name & favicon) across devices
 export const getSystemBranding = createServerFn({ method: "GET" })
-  .handler(async ({ context }) => {
+  .handler(async ({ context }: any) => {
     try {
-      const { data } = await (context.supabase as any)
+      const { data } = await context.supabase
         .from("system_settings")
         .select("value")
         .eq("key", "system_branding")

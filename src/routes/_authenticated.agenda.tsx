@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { useUserContext } from "@/contexts/user-context";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check, Repeat, Star } from "lucide-react";
 import { STATUS_LABELS } from "@/lib/demand-labels";
@@ -321,7 +322,8 @@ function AgendaPage() {
   // Group active reminders by slot (including recurring occurrences)
   const remindersBySlot = useMemo(() => {
     const map = new Map<string, ReminderData[]>();
-    for (const r of reminders) {
+    for (const _r of reminders) {
+      const r = _r as any;
       if (r.is_completed) continue;
       
       const startDt = new Date(r.date_time);
@@ -768,7 +770,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
     if (activeIdStr.startsWith("reminder:")) {
       const parts = activeIdStr.split(":");
       const reminderId = parts[1];
-      const rem = reminders.find((r) => r.id === reminderId);
+      const rem = reminders.find((r) => (r as any).id === reminderId) as any;
       if (!rem) return;
 
       const formattedTarget = formatTzString(targetDate);
@@ -780,8 +782,8 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
           targetDateTime: formattedTarget,
         });
       } else {
-        qc.setQueryData<typeof reminders>(["reminders", activeUserId], (prev) =>
-          (prev ?? []).map((r) => (r.id === reminderId ? { ...r, date_time: formattedTarget } as any : r))
+        qc.setQueryData<any>(["reminders", activeUserId], (prev: any) =>
+          (prev ?? []).map((r: any) => (r.id === reminderId ? { ...r, date_time: formattedTarget } : r))
         );
         try {
           await upsertReminderFn({
@@ -853,7 +855,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
   const activeDragReminder = useMemo(() => {
     if (!activeDragId || !activeDragId.startsWith("reminder:")) return null;
     const remId = activeDragId.split(":")[1];
-    return (reminders.find((r) => r.id === remId) as ReminderData) || null;
+    return (reminders.find((r) => (r as any).id === remId) as any) || null;
   }, [activeDragId, reminders]);
 
   async function handleSaveReminder(data: ReminderData) {
@@ -1280,7 +1282,7 @@ function DraggablePillItem({
     id: `pill_demand:${demand.id}`,
   });
 
-  const isUnassigned = !demand.assignee_user_id;
+  const isUnassigned = !(demand as any).assignee_user_id;
 
   return (
     <div

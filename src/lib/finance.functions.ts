@@ -259,12 +259,13 @@ export const deleteFinancialEntry = createServerFn({ method: "POST" })
 
       // If it was a recurring monthly receivable (no demand_id, client_id present, category is Mensalidade)
       // Downgrade client billing model to 'fixed' and fixed_type to 'one_off'
+      const e = entry as any;
       if (
-        entry &&
-        entry.type === "revenue" &&
-        entry.category === "Mensalidade" &&
-        !entry.demand_id &&
-        entry.client_id
+        e &&
+        e.type === "revenue" &&
+        e.category === "Mensalidade" &&
+        !e.demand_id &&
+        e.client_id
       ) {
         const { error: clientUpdErr } = await context.supabase
           .from("clients")
@@ -272,8 +273,8 @@ export const deleteFinancialEntry = createServerFn({ method: "POST" })
             billing_model: "fixed",
             fixed_type: "one_off",
             monthly_value: null,
-          })
-          .eq("id", entry.client_id);
+          } as any)
+          .eq("id", e.client_id);
 
         if (clientUpdErr) throw clientUpdErr;
       }
