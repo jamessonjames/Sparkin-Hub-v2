@@ -1,5 +1,11 @@
 // Content Script running inside web.whatsapp.com
-const SPARKIN_API_URL = "http://localhost:8080/api/public/capture"; 
+const SPARKIN_API_URL = window.location.origin.includes("localhost") 
+  ? "http://localhost:8080/api/public/capture" 
+  : "/api/public/capture"; // Path-based for same-origin if possible, but actually we need absolute for cross-origin
+
+// Note: In production, the extension should point to the correct Lovable project URL.
+// We'll use a placeholder that the user can replace or we can try to detect.
+const PRODUCTION_URL = "https://sparkinhub-v2.lovable.app/api/public/capture";
 
 console.log("[Sparkin Hub] Content Script ativo e monitorando WhatsApp Web...");
 
