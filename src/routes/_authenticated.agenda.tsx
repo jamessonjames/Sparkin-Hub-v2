@@ -442,7 +442,7 @@ function AgendaPage() {
       }
     }
 
-    qc.setQueryData<typeof demands>(["demands", activeUserId], (prev) =>
+    qc.setQueryData<typeof demands>(["demands", targetAgendaUserId, isAdminOrOwner], (prev) =>
       (prev ?? []).map((d) => (d.id === demandId ? { ...d, estimated_hours: hours } : d))
     );
 
@@ -1680,8 +1680,9 @@ function DraggableDemandCard({
     };
     
     const handlePointerUp = async (upEvent: PointerEvent) => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
+      upEvent.stopPropagation();
+      window.removeEventListener("pointermove", handlePointerMove, { capture: true });
+      window.removeEventListener("pointerup", handlePointerUp, { capture: true });
       setIsResizing(false);
       
       const deltaY = upEvent.clientY - startY;
@@ -1693,8 +1694,8 @@ function DraggableDemandCard({
       }
     };
     
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointermove", handlePointerMove, { capture: true });
+    window.addEventListener("pointerup", handlePointerUp, { capture: true });
   };
 
   // Compute if the event time has passed (Google Calendar style transparency)
