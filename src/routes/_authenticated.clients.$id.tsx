@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
+import { LoadingSpinner } from "@/components/loading-spinner";
 import {
   getClient,
   updateClient,
@@ -116,10 +117,13 @@ function ClientPage() {
   const activeUserId = selectedUserId ?? currentUser?.id ?? null;
   const isDefaultUser = defaultUserId ? defaultUserId === activeUserId : activeUserId === currentUser?.id;
 
-  const { data: client } = useQuery({
+  const { data: client, isPending: clientLoading } = useQuery({
     queryKey: ["client", id],
     queryFn: () => getFn({ data: { id } }),
   });
+
+  if (clientLoading) return <LoadingSpinner />;
+
   const { data: parentClient } = useQuery({
     queryKey: ["client", client?.parent_id],
     queryFn: () => getFn({ data: { id: client!.parent_id! } }),

@@ -39,6 +39,7 @@ import {
   updateFinancialEntryWithRecurrence,
 } from "@/lib/finance.functions";
 import { listClients } from "@/lib/clients.functions";
+import { LoadingSpinner } from "@/components/loading-spinner";
 
 export function getRecurrenceLabel(entry: { title: string; recurrence_group_id?: string | null }) {
   const match = (entry.title || "").match(/\s+\((\d+)\/(\d+)\)$/);
@@ -678,6 +679,8 @@ function FinancePage() {
     );
   };
 
+
+  if (loadingRole) return <LoadingSpinner />;
 
   return (
     <div className="w-full max-w-[1400px] mx-auto p-6 space-y-6">

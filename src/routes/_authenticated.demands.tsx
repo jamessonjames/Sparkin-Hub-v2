@@ -11,6 +11,7 @@ import {
 } from "@/lib/demands.functions";
 import { listClients } from "@/lib/clients.functions";
 import { KanbanBoard } from "@/components/kanban-board";
+import { LoadingSpinner } from "@/components/loading-spinner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -42,12 +43,14 @@ function DemandsPage() {
   const [search, setSearch] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const { data: demands = [] } = useQuery({
+  const { data: demands = [], isPending: demandsLoading } = useQuery({
     queryKey: ["demands", activeUserId],
     queryFn: () => listFn({ data: isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId } : {} }),
     staleTime: 2 * 60 * 1000,
   });
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn() });
+
+  if (demandsLoading) return <LoadingSpinner />;
 
   async function handleMove(id: string, status: DemandStatus) {
     qc.setQueryData<typeof demands>(["demands", activeUserId], (prev) =>

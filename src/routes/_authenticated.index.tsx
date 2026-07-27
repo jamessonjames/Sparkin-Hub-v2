@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { AlertCircle, ListChecks, Users, CheckCircle2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
+import { LoadingSpinner } from "@/components/loading-spinner";
 import { getClientActivityStatus, getStatusColor, getStatusLabel } from "@/lib/activity.functions";
 import type { ClientActivity } from "@/lib/activity.functions";
 
@@ -19,8 +20,8 @@ function Dashboard() {
   const demandsFn = useServerFn(listDemands);
   const clientsFn = useServerFn(listClients);
   const activityFn = useServerFn(getClientActivityStatus);
-  const { data: demands = [] } = useQuery({ queryKey: ["demands"], queryFn: () => demandsFn(), staleTime: 2 * 60 * 1000 });
-  const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn() });
+  const { data: demands = [], isPending: demandsLoading } = useQuery({ queryKey: ["demands"], queryFn: () => demandsFn(), staleTime: 2 * 60 * 1000 });
+  const { data: clients = [], isPending: clientsLoading } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn() });
   const { data: _clientActivities } = useQuery({
     queryKey: ["clientActivity"],
     queryFn: () => activityFn(),
@@ -32,6 +33,8 @@ function Dashboard() {
   const overdue = open.filter((d) => d.due_date && d.due_date < today);
   const done = demands.filter((d) => d.status === "concluido");
   const overlay = useDemandOverlay();
+
+  if (demandsLoading || clientsLoading) return <LoadingSpinner />;
 
   const stats = [
     { label: "Demandas em aberto", value: open.length, icon: ListChecks, tone: "text-primary" },

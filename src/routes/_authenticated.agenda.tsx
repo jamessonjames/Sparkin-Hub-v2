@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState, useRef, useEffect } from "react";
 import { listDemands, batchUpdateDueDates, updateDemand } from "@/lib/demands.functions";
+import { LoadingSpinner } from "@/components/loading-spinner";
 import { listClients } from "@/lib/clients.functions";
 import { listReminders, upsertReminder, completeReminder, deleteReminder } from "@/lib/reminders.functions";
 import { ReminderDialog, type ReminderData } from "@/components/reminder-dialog";
@@ -202,7 +203,7 @@ function AgendaPage() {
     ? selectedUserId
     : (currentUser?.id ?? null);
 
-  const { data: demands = [] } = useQuery({
+  const { data: demands = [], isPending: demandsLoading } = useQuery({
     queryKey: ["demands", targetAgendaUserId, isAdminOrOwner],
     queryFn: () => listFn({ data: isAdminOrOwner && targetAgendaUserId ? { assigneeUserId: targetAgendaUserId, includeUnassigned: false } : {} }),
   });
@@ -901,6 +902,8 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
   const clientsForOverlay = useMemo(() => {
     return allClients.map((c: any) => ({ id: c.id, name: c.name }));
   }, [allClients]);
+
+  if (demandsLoading) return <LoadingSpinner />;
 
   return (
     <DndContext
