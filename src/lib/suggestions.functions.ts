@@ -110,7 +110,7 @@ export const listSuggestions = createServerFn({ method: "GET" })
 
     const { data: suggestions, error } = await query;
     if (error) throw new Error(error.message);
-    return (suggestions ?? []) as DemandSuggestion[];
+    return (suggestions as any[] ?? []) as DemandSuggestion[];
   });
 
 export const createSuggestion = createServerFn({ method: "POST" })
@@ -151,7 +151,7 @@ export const createSuggestion = createServerFn({ method: "POST" })
       .single();
 
     if (error) throw new Error(error.message);
-    return row as DemandSuggestion;
+    return row as any as DemandSuggestion;
   });
 
 export function markdownToHtml(markdown: string): string {
@@ -260,24 +260,24 @@ export const approveSuggestion = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     // 1. Fetch suggestion
     const { data: suggestion, error: fetchErr } = await context.supabase
-      .from("demand_suggestions")
+      .from("demand_suggestions" as any)
       .select("*")
       .eq("id", data.id)
       .single();
 
-    if (fetchErr || !suggestion) throw new Error("Sugestão não encontrada");
+    if (fetchErr || !(suggestion as any)) throw new Error("Sugestão não encontrada");
 
-    const finalTitle = data.title || suggestion.suggested_title;
-    const rawDesc = data.description || suggestion.suggested_description || "";
+    const finalTitle = data.title || (suggestion as any).suggested_title;
+    const rawDesc = data.description || (suggestion as any).suggested_description || "";
     const finalDesc = markdownToHtml(rawDesc);
-    const finalHours = data.estimated_hours ?? Number(suggestion.estimated_hours || 1.0);
+    const finalHours = data.estimated_hours ?? Number((suggestion as any).estimated_hours || 1.0);
 
-    if (suggestion.suggested_type === "AJUSTE_DEMANDA" && suggestion.target_demand_id) {
+    if ((suggestion as any).suggested_type === "AJUSTE_DEMANDA" && (suggestion as any).target_demand_id) {
       // Move existing target demand to "com_ajustes" and append notes
       const { data: targetDemand } = await context.supabase
         .from("demands")
         .select("id, status, description, internal_notes")
-        .eq("id", suggestion.target_demand_id)
+        .eq("id", (suggestion as any).target_demand_id)
         .single();
 
       if (targetDemand) {
@@ -295,7 +295,7 @@ export const approveSuggestion = createServerFn({ method: "POST" })
     } else {
       // Create new demand as rascunho (draft) for review
       await context.supabase.from("demands").insert({
-        client_id: suggestion.client_id,
+        client_id: (suggestion as any).client_id,
         title: finalTitle,
         description: finalDesc,
         status: "rascunho",
@@ -402,7 +402,7 @@ export const updateCaptureSettings = createServerFn({ method: "POST" })
       .parse(input)
   )
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("capture_settings").upsert(
+    const { error } = await context.supabase.from("capture_settings" as any).upsert(
       {
         key: "global",
         scan_frequency: data.scan_frequency,
@@ -424,7 +424,7 @@ export const triggerWhatsAppScan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const nowISO = new Date().toISOString();
-    await context.supabase.from("capture_settings").upsert(
+    await context.supabase.from("capture_settings" as any).upsert(
       {
         key: "global",
         last_scan_at: nowISO,

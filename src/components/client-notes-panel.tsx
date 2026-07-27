@@ -133,7 +133,7 @@ export function ClientNotesPanel({ clientId }: { clientId: string }) {
     enabled: !!clientId,
   });
 
-  const clientName = client?.name || "Desconhecido";
+  const clientName = (client as any)?.name || "Desconhecido";
   const gDrivePath = useMemo(() => ["Clients", clientName, "Notes"], [clientName]);
 
   const [view, setView] = useState<"grid" | "list">("grid");

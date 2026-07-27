@@ -105,8 +105,8 @@ export const getDemand = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     if (!d) throw new Error("Demanda não encontrada");
     return {
-      ...d,
-      status: d.status_id || d.status,
+      ...(d as any),
+      status: (d as any).status_id || (d as any).status,
     };
   });
 

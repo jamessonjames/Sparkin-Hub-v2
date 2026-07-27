@@ -14,6 +14,166 @@ export type Database = {
   }
   public: {
     Tables: {
+      agenda_reminders: {
+        Row: {
+          color: string | null
+          content: string | null
+          created_at: string | null
+          date_time: string
+          id: string
+          is_completed: boolean | null
+          recurrence_end_date: string | null
+          recurrence_interval: number | null
+          recurrence_type: string | null
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          content?: string | null
+          created_at?: string | null
+          date_time: string
+          id?: string
+          is_completed?: boolean | null
+          recurrence_end_date?: string | null
+          recurrence_interval?: number | null
+          recurrence_type?: string | null
+          title: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          content?: string | null
+          created_at?: string | null
+          date_time?: string
+          id?: string
+          is_completed?: boolean | null
+          recurrence_end_date?: string | null
+          recurrence_interval?: number | null
+          recurrence_type?: string | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      capture_settings: {
+        Row: {
+          ai_provider: string | null
+          api_key: string | null
+          enabled_clients: Json | null
+          key: string
+          last_scan_at: string | null
+          max_messages: number | null
+          ollama_url: string | null
+          scan_frequency: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ai_provider?: string | null
+          api_key?: string | null
+          enabled_clients?: Json | null
+          key: string
+          last_scan_at?: string | null
+          max_messages?: number | null
+          ollama_url?: string | null
+          scan_frequency?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ai_provider?: string | null
+          api_key?: string | null
+          enabled_clients?: Json | null
+          key?: string
+          last_scan_at?: string | null
+          max_messages?: number | null
+          ollama_url?: string | null
+          scan_frequency?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      client_editions: {
+        Row: {
+          billing_month: number | null
+          billing_year: number | null
+          client_id: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          price: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          billing_month?: number | null
+          billing_year?: number | null
+          client_id: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          price?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          billing_month?: number | null
+          billing_year?: number | null
+          client_id?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          price?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_editions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_gems: {
+        Row: {
+          category: string
+          client_id: string
+          created_at: string | null
+          gem_url: string
+          id: string
+          name: string
+        }
+        Insert: {
+          category: string
+          client_id: string
+          created_at?: string | null
+          gem_url: string
+          id?: string
+          name: string
+        }
+        Update: {
+          category?: string
+          client_id?: string
+          created_at?: string | null
+          gem_url?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_gems_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_sessions: {
         Row: {
           client_id: string
@@ -47,6 +207,7 @@ export type Database = {
         Row: {
           access_active: boolean
           billing_model: Database["public"]["Enums"]["billing_model"]
+          color: string | null
           commercial_notes: string | null
           contact_name: string | null
           created_at: string
@@ -56,8 +217,10 @@ export type Database = {
           fixed_type: Database["public"]["Enums"]["fixed_type"] | null
           id: string
           internal_notes: string | null
+          is_project: boolean | null
           monthly_value: number | null
           name: string
+          parent_id: string | null
           password_hash: string | null
           phone: string | null
           require_password: boolean
@@ -69,6 +232,7 @@ export type Database = {
         Insert: {
           access_active?: boolean
           billing_model?: Database["public"]["Enums"]["billing_model"]
+          color?: string | null
           commercial_notes?: string | null
           contact_name?: string | null
           created_at?: string
@@ -78,8 +242,10 @@ export type Database = {
           fixed_type?: Database["public"]["Enums"]["fixed_type"] | null
           id?: string
           internal_notes?: string | null
+          is_project?: boolean | null
           monthly_value?: number | null
           name: string
+          parent_id?: string | null
           password_hash?: string | null
           phone?: string | null
           require_password?: boolean
@@ -91,6 +257,7 @@ export type Database = {
         Update: {
           access_active?: boolean
           billing_model?: Database["public"]["Enums"]["billing_model"]
+          color?: string | null
           commercial_notes?: string | null
           contact_name?: string | null
           created_at?: string
@@ -100,8 +267,10 @@ export type Database = {
           fixed_type?: Database["public"]["Enums"]["fixed_type"] | null
           id?: string
           internal_notes?: string | null
+          is_project?: boolean | null
           monthly_value?: number | null
           name?: string
+          parent_id?: string | null
           password_hash?: string | null
           phone?: string | null
           require_password?: boolean
@@ -111,6 +280,13 @@ export type Database = {
           work_type_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "clients_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "clients_work_type_id_fkey"
             columns: ["work_type_id"]
@@ -147,6 +323,54 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_leads: {
+        Row: {
+          billing_model: string | null
+          client_color: string | null
+          contact_name: string | null
+          created_at: string | null
+          email: string | null
+          estimated_value: number | null
+          id: string
+          internal_notes: string | null
+          name: string
+          phone: string | null
+          source: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          billing_model?: string | null
+          client_color?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          estimated_value?: number | null
+          id?: string
+          internal_notes?: string | null
+          name: string
+          phone?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          billing_model?: string | null
+          client_color?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          estimated_value?: number | null
+          id?: string
+          internal_notes?: string | null
+          name?: string
+          phone?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       demand_comments: {
         Row: {
           author_label: string | null
@@ -156,6 +380,7 @@ export type Database = {
           created_at: string
           demand_id: string
           id: string
+          is_internal: boolean | null
         }
         Insert: {
           author_label?: string | null
@@ -165,6 +390,7 @@ export type Database = {
           created_at?: string
           demand_id: string
           id?: string
+          is_internal?: boolean | null
         }
         Update: {
           author_label?: string | null
@@ -174,11 +400,78 @@ export type Database = {
           created_at?: string
           demand_id?: string
           id?: string
+          is_internal?: boolean | null
         }
         Relationships: [
           {
             foreignKeyName: "demand_comments_demand_id_fkey"
             columns: ["demand_id"]
+            isOneToOne: false
+            referencedRelation: "demands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demand_suggestions: {
+        Row: {
+          ai_summary: string | null
+          audio_url: string | null
+          client_id: string
+          created_at: string | null
+          estimated_hours: number | null
+          id: string
+          raw_content: string | null
+          source: string
+          status: string
+          suggested_description: string | null
+          suggested_title: string
+          suggested_type: string
+          target_demand_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ai_summary?: string | null
+          audio_url?: string | null
+          client_id: string
+          created_at?: string | null
+          estimated_hours?: number | null
+          id?: string
+          raw_content?: string | null
+          source: string
+          status?: string
+          suggested_description?: string | null
+          suggested_title: string
+          suggested_type: string
+          target_demand_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ai_summary?: string | null
+          audio_url?: string | null
+          client_id?: string
+          created_at?: string | null
+          estimated_hours?: number | null
+          id?: string
+          raw_content?: string | null
+          source?: string
+          status?: string
+          suggested_description?: string | null
+          suggested_title?: string
+          suggested_type?: string
+          target_demand_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demand_suggestions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demand_suggestions_target_demand_id_fkey"
+            columns: ["target_demand_id"]
             isOneToOne: false
             referencedRelation: "demands"
             referencedColumns: ["id"]
@@ -213,6 +506,7 @@ export type Database = {
         Row: {
           approved_credits: number | null
           assignee_user_id: string | null
+          client_edition_id: string | null
           client_id: string
           created_at: string
           created_by_client: boolean
@@ -226,6 +520,7 @@ export type Database = {
           id: string
           internal_notes: string | null
           is_manually_scheduled: boolean
+          price: number | null
           priority: Database["public"]["Enums"]["demand_priority"]
           reference_month: string
           sort_order: number | null
@@ -237,6 +532,7 @@ export type Database = {
         Insert: {
           approved_credits?: number | null
           assignee_user_id?: string | null
+          client_edition_id?: string | null
           client_id: string
           created_at?: string
           created_by_client?: boolean
@@ -250,6 +546,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           is_manually_scheduled?: boolean
+          price?: number | null
           priority?: Database["public"]["Enums"]["demand_priority"]
           reference_month?: string
           sort_order?: number | null
@@ -261,6 +558,7 @@ export type Database = {
         Update: {
           approved_credits?: number | null
           assignee_user_id?: string | null
+          client_edition_id?: string | null
           client_id?: string
           created_at?: string
           created_by_client?: boolean
@@ -274,6 +572,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           is_manually_scheduled?: boolean
+          price?: number | null
           priority?: Database["public"]["Enums"]["demand_priority"]
           reference_month?: string
           sort_order?: number | null
@@ -283,6 +582,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "demands_client_edition_id_fkey"
+            columns: ["client_edition_id"]
+            isOneToOne: false
+            referencedRelation: "client_editions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "demands_client_id_fkey"
             columns: ["client_id"]
@@ -295,6 +601,126 @@ export type Database = {
             columns: ["demand_type_id"]
             isOneToOne: false
             referencedRelation: "demand_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_attachments: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          deleted_at: string | null
+          drive_file_id: string | null
+          drive_url: string | null
+          entity_id: string
+          entity_type: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          mime_type: string | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          deleted_at?: string | null
+          drive_file_id?: string | null
+          drive_url?: string | null
+          entity_id: string
+          entity_type: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          mime_type?: string | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          deleted_at?: string | null
+          drive_file_id?: string | null
+          drive_url?: string | null
+          entity_id?: string
+          entity_type?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          mime_type?: string | null
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
+      financial_entries: {
+        Row: {
+          category: string | null
+          client_id: string | null
+          created_at: string | null
+          demand_id: string | null
+          due_date: string
+          id: string
+          notes: string | null
+          paid_value: number | null
+          recipient_provider: string | null
+          recurrence_group_id: string | null
+          status: string
+          title: string
+          total_value: number
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          demand_id?: string | null
+          due_date: string
+          id?: string
+          notes?: string | null
+          paid_value?: number | null
+          recipient_provider?: string | null
+          recurrence_group_id?: string | null
+          status?: string
+          title: string
+          total_value: number
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          demand_id?: string | null
+          due_date?: string
+          id?: string
+          notes?: string | null
+          paid_value?: number | null
+          recipient_provider?: string | null
+          recurrence_group_id?: string | null
+          status?: string
+          title?: string
+          total_value?: number
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_entries_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_entries_demand_id_fkey"
+            columns: ["demand_id"]
+            isOneToOne: false
+            referencedRelation: "demands"
             referencedColumns: ["id"]
           },
         ]
@@ -373,6 +799,24 @@ export type Database = {
         }
         Relationships: []
       }
+      system_settings: {
+        Row: {
+          key: string
+          updated_at: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           can_create_demands: boolean
@@ -431,7 +875,7 @@ export type Database = {
     }
     Enums: {
       app_role: "owner" | "admin" | "collaborator"
-      billing_model: "fixed" | "credits"
+      billing_model: "fixed" | "credits" | "seasonal"
       demand_priority: "low" | "medium" | "high" | "urgent"
       demand_status:
         | "rascunho"
@@ -577,7 +1021,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["owner", "admin", "collaborator"],
-      billing_model: ["fixed", "credits"],
+      billing_model: ["fixed", "credits", "seasonal"],
       demand_priority: ["low", "medium", "high", "urgent"],
       demand_status: [
         "rascunho",

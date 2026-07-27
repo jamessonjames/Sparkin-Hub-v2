@@ -323,7 +323,7 @@ export function MeetingTranscriptionDialog({
       return;
     }
 
-    const selectedClient = clients.find((c) => c.id === clientId);
+    const selectedClient = (clients as any[]).find((c) => c.id === clientId);
     const clientName = selectedClient?.name || "Cliente";
 
     addLog("info", "Iniciando gravação...");
@@ -570,7 +570,7 @@ export function MeetingTranscriptionDialog({
     }
   };
 
-  const selectedClient = clients.find((c) => c.id === clientId);
+  const selectedClient = (clients as any[]).find((c) => c.id === clientId);
 
   // Formatted continuous markdown summary string
   const formattedSummaryText = Array.isArray(analysisResult?.summary)
@@ -635,8 +635,8 @@ export function MeetingTranscriptionDialog({
                     <SelectValue placeholder="Selecione o cliente" />
                   </SelectTrigger>
                   <SelectContent>
-                    {clients.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    {(clients as any[]).map((c: any) => (
+                      <SelectItem key={(c as any).id} value={(c as any).id}>{(c as any).name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -799,7 +799,7 @@ export function MeetingTranscriptionDialog({
           <div className="flex-1 flex flex-col min-h-0 py-2">
             <div className="flex items-center justify-between text-xs pb-2">
               <span className="text-muted-foreground">
-                Cliente: <strong className="text-foreground">{selectedClient?.name}</strong>
+                Cliente: <strong className="text-foreground">{(selectedClient as any)?.name}</strong>
               </span>
               <Button variant="ghost" size="sm"
                 onClick={() => { setMode("config"); micTranscriptRef.current = ""; tabMasterChunksRef.current = []; setSeconds(0); setTranscriptLines([]); setExpandedSugId(null); }}
@@ -869,7 +869,7 @@ export function MeetingTranscriptionDialog({
                     </Button>
                   </div>
                   <div className="w-full h-[360px] overflow-y-auto pr-1">
-                    <MarkdownView content={formattedSummaryText} />
+                    <MarkdownView content={formattedSummaryText || ""} />
                   </div>
                 </div>
               </TabsContent>
@@ -970,7 +970,7 @@ export function MeetingTranscriptionDialog({
                                 Briefing da IA
                               </span>
                               <div className="bg-zinc-950 p-3.5 rounded-lg border border-white/5 text-xs text-zinc-200 leading-relaxed font-sans">
-                                <MarkdownView content={sug.suggested_description || sug.ai_summary} />
+                                <MarkdownView content={sug.suggested_description || sug.ai_summary || ""} />
                               </div>
                             </div>
 

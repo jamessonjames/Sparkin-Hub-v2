@@ -29,6 +29,7 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
+import { useUserContext } from "@/contexts/user-context";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { STATUS_LABELS, PRIORITY_LABELS } from "@/lib/demand-labels";
 const RichEditorLazy = lazy(() => import("@/components/rich-editor").then(m => ({ default: m.RichEditor })));
@@ -146,8 +147,8 @@ export function DemandDetailDialog({
   const updateCommentFn = useServerFn(updateComment);
   const listProfilesFn = useServerFn(listProfiles);
   const qc = useQueryClient();
-
-
+  const { selectedUserId } = useUserContext();
+  const activeUserId = selectedUserId;
 
   const [lightbox, setLightbox] = useState<{
     src: string;
@@ -206,14 +207,14 @@ export function DemandDetailDialog({
       if (!isNew && id !== "new") {
         try {
           if (portalMode) {
-            await updatePortalDemandFn({
+            await updatePortalFn({
               data: {
                 id,
                 description: cleanHtml || null,
               }
             });
           } else {
-            await updateDemandFn({
+            await updateFn({
               data: {
                 id,
                 description: cleanHtml || null,
@@ -451,7 +452,7 @@ export function DemandDetailDialog({
   useEffect(() => {
     if (portalMode || !pricingConfig || isPriceManuallyEdited) return;
 
-    const selectedClient = fullClients.find((c) => c.id === clientId);
+    const selectedClient = (fullClients as any[]).find((c) => c.id === clientId);
     if (!selectedClient) return;
 
     const isOneOff = selectedClient.billing_model === "fixed" && selectedClient.fixed_type === "one_off";
@@ -494,7 +495,7 @@ export function DemandDetailDialog({
     enabled: !!clientId && !portalMode,
   });
 
-  const selectedClient = !portalMode ? fullClients.find((c) => c.id === clientId) : null;
+  const selectedClient = !portalMode ? (fullClients as any[]).find((c) => c.id === clientId) : null;
   const clientName = portalMode ? (portalClientName || "Desconhecido") : (selectedClient?.name || "Desconhecido");
   const demandTitle = title.trim() || "Nova Demanda";
   const gDrivePath = useMemo(() => ["Clients", clientName, "Demands", demandTitle], [clientName, demandTitle]);
@@ -511,7 +512,7 @@ export function DemandDetailDialog({
     } else if (selectedClient) {
       parts.push(selectedClient.name);
       if (selectedClient.billing_model === "seasonal" && clientEditionId) {
-        const ed = clientEditions.find((e: any) => e.id === clientEditionId);
+        const ed = (clientEditions as any[]).find((e: any) => e.id === clientEditionId);
         if (ed) {
           parts.push(ed.name);
         }
@@ -569,8 +570,8 @@ export function DemandDetailDialog({
       if (defaultClientEditionId) {
         setClientEditionId(defaultClientEditionId);
       } else {
-        const activeEdition = clientEditions.find((e: any) => e.is_active);
-        setClientEditionId(activeEdition?.id || clientEditions[0]?.id || "");
+        const activeEdition = (clientEditions as any[]).find((e: any) => e.is_active);
+        setClientEditionId((activeEdition as any)?.id || (clientEditions as any[])[0]?.id || "");
       }
     }
   }, [isNew, clientEditions, defaultClientEditionId, clientEditionId]);
@@ -827,7 +828,7 @@ export function DemandDetailDialog({
             due_date: finalDueDate,
             estimated_credits: estimatedCredits,
             estimated_hours: estimatedHours,
-            assignee_user_id: assigneeId || activeUserId || profiles.find((p) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
+            assignee_user_id: assigneeId || (profiles as any[]).find((p: any) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
             client_edition_id: clientEditionId || null,
             price: price ?? null,
           },
@@ -848,7 +849,7 @@ export function DemandDetailDialog({
             estimated_credits: estimatedCredits,
             estimated_hours: estimatedHours,
             internal_notes: demand?.internal_notes,
-            assignee_user_id: assigneeId || activeUserId || profiles.find((p) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
+            assignee_user_id: assigneeId || (profiles as any[]).find((p: any) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
             client_edition_id: clientEditionId || null,
             price: price ?? null,
           },
@@ -1209,7 +1210,7 @@ export function DemandDetailDialog({
 
                 {/* Notion-style 1-Line Property Bar with Option B Dynamic DOM Measurement */}
                 {(() => {
-                  const hasExtraFields = isCreditBillingEnabled || (!portalMode && isNew && selectedClient?.billing_model === "seasonal") || (!portalMode && selectedClient && (selectedClient.billing_model === "seasonal" || (selectedClient.billing_model === "fixed" && selectedClient.fixed_type === "one_off")));
+                  const hasExtraFields = isCreditBillingEnabled || (!portalMode && isNew && (selectedClient as any)?.billing_model === "seasonal") || (!portalMode && selectedClient && ((selectedClient as any).billing_model === "seasonal" || ((selectedClient as any).billing_model === "fixed" && (selectedClient as any).fixed_type === "one_off")));
                   
                   const showClientInBar = !portalMode && isNew && clients.length > 1;
                   const showAssigneeInBar = !portalMode;
@@ -1272,7 +1273,7 @@ export function DemandDetailDialog({
                                 {assigneeId ? (
                                   <div className="flex items-center gap-1.5">
                                     {(() => {
-                                      const assignee = profiles.find((p) => p.id === assigneeId);
+                                      const assignee = profiles.find((p: any) => p.id === assigneeId);
                                       const name = assignee?.name ?? "Jamesson James";
                                       const colorClass = getProfileColor(assigneeId || name);
                                       return (
@@ -1290,7 +1291,7 @@ export function DemandDetailDialog({
                                 )}
                               </SelectTrigger>
                               <SelectContent>
-                                {profiles.map((p) => (
+                                {profiles.map((p: any) => (
                                   <SelectItem key={p.id} value={p.id} className="text-xs">
                                     <div className="flex items-center gap-2">
                                       <div className={cn("h-4 w-4 rounded-full text-[9px] font-bold flex items-center justify-center border", getProfileColor(p.id))}>

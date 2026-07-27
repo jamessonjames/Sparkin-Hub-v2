@@ -151,7 +151,7 @@ export function KanbanBoard({
 
   const profilesMap = useMemo(() => {
     const map = new Map<string, { id: string; name: string; avatar_url?: string | null }>();
-    profiles.forEach((p) => map.set(p.id, p));
+    profiles.forEach((p: any) => map.set(p.id, p));
     return map;
   }, [profiles]);
 
@@ -909,7 +909,7 @@ function KanbanCard({
     transition,
   };
 
-  const theme = getStatusTheme(demand.status, STATUS_LABELS[demand.status] || demand.status);
+  const theme = getStatusTheme(demand.status, (STATUS_LABELS as any)[demand.status] || demand.status);
 
   return (
     <div
@@ -969,7 +969,7 @@ function KanbanCardStatic({
   isDragging?: boolean;
   profilesMap?: Map<string, { id: string; name: string; avatar_url?: string | null }>;
 }) {
-  const theme = getStatusTheme(demand.status, STATUS_LABELS[demand.status] || demand.status);
+  const theme = getStatusTheme(demand.status, (STATUS_LABELS as any)[demand.status] || demand.status);
 
   return (
     <div

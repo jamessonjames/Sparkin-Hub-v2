@@ -20,8 +20,8 @@ function Dashboard() {
   const demandsFn = useServerFn(listDemands);
   const clientsFn = useServerFn(listClients);
   const activityFn = useServerFn(getClientActivityStatus);
-  const { data: demands = [], isPending: demandsLoading } = useQuery({ queryKey: ["demands"], queryFn: () => demandsFn(), staleTime: 2 * 60 * 1000 });
-  const { data: clients = [], isPending: clientsLoading } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn(), staleTime: 2 * 60 * 1000 });
+  const { data: demands = [], isPending: demandsLoading } = useQuery({ queryKey: ["demands"], queryFn: () => demandsFn(), staleTime: 5 * 60 * 1000 });
+  const { data: clients = [], isPending: clientsLoading } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn(), staleTime: 5 * 60 * 1000 });
   const { data: _clientActivities } = useQuery({
     queryKey: ["clientActivity"],
     queryFn: () => activityFn(),

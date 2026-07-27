@@ -109,7 +109,7 @@ export function useAutoScheduler() {
       };
 
       runSave();
-    }, 1000);
+    }, 5000);
 
     return () => {
       if (timeoutRef.current) {
