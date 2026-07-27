@@ -495,15 +495,16 @@ function FinancePage() {
       recipient_provider: entryModalType === "expense" ? formRecipient : null,
     };
 
-    if ((editingEntry as any)?.recurrence_group_id) {
+    const e = editingEntry as any;
+    if (e?.recurrence_group_id) {
       const hasChanged =
-        editingEntry.title !== formTitle ||
-        editingEntry.total_value !== Number(formTotalValue) ||
-        editingEntry.category !== formCategory ||
-        (entryModalType === "expense" && editingEntry.recipient_provider !== (formRecipient || null));
+        e.title !== formTitle ||
+        e.total_value !== Number(formTotalValue) ||
+        e.category !== formCategory ||
+        (entryModalType === "expense" && e.recipient_provider !== (formRecipient || null));
 
       if (hasChanged) {
-        setTargetEditData({ id: editingEntry.id!, entry: payload });
+        setTargetEditData({ id: e.id!, entry: payload });
         setEditRecurrenceOpen(true);
         return;
       }
