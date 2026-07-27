@@ -359,6 +359,7 @@ export type Database = {
         Row: {
           approved_credits: number | null
           assignee_user_id: string | null
+          client_edition_id: string | null
           client_id: string
           created_at: string
           created_by_client: boolean
@@ -372,6 +373,7 @@ export type Database = {
           id: string
           internal_notes: string | null
           is_manually_scheduled: boolean
+          price: number | null
           priority: Database["public"]["Enums"]["demand_priority"]
           reference_month: string
           sort_order: number | null
@@ -383,6 +385,7 @@ export type Database = {
         Insert: {
           approved_credits?: number | null
           assignee_user_id?: string | null
+          client_edition_id?: string | null
           client_id: string
           created_at?: string
           created_by_client?: boolean
@@ -396,6 +399,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           is_manually_scheduled?: boolean
+          price?: number | null
           priority?: Database["public"]["Enums"]["demand_priority"]
           reference_month?: string
           sort_order?: number | null
@@ -407,6 +411,7 @@ export type Database = {
         Update: {
           approved_credits?: number | null
           assignee_user_id?: string | null
+          client_edition_id?: string | null
           client_id?: string
           created_at?: string
           created_by_client?: boolean
@@ -420,6 +425,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           is_manually_scheduled?: boolean
+          price?: number | null
           priority?: Database["public"]["Enums"]["demand_priority"]
           reference_month?: string
           sort_order?: number | null
@@ -429,6 +435,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "demands_client_edition_id_fkey"
+            columns: ["client_edition_id"]
+            isOneToOne: false
+            referencedRelation: "client_editions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "demands_client_id_fkey"
             columns: ["client_id"]
@@ -480,6 +493,72 @@ export type Database = {
           mime_type?: string | null
         }
         Relationships: []
+      }
+      financial_entries: {
+        Row: {
+          category: string | null
+          client_id: string | null
+          created_at: string | null
+          demand_id: string | null
+          due_date: string
+          id: string
+          notes: string | null
+          paid_value: number | null
+          recipient_provider: string | null
+          status: string
+          title: string
+          total_value: number
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          demand_id?: string | null
+          due_date: string
+          id?: string
+          notes?: string | null
+          paid_value?: number | null
+          recipient_provider?: string | null
+          status?: string
+          title: string
+          total_value: number
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          demand_id?: string | null
+          due_date?: string
+          id?: string
+          notes?: string | null
+          paid_value?: number | null
+          recipient_provider?: string | null
+          status?: string
+          title?: string
+          total_value?: number
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_entries_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_entries_demand_id_fkey"
+            columns: ["demand_id"]
+            isOneToOne: false
+            referencedRelation: "demands"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notes: {
         Row: {

@@ -112,7 +112,7 @@ export const checkAndGenerateMonthlyReceivables = createServerFn({ method: "POST
       for (const client of monthlyClients) {
         // Check if subscription entry exists for this client in this month
         const { data: existing, error: existErr } = await context.supabase
-          .from("financial_entries")
+          .from("financial_entries" as any)
           .select("id, total_value, status")
           .eq("type", "revenue")
           .eq("client_id", client.id)
