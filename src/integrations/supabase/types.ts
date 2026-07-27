@@ -56,10 +56,8 @@ export type Database = {
           fixed_type: Database["public"]["Enums"]["fixed_type"] | null
           id: string
           internal_notes: string | null
-          is_project: boolean
           monthly_value: number | null
           name: string
-          parent_id: string | null
           password_hash: string | null
           phone: string | null
           require_password: boolean
@@ -80,10 +78,8 @@ export type Database = {
           fixed_type?: Database["public"]["Enums"]["fixed_type"] | null
           id?: string
           internal_notes?: string | null
-          is_project?: boolean
           monthly_value?: number | null
           name: string
-          parent_id?: string | null
           password_hash?: string | null
           phone?: string | null
           require_password?: boolean
@@ -104,10 +100,8 @@ export type Database = {
           fixed_type?: Database["public"]["Enums"]["fixed_type"] | null
           id?: string
           internal_notes?: string | null
-          is_project?: boolean
           monthly_value?: number | null
           name?: string
-          parent_id?: string | null
           password_hash?: string | null
           phone?: string | null
           require_password?: boolean
@@ -122,13 +116,6 @@ export type Database = {
             columns: ["work_type_id"]
             isOneToOne: false
             referencedRelation: "work_types"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "clients_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
