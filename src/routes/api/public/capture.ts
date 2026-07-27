@@ -34,7 +34,7 @@ export const Route = createFileRoute('/api/public/capture')({
           }
 
           // 2. Insert as a pending suggestion
-          const { error } = await supabaseAdmin.from('demand_suggestions').insert({
+          const { data: suggestion, error } = await supabaseAdmin.from('demand_suggestions').insert({
             client_id: client.id,
             source: data.source,
             raw_content: JSON.stringify({
@@ -45,11 +45,20 @@ export const Route = createFileRoute('/api/public/capture')({
             suggested_title: `Captura automática: ${data.clientName}`,
             suggested_type: 'NOVA_DEMANDA',
             status: 'pending'
-          })
+          }).select('id').single()
 
           if (error) throw error
 
-          return new Response(JSON.stringify({ success: true }), {
+          // 3. Trigger background AI analysis if content is long enough or specific
+          // In a real production environment, this would be a queue or a separate edge function
+          // Here we trigger it as a "fire and forget" if we had a background task runner,
+          // but since we are in a server function, we just respond success and let the UI handle the "process" button
+          // or we can attempt a quick analysis here if it's cheap.
+
+          return new Response(JSON.stringify({ 
+            success: true, 
+            suggestionId: suggestion.id 
+          }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
           })
