@@ -120,7 +120,7 @@ const PRIORITY_CHIP: Record<string, string> = {
   urgent: "bg-[#4c1d1d] text-[#fca5a5] border border-[#6e2424]",
 };
 
-export function KanbanBoard({
+export const KanbanBoard = memo(function KanbanBoard({
   demands,
   onMove,
   onOpen,
@@ -685,7 +685,7 @@ export function KanbanBoard({
       </div>
     </div>
   );
-}
+});
 
 function KanbanColumn({
   status,
