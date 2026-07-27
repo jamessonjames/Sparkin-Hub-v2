@@ -18,8 +18,8 @@ export const Route = createFileRoute("/_authenticated/inbox")({
 
 function InboxPage() {
   const triggerScanFn = useServerFn(triggerWhatsAppScan);
-  const { currentRole } = useUserContext();
-  const isAdminOrOwner = currentRole === "PROPRIETARIO" || currentRole === "GESTOR";
+  const { currentUserRole } = useUserContext();
+  const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
 
   const [isScanning, setIsScanning] = useState(false);
 
