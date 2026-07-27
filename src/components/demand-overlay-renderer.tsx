@@ -27,6 +27,8 @@ export function DemandOverlayRenderer() {
   const { data: allDemands = [] } = useQuery({
     queryKey: ["demands"],
     queryFn: () => listDemandsFn(),
+    enabled: !!activeDemand || minimizedDemands.length > 0,
+    staleTime: 2 * 60 * 1000,
   });
 
   const demandsMap = new Map(allDemands.map((d: any) => [d.id, d]));

@@ -59,7 +59,7 @@ export const listDemands = createServerFn({ method: "GET" })
 
     let query = context.supabase
       .from("demands")
-      .select("*, clients(id, name), demand_comments(id)")
+      .select("id, title, status, status_id, client_id, priority, due_date, sort_order, assignee_user_id, client_edition_id, description, created_at, estimated_credits, estimated_hours, internal_notes, price, deleted_at, clients(id, name), demand_comments(count)")
       .is("deleted_at", null);
 
     if (data?.clientId) {
@@ -85,10 +85,10 @@ export const listDemands = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     
     // Map status_id to status if custom and add comments_count
-    const mapped = (result ?? []).map((d) => ({
+    const mapped = (result ?? []).map((d: any) => ({
       ...d,
       status: d.status_id || d.status,
-      comments_count: d.demand_comments ? d.demand_comments.length : 0,
+      comments_count: d.demand_comments?.[0]?.count ?? 0,
     }));
     return mapped;
   });
@@ -99,7 +99,7 @@ export const getDemand = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: d, error } = await context.supabase
       .from("demands")
-      .select("*, clients(id, name)")
+      .select("id, title, status, status_id, client_id, priority, due_date, sort_order, assignee_user_id, client_edition_id, description, created_at, estimated_credits, estimated_hours, internal_notes, price, deleted_at, clients(id, name), demand_comments(count)")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);

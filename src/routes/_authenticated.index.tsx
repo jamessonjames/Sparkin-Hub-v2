@@ -19,7 +19,7 @@ function Dashboard() {
   const demandsFn = useServerFn(listDemands);
   const clientsFn = useServerFn(listClients);
   const activityFn = useServerFn(getClientActivityStatus);
-  const { data: demands = [] } = useQuery({ queryKey: ["demands"], queryFn: () => demandsFn() });
+  const { data: demands = [] } = useQuery({ queryKey: ["demands"], queryFn: () => demandsFn(), staleTime: 2 * 60 * 1000 });
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn() });
   const { data: _clientActivities } = useQuery({
     queryKey: ["clientActivity"],

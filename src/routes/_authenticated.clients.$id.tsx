@@ -125,11 +125,11 @@ function ClientPage() {
     queryFn: () => getFn({ data: { id: client!.parent_id! } }),
     enabled: !!client?.parent_id,
   });
-  const { data: allDemands = [] } = useQuery({
-    queryKey: ["demands", activeUserId],
-    queryFn: () => demandsFn({ data: isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId } : {} }),
+  const { data: clientDemands = [] } = useQuery({
+    queryKey: ["demands", activeUserId, id],
+    queryFn: () => demandsFn({ data: { clientId: id, ...(isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId } : {}) } }),
+    staleTime: 2 * 60 * 1000,
   });
-  const clientDemands = allDemands.filter((d) => d.client_id === id);
 
   const editionsFn = useServerFn(listClientEditions);
   const { data: clientEditions = [], refetch: refetchEditions } = useQuery({
@@ -173,7 +173,7 @@ function ClientPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   async function handleMove(demandId: string, status: DemandStatus) {
-    qc.setQueryData<typeof allDemands>(["demands", activeUserId], (prev) =>
+    qc.setQueryData<typeof clientDemands>(["demands", activeUserId, id], (prev) =>
       (prev ?? []).map((d) => (d.id === demandId ? { ...d, status } : d)),
     );
     try {
@@ -181,7 +181,7 @@ function ClientPage() {
     } catch (e) {
       console.error("[handleMove] moveFn failed", e);
       toast.error(e instanceof Error ? e.message : "Erro ao mover");
-      qc.invalidateQueries({ queryKey: ["demands", activeUserId] });
+      qc.invalidateQueries({ queryKey: ["demands", activeUserId, id] });
     }
   }
 

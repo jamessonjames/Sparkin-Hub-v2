@@ -45,6 +45,7 @@ function DemandsPage() {
   const { data: demands = [] } = useQuery({
     queryKey: ["demands", activeUserId],
     queryFn: () => listFn({ data: isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId } : {} }),
+    staleTime: 2 * 60 * 1000,
   });
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => clientsFn() });
 

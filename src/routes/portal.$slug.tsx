@@ -70,7 +70,8 @@ function PortalPage() {
     queryKey: ["portal-data", slug],
     queryFn: () => getPortalFn({ data: { slug } }),
     initialData: Route.useLoaderData(),
-    refetchInterval: 5000, // Poll every 5 seconds
+    staleTime: 30 * 1000,
+    refetchInterval: 30_000,
   });
 
   const client = data.client;
