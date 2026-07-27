@@ -63,7 +63,7 @@ function getSupabaseAdmin(): ReturnType<typeof createSupabaseAdminClient> | null
 }
 
 export const supabaseAdmin = new Proxy(
-  {} as ReturnType<NonNullable<typeof _supabaseAdmin>>,
+  {} as any,
   {
     get(_, prop) {
       const admin = getSupabaseAdmin();
