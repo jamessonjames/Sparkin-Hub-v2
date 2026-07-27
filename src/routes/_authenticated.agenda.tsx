@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { useUserContext } from "@/contexts/user-context";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check, Repeat, Star } from "lucide-react";
 import { STATUS_LABELS } from "@/lib/demand-labels";
