@@ -169,9 +169,6 @@ function PortalPage() {
               </span>
             </div>
             <h1 className="text-2xl font-bold text-foreground">{client.name}</h1>
-            {client.contact_name && (
-              <p className="text-sm text-muted-foreground mt-0.5">{client.contact_name}</p>
-            )}
           </div>
           <div className="flex items-center gap-3">
             <div className="relative w-56">
