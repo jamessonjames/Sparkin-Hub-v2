@@ -1679,10 +1679,16 @@ function DraggableDemandCard({
       setTempHours(newHours);
     };
     
+    const handleClickCapture = (clickEvent: MouseEvent) => {
+      clickEvent.stopPropagation();
+      clickEvent.preventDefault();
+    };
+    
     const handlePointerUp = async (upEvent: PointerEvent) => {
       upEvent.stopPropagation();
       window.removeEventListener("pointermove", handlePointerMove, { capture: true });
       window.removeEventListener("pointerup", handlePointerUp, { capture: true });
+      window.removeEventListener("click", handleClickCapture, { capture: true });
       setIsResizing(false);
       
       const deltaY = upEvent.clientY - startY;
@@ -1696,6 +1702,7 @@ function DraggableDemandCard({
     
     window.addEventListener("pointermove", handlePointerMove, { capture: true });
     window.addEventListener("pointerup", handlePointerUp, { capture: true });
+    window.addEventListener("click", handleClickCapture, { capture: true });
   };
 
   // Compute if the event time has passed (Google Calendar style transparency)
