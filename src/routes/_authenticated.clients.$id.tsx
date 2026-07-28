@@ -174,6 +174,7 @@ function ClientPage() {
   const sidebarWidth = sidebarState === "collapsed" ? 48 : 256;
   const [search, setSearch] = useState("");
   const [isMeetingOpen, setIsMeetingOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("demands");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   async function handleMove(demandId: string, status: DemandStatus) {
@@ -356,7 +357,7 @@ function ClientPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="demands" className="flex-1 flex flex-col min-h-0">
+      <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="demands" className="flex-1 flex flex-col min-h-0">
         <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
           <TabsList className="w-full justify-between bg-zinc-900/60 border border-zinc-800 p-1.5 rounded-xl h-auto flex-wrap sm:flex-nowrap gap-1">
             <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap">
@@ -629,9 +630,11 @@ function ClientPage() {
           </div>
         </TabsContent>
 
+        {activeTab === "ai_agents" && (
         <TabsContent value="ai_agents" className="flex-1 w-full max-w-[1400px] mx-auto px-4 md:px-6">
           <ClientGemsTab clientId={id} />
         </TabsContent>
+        )}
 
         {/* Client Edit Dialog Modal */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -653,6 +656,9 @@ function ClientPage() {
                 commercial_notes: client.commercial_notes,
                 internal_notes: client.internal_notes,
                 access_active: client.access_active,
+                whatsapp_phone: client.whatsapp_phone,
+                whatsapp_group_name: client.whatsapp_group_name,
+                whatsapp_group_link: client.whatsapp_group_link,
               }}
               onSubmit={async (values) => {
                 await handleSave(values);
@@ -693,13 +699,15 @@ function ClientPage() {
           </DialogContent>
         </Dialog>
 
+        {activeTab === "notes" && (
         <TabsContent value="notes" className="mt-4 overflow-y-auto">
           <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
             <ClientNotesPanel clientId={id} />
           </div>
         </TabsContent>
+        )}
 
-        {!client.is_project && (
+        {!client.is_project && activeTab === "reports" && (
           <TabsContent value="reports" className="mt-4 overflow-y-auto pb-8">
             <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
               <ClientReportsPanel
@@ -714,7 +722,7 @@ function ClientPage() {
             </div>
           </TabsContent>
         )}
-        {!client.is_project && client.billing_model === "seasonal" && (
+        {!client.is_project && client.billing_model === "seasonal" && activeTab === "editions" && (
           <TabsContent value="editions" className="mt-4 overflow-y-auto pb-8">
             <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
               <ClientEditionsPanel
@@ -726,11 +734,13 @@ function ClientPage() {
             </div>
           </TabsContent>
         )}
+        {activeTab === "suggestions" && (
         <TabsContent value="suggestions" className="mt-4 overflow-y-auto pb-8">
           <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6 space-y-4">
             <DemandTriageView clientId={id} />
           </div>
         </TabsContent>
+        )}
       </Tabs>
     </div>
   );

@@ -80,7 +80,8 @@ export const listDemands = createServerFn({ method: "GET" })
 
     const { data: result, error } = await query
       .order("sort_order", { ascending: true, nullsFirst: false })
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(500);
 
     if (error) throw new Error(error.message);
     

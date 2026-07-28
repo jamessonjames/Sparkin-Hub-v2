@@ -24,6 +24,7 @@ export function useAutoScheduler() {
   const { data: demands = [] } = useQuery({
     queryKey: ["demands"],
     queryFn: () => listFn(),
+    staleTime: 5 * 60 * 1000,
   });
 
   useEffect(() => {
