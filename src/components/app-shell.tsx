@@ -19,6 +19,11 @@ import { useAutoScheduler } from "@/hooks/use-auto-scheduler";
 import { MeetingTranscriptionDialog } from "@/components/meeting-transcription-dialog";
 import { useQueryClient } from "@tanstack/react-query";
 
+function AutoSchedulerGate() {
+  useAutoScheduler();
+  return null;
+}
+
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -134,7 +139,6 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   const clientMatch = pathname.match(/\/clients\/([a-f0-9-]+)/i);
   const activeClientId = clientMatch ? clientMatch[1] : undefined;
 
-  useAutoScheduler();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
@@ -209,6 +213,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
 
   return (
     <UserProvider>
+    <AutoSchedulerGate />
     <DemandOverlayProvider>
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-background">
