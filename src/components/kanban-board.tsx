@@ -172,7 +172,18 @@ export const KanbanBoard = memo(function KanbanBoard({
   const [columns, setColumns] = useState<string[]>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("CF_KanbanColumns");
-      return saved ? JSON.parse(saved) : [...KANBAN_STATUSES];
+      if (saved) {
+        const parsed: string[] = JSON.parse(saved);
+        // Ensure all built-in statuses are present (e.g. "rascunho" for existing users)
+        const missing = KANBAN_STATUSES.filter((s) => !parsed.includes(s));
+        if (missing.length > 0) {
+          const merged = [...missing, ...parsed];
+          localStorage.setItem("CF_KanbanColumns", JSON.stringify(merged));
+          return merged;
+        }
+        return parsed;
+      }
+      return [...KANBAN_STATUSES];
     }
     return [...KANBAN_STATUSES];
   });

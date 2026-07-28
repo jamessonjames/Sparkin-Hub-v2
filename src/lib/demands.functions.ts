@@ -14,6 +14,7 @@ export const DEMAND_STATUSES = [
 export type DemandStatus = (typeof DEMAND_STATUSES)[number];
 
 export const KANBAN_STATUSES: DemandStatus[] = [
+  "rascunho",
   "nao_iniciado",
   "fazendo",
   "para_analise",
