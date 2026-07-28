@@ -38,7 +38,7 @@ export async function getGDriveAccessToken(): Promise<string> {
       if (response.access_token) resolve(response.access_token);
       else reject(new Error(response.error || "Falha ao obter token do Google"));
     };
-    tokenClient.requestAccessToken({ prompt: "" });
+    tokenClient.requestAccessToken({ prompt: "consent" });
   });
 }
 
@@ -106,7 +106,7 @@ export async function connectGDrive(): Promise<{ accessToken: string; email: str
         }
       },
     });
-    tc.requestAccessToken();
+    tc.requestAccessToken({ prompt: "consent" });
   });
 }
 

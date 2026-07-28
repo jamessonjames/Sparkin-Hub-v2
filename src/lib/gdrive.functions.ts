@@ -35,11 +35,13 @@ export async function getServerGDriveAccessToken(context: { supabase: any }): Pr
   if (creds.refresh_token) {
     try {
       const GOOGLE_CLIENT_ID = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_ID) || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
+      const GOOGLE_CLIENT_SECRET = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_SECRET) || "";
       const params = new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
         grant_type: "refresh_token",
         refresh_token: creds.refresh_token,
       });
+      if (GOOGLE_CLIENT_SECRET) params.set("client_secret", GOOGLE_CLIENT_SECRET);
 
       const res = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
@@ -52,6 +54,7 @@ export async function getServerGDriveAccessToken(context: { supabase: any }): Pr
         const newAccessToken = tokenData.access_token;
         const expiresIn = tokenData.expires_in || 3600;
         const newExpiresAt = Date.now() + expiresIn * 1000;
+        const newRefreshToken = tokenData.refresh_token || creds.refresh_token;
 
         await (context.supabase as any)
           .from("system_settings")
@@ -59,6 +62,7 @@ export async function getServerGDriveAccessToken(context: { supabase: any }): Pr
             value: {
               ...creds,
               access_token: newAccessToken,
+              refresh_token: newRefreshToken,
               expires_at: newExpiresAt,
             },
           })
@@ -149,6 +153,7 @@ export const storeGoogleDriveCode = createServerFn({ method: "POST" })
   .handler(async ({ data: { code }, context }) => {
     try {
       const GOOGLE_CLIENT_ID = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_ID) || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
+      const GOOGLE_CLIENT_SECRET = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_SECRET) || "";
 
       const params = new URLSearchParams({
         code,
@@ -156,6 +161,7 @@ export const storeGoogleDriveCode = createServerFn({ method: "POST" })
         grant_type: "authorization_code",
         redirect_uri: "postmessage",
       });
+      if (GOOGLE_CLIENT_SECRET) params.set("client_secret", GOOGLE_CLIENT_SECRET);
 
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
