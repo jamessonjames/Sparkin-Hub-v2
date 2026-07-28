@@ -17,7 +17,7 @@ export default defineConfig({
       exclude: ["@xenova/transformers"],
     },
     server: {
-      port: 8080,
+      port: 9090,
       host: true,
     },
     build: {
