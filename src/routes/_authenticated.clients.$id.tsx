@@ -129,11 +129,16 @@ function ClientPage() {
     enabled: !!client?.parent_id,
     staleTime: 5 * 60 * 1000,
   });
-  const { data: clientDemands = [], isPending: demandsLoading } = useQuery({
+  const { data: clientDemands = [], isPending: demandsLoading, refetch: refetchDemands } = useQuery({
     queryKey: ["demands", activeUserId, id],
     queryFn: () => demandsFn({ data: { clientId: id, ...(isAdminOrOwner && activeUserId ? { assigneeUserId: activeUserId } : {}) } }),
-    staleTime: 5 * 60 * 1000,
+    enabled: !!id,
+    staleTime: 1 * 60 * 1000,
   });
+
+  useEffect(() => {
+    refetchDemands();
+  }, [activeUserId, selectedUserId, refetchDemands]);
 
   const editionsFn = useServerFn(listClientEditions);
   const { data: clientEditions = [], refetch: refetchEditions } = useQuery({
