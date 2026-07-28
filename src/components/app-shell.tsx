@@ -17,6 +17,7 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAutoScheduler } from "@/hooks/use-auto-scheduler";
 import { MeetingTranscriptionDialog } from "@/components/meeting-transcription-dialog";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   DropdownMenu,
@@ -177,6 +178,27 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
       }
     });
   }, []);
+
+  const qc = useQueryClient();
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("realtime-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "demands" }, () => {
+        qc.invalidateQueries({ queryKey: ["demands"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "clients" }, () => {
+        qc.invalidateQueries({ queryKey: ["clients"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "user_roles" }, () => {
+        qc.invalidateQueries({ queryKey: ["user_roles"] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc]);
 
   const displayName = currentUserName || currentUser?.email || "";
 

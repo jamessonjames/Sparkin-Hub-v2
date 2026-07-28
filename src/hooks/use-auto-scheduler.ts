@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listDemands, batchUpdateDueDates } from "@/lib/demands.functions";
+import { useUserContext } from "@/contexts/user-context";
 import {
   scheduleByPriority,
   DEFAULT_CONFIG,
@@ -20,6 +21,7 @@ export function useAutoScheduler() {
   const timeoutRef = useRef<any>(null);
   const runningRef = useRef(false);
   const pendingUpdatesRef = useRef<{ id: string; due_date: string | null }[] | null>(null);
+  const { currentUser } = useUserContext();
 
   const { data: demands = [] } = useQuery({
     queryKey: ["demands"],
@@ -29,6 +31,14 @@ export function useAutoScheduler() {
 
   useEffect(() => {
     if (!demands || demands.length === 0) return;
+
+    // Only schedule demands assigned to the authenticated user.
+    // When viewing another user's agenda via the "Visão" selector,
+    // we must not reorder their demands.
+    const myDemands = (demands as any[]).filter(
+      (d) => !d.assignee_user_id || d.assignee_user_id === currentUser?.id
+    );
+    if (myDemands.length === 0) return;
 
     let config: SchedulingConfig = DEFAULT_CONFIG;
     if (typeof window !== "undefined") {
@@ -40,7 +50,7 @@ export function useAutoScheduler() {
       }
     }
 
-    const active = (demands as any[]).filter((d) => d.status === "nao_iniciado" || d.status === "fazendo" || d.status === "com_ajustes");
+    const active = myDemands.filter((d) => d.status === "nao_iniciado" || d.status === "fazendo" || d.status === "com_ajustes");
     if (active.length === 0) return;
 
     const items = active.map((d: any) => ({

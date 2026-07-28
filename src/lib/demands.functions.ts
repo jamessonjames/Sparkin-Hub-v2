@@ -197,29 +197,35 @@ export const updateDemand = createServerFn({ method: "POST" })
 
     // Gracefully handle database schema transition where estimated_hours might not exist yet
     try {
-      const { error } = await context.supabase
+      const { data: result, error } = await context.supabase
         .from("demands")
         .update({ ...payload, estimated_hours: rest.estimated_hours ?? 1.0 })
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       
       if (error) {
         if (error.message.includes("estimated_hours") || error.code === "P0002" || error.message.includes("column")) {
-          const { error: retryError } = await context.supabase
+          const { data: retryResult, error: retryError } = await context.supabase
             .from("demands")
             .update(payload)
-            .eq("id", id);
+            .eq("id", id)
+            .select("id");
           if (retryError) throw new Error(retryError.message);
+          if (!retryResult || retryResult.length === 0) throw new Error("Nenhuma linha afetada. A permissão RLS pode ter bloqueado a alteração.");
           return { ok: true };
         }
         throw new Error(error.message);
       }
+      if (!result || result.length === 0) throw new Error("Nenhuma linha afetada. A permissão RLS pode ter bloqueado a alteração.");
       return { ok: true };
     } catch (e) {
-      const { error: retryError } = await context.supabase
+      const { data: retryResult, error: retryError } = await context.supabase
         .from("demands")
         .update(payload)
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (retryError) throw new Error(retryError.message);
+      if (!retryResult || retryResult.length === 0) throw new Error("Nenhuma linha afetada. A permissão RLS pode ter bloqueado a alteração.");
       return { ok: true };
     }
   });
@@ -252,15 +258,16 @@ export const moveDemandStatus = createServerFn({ method: "POST" })
       patch.is_manually_scheduled = false;
     }
 
-    const { error } = await context.supabase
+    const { data: result, error } = await context.supabase
       .from("demands")
       .update(patch as any)
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .select("id");
     if (error) {
       console.error("[moveDemandStatus] RLS/DB error", error);
       throw new Error(`moveDemandStatus: ${error.message}`);
     }
-    console.log("[moveDemandStatus] success");
+    if (!result || result.length === 0) throw new Error("Nenhuma linha afetada. A permissão RLS pode ter bloqueado a alteração.");
     return { ok: true };
   });
 
