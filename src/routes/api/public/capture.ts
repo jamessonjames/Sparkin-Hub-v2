@@ -18,13 +18,18 @@ export const Route = createFileRoute('/api/public/capture')({
           const body = await request.json()
           const data = captureSchema.parse(body)
 
-          // 1. Try to find the client by name or slug
-          // We use supabaseAdmin because this is a public endpoint
-          const { data: client } = await supabaseAdmin
-            .from('clients')
-            .select('id')
-            .ilike('name', `%${data.clientName}%`)
-            .maybeSingle()
+          // 1. Try to find the client by whatsapp_group_name (groups), whatsapp_phone, or name
+          const isGroup = data.metadata?.isGroup === true;
+          let clientQuery = supabaseAdmin.from('clients').select('id')
+
+          if (isGroup) {
+            clientQuery = clientQuery.ilike('whatsapp_group_name', data.clientName)
+          } else {
+            clientQuery = clientQuery.ilike('name', `%${data.clientName}%`)
+              .or(`whatsapp_phone.ilike.%${data.clientName}%`)
+          }
+
+          const { data: client } = await clientQuery.maybeSingle()
 
           if (!client) {
             return new Response(JSON.stringify({ error: 'Client not found' }), {

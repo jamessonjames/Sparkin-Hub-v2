@@ -227,6 +227,9 @@ export type Database = {
           slug: string
           sort_order: number | null
           updated_at: string
+          whatsapp_group_link: string | null
+          whatsapp_group_name: string | null
+          whatsapp_phone: string | null
           work_type_id: string | null
         }
         Insert: {
@@ -252,6 +255,9 @@ export type Database = {
           slug: string
           sort_order?: number | null
           updated_at?: string
+          whatsapp_group_link?: string | null
+          whatsapp_group_name?: string | null
+          whatsapp_phone?: string | null
           work_type_id?: string | null
         }
         Update: {
@@ -277,6 +283,9 @@ export type Database = {
           slug?: string
           sort_order?: number | null
           updated_at?: string
+          whatsapp_group_link?: string | null
+          whatsapp_group_name?: string | null
+          whatsapp_phone?: string | null
           work_type_id?: string | null
         }
         Relationships: [

@@ -19,6 +19,9 @@ const upsertSchema = z.object({
   color: z.string().optional().nullable(),
   parent_id: z.string().uuid().optional().nullable(),
   is_project: z.boolean().default(false),
+  whatsapp_phone: z.string().optional().nullable(),
+  whatsapp_group_name: z.string().optional().nullable(),
+  whatsapp_group_link: z.string().optional().nullable(),
 });
 
 export const listClients = createServerFn({ method: "GET" })
@@ -92,7 +95,7 @@ export const getClient = createServerFn({ method: "GET" })
 
     const { data: client, error } = await context.supabase
       .from("clients")
-      .select("id, name, slug, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, color, parent_id, is_project, commercial_notes, internal_notes, created_at, updated_at")
+      .select("id, name, slug, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, color, parent_id, is_project, commercial_notes, internal_notes, created_at, updated_at, whatsapp_phone, whatsapp_group_name, whatsapp_group_link")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -130,6 +133,9 @@ export const createClient = createServerFn({ method: "POST" })
         color: data.color || null,
         parent_id: data.parent_id || null,
         is_project: data.is_project,
+        whatsapp_phone: data.whatsapp_phone || null,
+        whatsapp_group_name: data.whatsapp_group_name || null,
+        whatsapp_group_link: data.whatsapp_group_link || null,
         slug,
       })
       .select("id")
@@ -160,6 +166,9 @@ export const updateClient = createServerFn({ method: "POST" })
         color: rest.color || null,
         parent_id: rest.parent_id || null,
         is_project: rest.is_project,
+        whatsapp_phone: rest.whatsapp_phone || null,
+        whatsapp_group_name: rest.whatsapp_group_name || null,
+        whatsapp_group_link: rest.whatsapp_group_link || null,
       })
       .eq("id", id);
     if (error) throw new Error(error.message);

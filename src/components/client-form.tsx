@@ -21,6 +21,9 @@ export type ClientFormValues = {
   color?: string | null;
   parent_id?: string | null;
   is_project?: boolean;
+  whatsapp_phone?: string | null;
+  whatsapp_group_name?: string | null;
+  whatsapp_group_link?: string | null;
 };
 
 export function ClientForm({
@@ -50,6 +53,9 @@ export function ClientForm({
     color: initial?.color ?? null,
     parent_id: initial?.parent_id ?? null,
     is_project: initial?.is_project ?? false,
+    whatsapp_phone: initial?.whatsapp_phone ?? "",
+    whatsapp_group_name: initial?.whatsapp_group_name ?? "",
+    whatsapp_group_link: initial?.whatsapp_group_link ?? "",
   });
 
   function handle(e: FormEvent) {
@@ -150,6 +156,36 @@ export function ClientForm({
           value={v.internal_notes ?? ""}
           onChange={(e) => setV({ ...v, internal_notes: e.target.value })}
         />
+      </div>
+
+      <div className="border-t pt-4">
+        <Label className="text-base font-semibold mb-2 block">WhatsApp</Label>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <Label>Telefone do WhatsApp</Label>
+            <Input
+              value={v.whatsapp_phone ?? ""}
+              onChange={(e) => setV({ ...v, whatsapp_phone: e.target.value })}
+              placeholder="5511999999999"
+            />
+          </div>
+          <div>
+            <Label>Nome do grupo no WhatsApp</Label>
+            <Input
+              value={v.whatsapp_group_name ?? ""}
+              onChange={(e) => setV({ ...v, whatsapp_group_name: e.target.value })}
+              placeholder="Nome exato do grupo"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <Label>Link do grupo no WhatsApp</Label>
+            <Input
+              value={v.whatsapp_group_link ?? ""}
+              onChange={(e) => setV({ ...v, whatsapp_group_link: e.target.value })}
+              placeholder="https://chat.whatsapp.com/..."
+            />
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center gap-6">
