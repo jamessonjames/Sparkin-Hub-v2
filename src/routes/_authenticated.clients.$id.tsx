@@ -140,6 +140,7 @@ function ClientPage() {
     queryKey: ["client-editions", id],
     queryFn: () => editionsFn({ data: { client_id: id } }),
     enabled: !!id,
+    staleTime: 5 * 60 * 1000,
   });
 
   const [selectedEditionId, setSelectedEditionId] = useState<string>("all");
@@ -158,6 +159,7 @@ function ClientPage() {
   const { data: clientSuggestions = [] } = useQuery({
     queryKey: ["demand_suggestions", id],
     queryFn: () => listSuggestionsFn({ data: { clientId: id, status: "pending" } }),
+    staleTime: 5 * 60 * 1000,
   });
 
   const filteredDemands = useMemo(() => {
