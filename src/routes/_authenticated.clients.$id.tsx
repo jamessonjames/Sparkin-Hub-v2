@@ -658,6 +658,9 @@ function ClientPage() {
                 commercial_notes: client.commercial_notes,
                 internal_notes: client.internal_notes,
                 access_active: client.access_active,
+                whatsapp_phone: client.whatsapp_phone,
+                whatsapp_group_name: client.whatsapp_group_name,
+                whatsapp_group_link: client.whatsapp_group_link,
               }}
               onSubmit={async (values) => {
                 await handleSave(values);
