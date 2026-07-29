@@ -146,12 +146,20 @@ function ClientPage() {
 
   const [selectedEditionId, setSelectedEditionId] = useState<string>("all");
 
+  // Reset edition state when switching to a different client
   useEffect(() => {
-    if (client?.billing_model === "seasonal" && clientEditions.length > 0 && selectedEditionId === "all") {
-      const activeEdition = clientEditions.find((e: any) => e.is_active);
-      setSelectedEditionId(activeEdition?.id || clientEditions[0]?.id || "all");
+    setSelectedEditionId("all");
+  }, [id]);
+
+  useEffect(() => {
+    if (client?.billing_model === "seasonal" && clientEditions.length > 0) {
+      const belongs = clientEditions.some((e: any) => e.id === selectedEditionId);
+      if (!belongs || selectedEditionId === "all") {
+        const activeEdition = clientEditions.find((e: any) => e.is_active);
+        setSelectedEditionId(activeEdition?.id || clientEditions[0]?.id || "all");
+      }
     }
-  }, [client, clientEditions, selectedEditionId]);
+  }, [id, client?.billing_model, clientEditions, selectedEditionId]);
 
   const listSuggestionsFn = useServerFn(listSuggestions);
   const approveSuggestionFn = useServerFn(approveSuggestion);
@@ -165,9 +173,16 @@ function ClientPage() {
 
   const filteredDemands = useMemo(() => {
     if (!client) return [];
+    // Non-seasonal clients (monthly, credits, single, project) never filter by edition
+    if (client.billing_model !== "seasonal") return clientDemands;
     if (selectedEditionId === "all") return clientDemands;
+
+    // Verify selectedEditionId belongs to current client's editions
+    const editionBelongsToClient = clientEditions.some((e: any) => e.id === selectedEditionId);
+    if (!editionBelongsToClient) return clientDemands;
+
     return clientDemands.filter((d) => d.client_edition_id === selectedEditionId);
-  }, [clientDemands, client, selectedEditionId]);
+  }, [clientDemands, client, clientEditions, selectedEditionId]);
 
   const [saving, setSaving] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
