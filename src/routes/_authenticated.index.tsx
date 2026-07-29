@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -8,7 +9,6 @@ import {
   AlertCircle,
   ListChecks,
   Users,
-  CheckCircle2,
   Play,
   ArrowRight,
   RotateCcw,
@@ -21,6 +21,7 @@ import { Link } from "@tanstack/react-router";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { getClientActivityStatus, getStatusColor, getStatusLabel } from "@/lib/activity.functions";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({ meta: [{ title: "Dashboard — Sparkin Hub" }] }),
@@ -73,6 +74,9 @@ function Dashboard() {
   const clientActivities = Array.isArray(_clientActivities) ? _clientActivities : [];
   const overlay = useDemandOverlay();
 
+  // Tab filter state for main demands box
+  const [activeFilter, setActiveFilter] = useState<"cronologica" | "em_aberto" | "atrasadas" | "refacao">("cronologica");
+
   if (demandsLoading || clientsLoading) return <LoadingSpinner />;
 
   const open = demands.filter((d) => d.status !== "concluido" && d.status !== "rascunho");
@@ -80,10 +84,9 @@ function Dashboard() {
   const nowTime = now.getTime();
   const todayStr = now.toISOString().slice(0, 10);
   const overdue = open.filter((d) => d.due_date && d.due_date < todayStr);
-  const done = demands.filter((d) => d.status === "concluido");
   const refacaoList = open.filter((d) => d.status === "com_ajustes");
 
-  // Scheduled open demands with calculate start & end times
+  // Scheduled open demands with calculated start & end times
   const scheduledOpen = open
     .filter((d) => d.due_date)
     .map((d) => {
@@ -95,7 +98,6 @@ function Dashboard() {
     .sort((a, b) => a.startTime - b.startTime);
 
   // 1. ACTIVE DEMAND (Demanda em Produção Agora)
-  // Priority: slot covering now OR status 'fazendo' OR earliest scheduled today
   let activeDemand = scheduledOpen.find(
     (d) => nowTime >= d.startTime && nowTime < d.endTime
   );
@@ -114,17 +116,17 @@ function Dashboard() {
   // 3. REFACÇÃO HIGHLIGHT
   const activeRefacao = refacaoList.find((d) => d.id !== activeDemand?.id && d.id !== nextDemand?.id) || refacaoList[0];
 
-  // 4. UPCOMING TIMELINE
-  const timelineDemands = scheduledOpen
-    .filter((d) => d.id !== activeDemand?.id)
-    .slice(0, 6);
-
-  const stats = [
-    { label: "Demandas em aberto", value: open.length, icon: ListChecks, tone: "text-primary" },
-    { label: "Atrasadas", value: overdue.length, icon: AlertCircle, tone: "text-destructive" },
-    { label: "Em Refação", value: refacaoList.length, icon: RotateCcw, tone: "text-amber-400" },
-    { label: "Clientes ativos", value: clients.filter((c) => c.access_active).length, icon: Users, tone: "text-primary" },
-  ];
+  // Dynamically computed demands list based on tab filter
+  let displayedDemands: any[] = [];
+  if (activeFilter === "cronologica") {
+    displayedDemands = scheduledOpen.filter((d) => d.id !== activeDemand?.id);
+  } else if (activeFilter === "em_aberto") {
+    displayedDemands = [...open].sort((a, b) => (a.due_date && b.due_date ? a.due_date.localeCompare(b.due_date) : 0));
+  } else if (activeFilter === "atrasadas") {
+    displayedDemands = [...overdue].sort((a, b) => (a.due_date && b.due_date ? a.due_date.localeCompare(b.due_date) : 0));
+  } else if (activeFilter === "refacao") {
+    displayedDemands = [...refacaoList].sort((a, b) => (a.due_date && b.due_date ? a.due_date.localeCompare(b.due_date) : 0));
+  }
 
   return (
     <div className="w-full max-w-[1400px] mx-auto p-6 space-y-6">
@@ -132,19 +134,6 @@ function Dashboard() {
       <div>
         <h2 className="font-display text-2xl font-bold text-foreground">Dashboard</h2>
         <p className="text-sm text-muted-foreground">Visão geral da sua fila de trabalho e ritmo de entregas.</p>
-      </div>
-
-      {/* Top KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {stats.map((s) => (
-          <Card key={s.label} className="p-4 border-border/60 bg-surface-2/40 hover:border-border/90 transition-all">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground font-medium">{s.label}</span>
-              <s.icon className={`h-4 w-4 ${s.tone}`} />
-            </div>
-            <div className="mt-2 font-display text-3xl font-bold text-foreground tabular-nums">{s.value}</div>
-          </Card>
-        ))}
       </div>
 
       {/* Active Work Hub: Active Demand, Next in Queue & Refaction */}
@@ -280,21 +269,70 @@ function Dashboard() {
         </Card>
       </div>
 
-      {/* Main Grid: Fila de Entregas & Clientes Recentes */}
+      {/* Main Grid: Interactive Filter Tabs & Clientes Ativos */}
       <div className="grid md:grid-cols-3 gap-4">
-        {/* Timeline / Fila de Entregas (Spans 2 columns) */}
+        {/* Main Demands Box with Filter Tabs (Spans 2 columns) */}
         <Card className="p-5 md:col-span-2 border-border/60 bg-surface-2/30">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4 text-primary" /> Fila de Entregas Cronológica
-            </h3>
-            <span className="text-xs text-muted-foreground font-medium">
-              A partir do horário de agora
-            </span>
+          {/* Header & Filter Tabs */}
+          <div className="flex items-center justify-between gap-2 mb-4 flex-wrap border-b border-border/60 pb-3">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                onClick={() => setActiveFilter("cronologica")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                  activeFilter === "cronologica"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-surface-2"
+                )}
+              >
+                <Clock className="h-3.5 w-3.5" />
+                Fila Cronológica
+              </button>
+
+              <button
+                onClick={() => setActiveFilter("em_aberto")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                  activeFilter === "em_aberto"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-surface-2"
+                )}
+              >
+                <ListChecks className="h-3.5 w-3.5" />
+                Em Aberto ({open.length})
+              </button>
+
+              <button
+                onClick={() => setActiveFilter("atrasadas")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                  activeFilter === "atrasadas"
+                    ? "bg-destructive text-destructive-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                )}
+              >
+                <AlertCircle className="h-3.5 w-3.5" />
+                Atrasadas ({overdue.length})
+              </button>
+
+              <button
+                onClick={() => setActiveFilter("refacao")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                  activeFilter === "refacao"
+                    ? "bg-amber-500 text-zinc-950 font-bold shadow-sm"
+                    : "text-muted-foreground hover:text-amber-400 hover:bg-amber-500/10"
+                )}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Em Refação ({refacaoList.length})
+              </button>
+            </div>
           </div>
 
-          <div className="divide-y divide-border/60">
-            {timelineDemands.map((d) => {
+          {/* Demands List */}
+          <div className="divide-y divide-border/60 max-h-[420px] overflow-y-auto pr-1">
+            {displayedDemands.map((d) => {
               const badge = STATUS_BADGES[d.status] || STATUS_BADGES.nao_iniciado;
               return (
                 <button
@@ -326,37 +364,49 @@ function Dashboard() {
               );
             })}
 
-            {timelineDemands.length === 0 && (
-              <p className="text-sm text-muted-foreground py-6 text-center">Nenhuma entrega agendada na fila.</p>
+            {displayedDemands.length === 0 && (
+              <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma demanda encontrada neste filtro.</p>
             )}
           </div>
         </Card>
 
-        {/* Clientes Recentes */}
-        <Card className="p-5 border-border/60 bg-surface-2/30">
-          <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-primary" /> Clientes Recentes
-          </h3>
-          <div className="divide-y divide-border/60">
-            {clients.slice(0, 6).map((c) => (
-              <Link
-                key={c.id}
-                to="/clients/$id"
-                params={{ id: c.id }}
-                className="flex items-center justify-between text-sm py-2.5 hover:text-primary transition-colors group"
-              >
-                <span className="truncate font-medium text-foreground group-hover:text-primary">{c.name}</span>
-                <span className="text-xs text-muted-foreground shrink-0 ml-2 bg-surface-2 px-2 py-0.5 rounded border border-border/50">
-                  {c.billing_model === "credits" ? "Créditos" : c.billing_model === "seasonal" ? "Sazonal" : "Fixo"}
-                </span>
-              </Link>
-            ))}
-            {clients.length === 0 && (
-              <p className="text-sm text-muted-foreground py-4">
-                Nenhum cliente cadastrado.
-              </p>
-            )}
+        {/* Clientes Ativos */}
+        <Card className="p-5 border-border/60 bg-surface-2/30 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-foreground flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" /> Clientes Ativos
+              </h3>
+              <span className="text-xs text-muted-foreground font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                {clients.filter((c) => c.access_active).length} ativos
+              </span>
+            </div>
+            <div className="divide-y divide-border/60 max-h-[380px] overflow-y-auto">
+              {clients.filter((c) => c.access_active).slice(0, 8).map((c) => (
+                <Link
+                  key={c.id}
+                  to="/clients/$id"
+                  params={{ id: c.id }}
+                  className="flex items-center justify-between text-sm py-2.5 hover:text-primary transition-colors group"
+                >
+                  <span className="truncate font-medium text-foreground group-hover:text-primary">{c.name}</span>
+                  <span className="text-xs text-muted-foreground shrink-0 ml-2 bg-surface-2 px-2 py-0.5 rounded border border-border/50">
+                    {c.billing_model === "credits" ? "Créditos" : c.billing_model === "seasonal" ? "Sazonal" : "Fixo"}
+                  </span>
+                </Link>
+              ))}
+              {clients.length === 0 && (
+                <p className="text-sm text-muted-foreground py-4">Nenhum cliente ativo.</p>
+              )}
+            </div>
           </div>
+
+          <Link
+            to="/clients"
+            className="mt-4 text-xs font-bold text-primary flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-center"
+          >
+            Ver todos os clientes <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
         </Card>
       </div>
 
@@ -401,4 +451,5 @@ function Dashboard() {
       </Card>
     </div>
   );
-}
+}
+
