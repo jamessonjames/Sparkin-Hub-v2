@@ -74,9 +74,11 @@ function PortalPage() {
     refetchInterval: 60_000,
   });
 
-  const client = data.client;
-  const initialDemands = data.demands;
-  const creditConfig = (data as any).creditConfig;
+  const client = data?.client;
+  const initialDemands = data?.demands ?? [];
+  const creditConfig = (data as any)?.creditConfig;
+
+  if (!client) return null;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");

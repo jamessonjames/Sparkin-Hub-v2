@@ -14,6 +14,16 @@ import {
  * assignments by priority (urgent > high > medium > low, tie-break by created_at)
  * and persists any diffs to the backend.
  */
+function isSameDate(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const timeA = new Date(a).getTime();
+  const timeB = new Date(b).getTime();
+  if (isNaN(timeA) || isNaN(timeB)) return a === b;
+  return timeA === timeB;
+}
+
 export function useAutoScheduler() {
   const listFn = useServerFn(listDemands);
   const batchFn = useServerFn(batchUpdateDueDates);
@@ -33,8 +43,6 @@ export function useAutoScheduler() {
     if (!demands || demands.length === 0) return;
 
     // Only schedule demands assigned to the authenticated user.
-    // When viewing another user's agenda via the "Visão" selector,
-    // we must not reorder their demands.
     const myDemands = (demands as any[]).filter(
       (d) => !d.assignee_user_id || d.assignee_user_id === currentUser?.id
     );
@@ -71,7 +79,7 @@ export function useAutoScheduler() {
       if (d.status === "com_ajustes") continue; // Unpinned adjustments stay in day header pill
 
       const next = scheduled[d.id];
-      if (next && next !== d.due_date) {
+      if (next && !isSameDate(next, d.due_date)) {
         updates.push({ id: d.id, due_date: next });
       }
     }
@@ -92,12 +100,11 @@ export function useAutoScheduler() {
       clearTimeout(timeoutRef.current);
     }
 
-    // Set new timeout to debounce the database save by 1 second
+    // Set new timeout to debounce the database save by 5 seconds
     timeoutRef.current = setTimeout(() => {
       const runSave = async () => {
         if (runningRef.current) {
-          // If a save is already in progress, retry shortly
-          timeoutRef.current = setTimeout(runSave, 500);
+          timeoutRef.current = setTimeout(runSave, 1000);
           return;
         }
 
@@ -108,8 +115,14 @@ export function useAutoScheduler() {
         try {
           await batchFn({ data: { updates: currentUpdates } });
           
-          // Invalidate all demands queries so every view updates smoothly
-          qc.invalidateQueries({ queryKey: ["demands"] });
+          // Update in-memory query cache to avoid triggering a full network refetch loop
+          qc.setQueriesData({ queryKey: ["demands"] }, (oldData: any) => {
+            if (!Array.isArray(oldData)) return oldData;
+            const updateMap = new Map(currentUpdates.map((u) => [u.id, u.due_date]));
+            return oldData.map((item) =>
+              updateMap.has(item.id) ? { ...item, due_date: updateMap.get(item.id) } : item
+            );
+          });
 
           pendingUpdatesRef.current = null;
         } catch (e) {
@@ -127,5 +140,5 @@ export function useAutoScheduler() {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [demands, batchFn, qc]);
+  }, [demands, batchFn, qc, currentUser?.id]);
 }

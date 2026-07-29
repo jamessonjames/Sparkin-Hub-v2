@@ -186,13 +186,24 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   const qc = useQueryClient();
 
   useEffect(() => {
+    let demandsTimer: any = null;
+    let clientsTimer: any = null;
+
     const channel = supabase
       .channel("realtime-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "demands" }, () => {
-        qc.invalidateQueries({ queryKey: ["demands"] });
+        if (typeof document !== "undefined" && document.hidden) return;
+        if (demandsTimer) clearTimeout(demandsTimer);
+        demandsTimer = setTimeout(() => {
+          qc.invalidateQueries({ queryKey: ["demands"] });
+        }, 3000);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "clients" }, () => {
-        qc.invalidateQueries({ queryKey: ["clients"] });
+        if (typeof document !== "undefined" && document.hidden) return;
+        if (clientsTimer) clearTimeout(clientsTimer);
+        clientsTimer = setTimeout(() => {
+          qc.invalidateQueries({ queryKey: ["clients"] });
+        }, 3000);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "user_roles" }, () => {
         qc.invalidateQueries({ queryKey: ["user_roles"] });
@@ -200,6 +211,8 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
       .subscribe();
 
     return () => {
+      if (demandsTimer) clearTimeout(demandsTimer);
+      if (clientsTimer) clearTimeout(clientsTimer);
       supabase.removeChannel(channel);
     };
   }, [qc]);
