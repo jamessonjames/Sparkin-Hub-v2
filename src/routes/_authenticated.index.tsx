@@ -79,11 +79,24 @@ function Dashboard() {
 
   if (demandsLoading || clientsLoading) return <LoadingSpinner />;
 
-  const open = demands.filter((d) => d.status !== "concluido" && d.status !== "rascunho");
+  // "Em aberto": demandas com status nao_iniciado, fazendo ou com_ajustes
+  const open = demands.filter(
+    (d) => d.status === "nao_iniciado" || d.status === "fazendo" || d.status === "com_ajustes"
+  );
   const now = new Date();
   const nowTime = now.getTime();
   const todayStr = now.toISOString().slice(0, 10);
-  const overdue = open.filter((d) => d.due_date && d.due_date < todayStr);
+
+  // "Atrasadas": demandas em aberto cujo prazo (due_date) já passou em relação ao momento atual
+  const overdue = open.filter((d) => {
+    if (!d.due_date) return false;
+    const dueTime = new Date(d.due_date).getTime();
+    if (!isNaN(dueTime)) {
+      return dueTime < nowTime;
+    }
+    return d.due_date < todayStr;
+  });
+
   const refacaoList = open.filter((d) => d.status === "com_ajustes");
 
   // Scheduled open demands with calculated start & end times
