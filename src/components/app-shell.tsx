@@ -195,18 +195,18 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
         if (typeof document !== "undefined" && document.hidden) return;
         if (demandsTimer) clearTimeout(demandsTimer);
         demandsTimer = setTimeout(() => {
-          qc.invalidateQueries({ queryKey: ["demands"] });
+          qc.invalidateQueries({ queryKey: ["demands"], refetchType: "active" });
         }, 3000);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "clients" }, () => {
         if (typeof document !== "undefined" && document.hidden) return;
         if (clientsTimer) clearTimeout(clientsTimer);
         clientsTimer = setTimeout(() => {
-          qc.invalidateQueries({ queryKey: ["clients"] });
+          qc.invalidateQueries({ queryKey: ["clients"], refetchType: "active" });
         }, 3000);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "user_roles" }, () => {
-        qc.invalidateQueries({ queryKey: ["user_roles"] });
+        qc.invalidateQueries({ queryKey: ["user_roles"], refetchType: "active" });
       })
       .subscribe();
 
