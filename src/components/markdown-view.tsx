@@ -97,6 +97,28 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({ content, className }
       return;
     }
 
+    // Task List Items (- [ ] or - [x] or [ ] or [x])
+    const taskMatch = trimmed.match(/^(?:[-*•]\s+)?\[([ xX])\]\s+(.*)$/);
+    if (taskMatch) {
+      inList = true;
+      const isChecked = taskMatch[1].toLowerCase() === "x";
+      const itemText = taskMatch[2];
+      listItems.push(
+        <li key={`task-${index}`} className="text-xs text-zinc-300 leading-relaxed flex items-start gap-2.5 my-1">
+          <input
+            type="checkbox"
+            checked={isChecked}
+            readOnly
+            className="h-3.5 w-3.5 mt-0.5 rounded border-white/20 bg-white/5 text-purple-500 accent-purple-500 shrink-0 cursor-default"
+          />
+          <span className={cn("flex-1", isChecked && "line-through text-zinc-400")}>
+            {parseInline(itemText)}
+          </span>
+        </li>
+      );
+      return;
+    }
+
     // Bullet Lists (- or * or •)
     if (trimmed.startsWith("- ") || trimmed.startsWith("* ") || trimmed.startsWith("• ")) {
       inList = true;
