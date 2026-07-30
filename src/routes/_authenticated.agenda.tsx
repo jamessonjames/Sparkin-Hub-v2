@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { listDemands, batchUpdateDueDates, updateDemand } from "@/lib/demands.functions";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { listClients } from "@/lib/clients.functions";
@@ -904,20 +904,26 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const scrollToCurrentTime = () => {
-    if (scrollRef.current && viewMode !== "month") {
-      const now = new Date();
-      const currentHourDecimal = now.getHours() + now.getMinutes() / 60;
-      // Scroll to ~1.5 hours before current time so current time line is in view
-      const targetHour = Math.max(0, currentHourDecimal - 1.5);
-      const top = Math.round(targetHour * 80);
-      scrollRef.current.scrollTop = top;
-    }
-  };
+  const scrollToCurrentTime = useCallback(() => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (scrollRef.current && viewMode !== "month") {
+          const now = new Date();
+          const currentHourDecimal = now.getHours() + now.getMinutes() / 60;
+          // Scroll to ~1.5 hours before current time so current time line is in view
+          const targetHour = Math.max(0, currentHourDecimal - 1.5);
+          const top = Math.round(targetHour * 80);
+          scrollRef.current.scrollTop = top;
+        }
+      }, 60);
+    });
+  }, [viewMode]);
 
   useEffect(() => {
-    scrollToCurrentTime();
-  }, [viewMode]);
+    if (!demandsLoading) {
+      scrollToCurrentTime();
+    }
+  }, [viewMode, demandsLoading, scrollToCurrentTime]);
 
   const clientsForOverlay = useMemo(() => {
     return allClients.map((c: any) => ({ id: c.id, name: c.name }));

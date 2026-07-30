@@ -373,18 +373,6 @@ export function scheduleByPriority(
     const dayStart = new Date(y, m - 1, d, config.startHour, 0, 0);
 
     let searchCursor = new Date(dayStart);
-    if (dayStr === toISO(now)) {
-      const nowSlot = new Date(now);
-      const mins = nowSlot.getMinutes();
-      if (mins > 0 && mins <= 30) nowSlot.setMinutes(30, 0, 0);
-      else {
-        if (mins > 30) nowSlot.setHours(nowSlot.getHours() + 1);
-        nowSlot.setMinutes(0, 0, 0);
-      }
-      if (nowSlot.getTime() > dayStart.getTime()) {
-        searchCursor = nowSlot;
-      }
-    }
 
     if (!isValidSlot(searchCursor, config)) {
       searchCursor = getNextSlot(searchCursor, config);
