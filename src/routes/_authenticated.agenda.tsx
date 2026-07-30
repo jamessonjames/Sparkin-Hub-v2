@@ -517,6 +517,9 @@ function AgendaPage() {
 
   function handleToday() {
     setCurrentDate(new Date(today));
+    setTimeout(() => {
+      scrollToCurrentTime();
+    }, 50);
   }
 
   const headerLabel = useMemo(() => {
@@ -900,13 +903,21 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
   }
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
+
+  const scrollToCurrentTime = () => {
     if (scrollRef.current && viewMode !== "month") {
-      // scroll to config.startHour (each hour = 2 slots of 40px = 80px)
-      const top = Math.max(0, (config.startHour - 1) * 80);
+      const now = new Date();
+      const currentHourDecimal = now.getHours() + now.getMinutes() / 60;
+      // Scroll to ~1.5 hours before current time so current time line is in view
+      const targetHour = Math.max(0, currentHourDecimal - 1.5);
+      const top = Math.round(targetHour * 80);
       scrollRef.current.scrollTop = top;
     }
-  }, [config.startHour, viewMode]);
+  };
+
+  useEffect(() => {
+    scrollToCurrentTime();
+  }, [viewMode]);
 
   const clientsForOverlay = useMemo(() => {
     return allClients.map((c: any) => ({ id: c.id, name: c.name }));
