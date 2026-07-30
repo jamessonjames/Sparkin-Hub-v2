@@ -110,7 +110,7 @@ export const getPricingSettings = createServerFn({ method: "GET" })
 // Save pricing settings to system_settings
 export const savePricingSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(pricingSchema)
+  .validator((data: PricingSettings) => pricingSchema.parse(data))
   .handler(async ({ data, context }) => {
     try {
       const { error } = await context.supabase
