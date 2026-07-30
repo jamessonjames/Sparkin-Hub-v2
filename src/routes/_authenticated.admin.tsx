@@ -179,8 +179,9 @@ function AdminPage() {
 
   // Pricing settings state
   const [baseHourlyRate, setBaseHourlyRate] = useState<number>(80);
+  const [baseCreditMinutes, setBaseCreditMinutes] = useState<number>(30);
   const [pricingTiers, setPricingTiers] = useState<{ type: "up_to" | "above"; hours_limit: number; hourly_rate: number }[]>([]);
-  const [creditHourTiers, setCreditHourTiers] = useState<{ type: "up_to" | "above"; hours_limit: number; credits_rate: number }[]>([]);
+  const [creditHourTiers, setCreditHourTiers] = useState<{ type: "up_to" | "above"; hours_limit: number; credits_amount: number; minutes_per_credit: number }[]>([]);
   const [savingPricing, setSavingPricing] = useState(false);
 
   const getPricingFn = useServerFn(getPricingSettings);
@@ -201,14 +202,14 @@ function AdminPage() {
   };
 
   const handleAddCreditHourTier = () => {
-    setCreditHourTiers([...creditHourTiers, { type: "up_to", hours_limit: 1, credits_rate: 2 }]);
+    setCreditHourTiers([...creditHourTiers, { type: "up_to", hours_limit: 2, credits_amount: 1, minutes_per_credit: 30 }]);
   };
 
   const handleRemoveCreditHourTier = (index: number) => {
     setCreditHourTiers(creditHourTiers.filter((_, i) => i !== index));
   };
 
-  const handleUpdateCreditHourTier = (index: number, key: 'type' | 'hours_limit' | 'credits_rate', val: any) => {
+  const handleUpdateCreditHourTier = (index: number, key: 'type' | 'hours_limit' | 'credits_amount' | 'minutes_per_credit', val: any) => {
     const updated = [...creditHourTiers];
     updated[index] = { ...updated[index], [key]: val } as any;
     setCreditHourTiers(updated);
@@ -224,12 +225,13 @@ function AdminPage() {
         .sort((a, b) => a.hours_limit - b.hours_limit);
 
       const sortedCreditTiers = [...creditHourTiers]
-        .filter(t => t.hours_limit > 0 && t.credits_rate >= 0)
+        .filter(t => t.hours_limit > 0 && t.minutes_per_credit > 0)
         .sort((a, b) => a.hours_limit - b.hours_limit);
 
       const res = await savePricingFn({
         data: {
           base_hourly_rate: baseHourlyRate,
+          base_credit_minutes: baseCreditMinutes,
           tiers: sortedTiers.map(t => ({
             type: t.type || "up_to",
             hours_limit: t.hours_limit,
@@ -238,7 +240,8 @@ function AdminPage() {
           credit_tiers: sortedCreditTiers.map(t => ({
             type: t.type || "up_to",
             hours_limit: t.hours_limit,
-            credits_rate: t.credits_rate
+            credits_amount: t.credits_amount || 1,
+            minutes_per_credit: t.minutes_per_credit || 30
           }))
         }
       });
@@ -386,7 +389,9 @@ function AdminPage() {
     // Load pricing settings
     getPricingFn().then((res) => {
       setBaseHourlyRate(res.base_hourly_rate);
+      setBaseCreditMinutes(res.base_credit_minutes ?? 30);
       setPricingTiers(res.tiers || []);
+      setCreditHourTiers((res.credit_tiers as any) || []);
     });
 
     // Get logged-in user
@@ -1205,192 +1210,224 @@ function AdminPage() {
 
         {/* ── SEÇÃO: PRECIFICAÇÃO & TARIFAS ── */}
         <TabsContent value="pricing" className="mt-4">
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Precificação & Tarifas</CardTitle>
-              <CardDescription className="text-xs">Configure o valor da hora base e faixas de desconto progressivas para cálculo automático de projetos pontuais/temporadas.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSavePricing} className="space-y-6 max-w-xl">
-                <div className="space-y-1">
-                  <Label htmlFor="base-rate" className="text-xs text-muted-foreground font-semibold">Valor da Hora Base (R$)</Label>
-                  <Input
-                    id="base-rate"
-                    type="number"
-                    min="0"
-                    value={baseHourlyRate}
-                    onChange={(e) => setBaseHourlyRate(parseFloat(e.target.value) || 0)}
-                    className="bg-surface-2 border-border text-foreground text-sm h-9 w-40"
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground font-semibold">Faixas de Desconto Progressivas</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAddTier}
-                      className="h-8 border-border text-xs gap-1.5 cursor-pointer text-foreground hover:bg-surface-2"
-                    >
-                      <Plus className="h-3.5 w-3.5" /> Adicionar Faixa
-                    </Button>
+          <form onSubmit={handleSavePricing} className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              
+              {/* Card 1: Precificação de Projetos Pontuais / Temporadas */}
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Projetos Pontuais & Temporadas</CardTitle>
+                  <CardDescription className="text-xs">Configure o valor da hora base e faixas de desconto em R$.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-1">
+                    <Label htmlFor="base-rate" className="text-xs text-muted-foreground font-semibold">Valor da Hora Base (R$)</Label>
+                    <Input
+                      id="base-rate"
+                      type="number"
+                      min="0"
+                      value={baseHourlyRate}
+                      onChange={(e) => setBaseHourlyRate(parseFloat(e.target.value) || 0)}
+                      className="bg-surface-2 border-border text-foreground text-sm h-9 w-40"
+                    />
                   </div>
 
-                  {pricingTiers.length === 0 ? (
-                    <div className="text-center py-6 border border-dashed border-border rounded-xl text-xs text-muted-foreground">
-                      Nenhuma faixa cadastrada. O valor padrão por hora sempre será o valor base.
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground font-semibold">Faixas de Desconto Progressivas</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAddTier}
+                        className="h-8 border-border text-xs gap-1.5 cursor-pointer text-foreground hover:bg-surface-2"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Adicionar Faixa
+                      </Button>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {pricingTiers.map((tier, idx) => (
-                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-surface-2/20 border border-border p-3 rounded-xl">
-                          <div className="flex-1 flex items-center gap-2">
-                            <Select 
-                              value={tier.type || "up_to"} 
-                              onValueChange={(val) => handleUpdateTier(idx, 'type', val as any)}
+
+                    {pricingTiers.length === 0 ? (
+                      <div className="text-center py-6 border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                        Nenhuma faixa cadastrada. O valor padrão por hora sempre será o valor base.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {pricingTiers.map((tier, idx) => (
+                          <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-surface-2/20 border border-border p-3 rounded-xl">
+                            <div className="flex-1 flex items-center gap-2">
+                              <Select 
+                                value={tier.type || "up_to"} 
+                                onValueChange={(val) => handleUpdateTier(idx, 'type', val as any)}
+                              >
+                                <SelectTrigger className="h-8 text-xs bg-background border-input text-foreground w-28 shrink-0">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="up_to" className="text-xs">Até</SelectItem>
+                                  <SelectItem value="above" className="text-xs">Acima de</SelectItem>
+                                </SelectContent>
+                              </Select>
+
+                              <Input
+                                type="number"
+                                step="0.5"
+                                min="0.5"
+                                value={tier.hours_limit}
+                                onChange={(e) => handleUpdateTier(idx, 'hours_limit', parseFloat(e.target.value) || 0)}
+                                className="bg-surface-2 border-border text-foreground text-xs h-8 w-20 text-center"
+                              />
+                              <span className="text-xs text-muted-foreground shrink-0 font-medium">horas</span>
+                            </div>
+                            
+                            <div className="flex-1 flex items-center gap-2 sm:justify-end">
+                              <span className="text-xs text-muted-foreground shrink-0">custa</span>
+                              <Input
+                                type="number"
+                                min="0"
+                                value={tier.hourly_rate}
+                                onChange={(e) => handleUpdateTier(idx, 'hourly_rate', parseFloat(e.target.value) || 0)}
+                                className="bg-surface-2 border-border text-foreground text-xs h-8 w-24 text-center font-semibold"
+                              />
+                              <span className="text-xs text-muted-foreground shrink-0">/ hora</span>
+                            </div>
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveTier(idx)}
+                              className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 cursor-pointer shrink-0 sm:ml-2"
                             >
-                              <SelectTrigger className="h-8 text-xs bg-background border-input text-foreground w-28 shrink-0">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="up_to" className="text-xs">Até</SelectItem>
-                                <SelectItem value="above" className="text-xs">Acima de</SelectItem>
-                              </SelectContent>
-                            </Select>
-
-                            <Input
-                              type="number"
-                              step="0.5"
-                              min="0.5"
-                              value={tier.hours_limit}
-                              onChange={(e) => handleUpdateTier(idx, 'hours_limit', parseFloat(e.target.value) || 0)}
-                              className="bg-surface-2 border-border text-foreground text-xs h-8 w-20 text-center"
-                            />
-                            <span className="text-xs text-muted-foreground shrink-0 font-medium">horas</span>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
-                          
-                          <div className="flex-1 flex items-center gap-2 sm:justify-end">
-                            <span className="text-xs text-muted-foreground shrink-0">custa</span>
-                            <Input
-                              type="number"
-                              min="0"
-                              value={tier.hourly_rate}
-                              onChange={(e) => handleUpdateTier(idx, 'hourly_rate', parseFloat(e.target.value) || 0)}
-                              className="bg-surface-2 border-border text-foreground text-xs h-8 w-24 text-center font-semibold"
-                            />
-                            <span className="text-xs text-muted-foreground shrink-0">/ hora</span>
-                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                      Nota: Ao preencher o tempo estimado de demandas avulsas ou por temporada, o sistema usará a faixa correspondente para calcular o valor sugerido de forma automática.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
 
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveTier(idx)}
-                            className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 cursor-pointer shrink-0 sm:ml-2"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ))}
+              {/* Card 2: Conversão de Créditos por Horas */}
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Conversão de Créditos por Horas</CardTitle>
+                  <CardDescription className="text-xs">Configure o tempo base por crédito e regras por faixas para clientes no modelo Créditos.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-1">
+                    <Label htmlFor="base-credit-minutes" className="text-xs text-muted-foreground font-semibold">Tempo Base por Crédito (minutos)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="base-credit-minutes"
+                        type="number"
+                        min="1"
+                        value={baseCreditMinutes}
+                        onChange={(e) => setBaseCreditMinutes(parseInt(e.target.value) || 30)}
+                        className="bg-surface-2 border-border text-foreground text-sm h-9 w-28 text-center font-semibold"
+                      />
+                      <span className="text-xs text-muted-foreground font-medium">minutos (padrão: 30 min = 1 crédito)</span>
                     </div>
-                  )}
-                  <p className="text-[10px] text-muted-foreground italic leading-relaxed">
-                    Nota: Ao preencher o tempo estimado de demandas avulsas ou por temporada, o sistema usará a faixa correspondente para calcular o valor sugerido de forma automática.
-                  </p>
-                </div>
-
-                {/* ── CONVERSÃO DE CRÉDITOS POR HORAS ── */}
-                <div className="space-y-3 pt-6 border-t border-border">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-xs text-muted-foreground font-semibold">Conversão de Créditos por Horas</Label>
-                      <p className="text-[10px] text-muted-foreground">Defina a taxa de créditos cobrados por hora para clientes no modelo Créditos.</p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAddCreditHourTier}
-                      className="h-8 border-border text-xs gap-1.5 cursor-pointer text-foreground hover:bg-surface-2"
-                    >
-                      <Plus className="h-3.5 w-3.5" /> Adicionar Faixa
-                    </Button>
                   </div>
 
-                  {creditHourTiers.length === 0 ? (
-                    <div className="text-center py-6 border border-dashed border-border rounded-xl text-xs text-muted-foreground">
-                      Nenhuma faixa cadastrada.
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground font-semibold">Faixas de Conversão de Créditos</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAddCreditHourTier}
+                        className="h-8 border-border text-xs gap-1.5 cursor-pointer text-foreground hover:bg-surface-2"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Adicionar Faixa
+                      </Button>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {creditHourTiers.map((ctier, idx) => (
-                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-surface-2/20 border border-border p-3 rounded-xl">
-                          <div className="flex-1 flex items-center gap-2">
-                            <Select 
-                              value={ctier.type || "up_to"} 
-                              onValueChange={(val) => handleUpdateCreditHourTier(idx, 'type', val as any)}
+
+                    {creditHourTiers.length === 0 ? (
+                      <div className="text-center py-6 border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                        Nenhuma faixa cadastrada. O tempo base de {baseCreditMinutes} min/crédito será usado.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {creditHourTiers.map((ctier, idx) => (
+                          <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-surface-2/20 border border-border p-3 rounded-xl">
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Select 
+                                value={ctier.type || "up_to"} 
+                                onValueChange={(val) => handleUpdateCreditHourTier(idx, 'type', val as any)}
+                              >
+                                <SelectTrigger className="h-8 text-xs bg-background border-input text-foreground w-24 shrink-0">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="up_to" className="text-xs">Até</SelectItem>
+                                  <SelectItem value="above" className="text-xs">Acima de</SelectItem>
+                                </SelectContent>
+                              </Select>
+
+                              <Input
+                                type="number"
+                                step="0.5"
+                                min="0.5"
+                                value={ctier.hours_limit}
+                                onChange={(e) => handleUpdateCreditHourTier(idx, 'hours_limit', parseFloat(e.target.value) || 0)}
+                                className="bg-surface-2 border-border text-foreground text-xs h-8 w-16 text-center font-medium"
+                              />
+                              <span className="text-xs text-muted-foreground shrink-0 font-medium">h</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-1.5 flex-1 flex-wrap sm:justify-end">
+                              <span className="text-xs text-muted-foreground shrink-0">custa</span>
+                              <Input
+                                type="number"
+                                min="1"
+                                value={ctier.credits_amount ?? 1}
+                                onChange={(e) => handleUpdateCreditHourTier(idx, 'credits_amount', parseInt(e.target.value) || 1)}
+                                className="bg-surface-2 border-border text-foreground text-xs h-8 w-12 text-center font-bold"
+                              />
+                              <span className="text-xs text-muted-foreground shrink-0">crédito(s) a cada</span>
+                              <Input
+                                type="number"
+                                min="1"
+                                value={ctier.minutes_per_credit ?? 30}
+                                onChange={(e) => handleUpdateCreditHourTier(idx, 'minutes_per_credit', parseInt(e.target.value) || 30)}
+                                className="bg-surface-2 border-border text-foreground text-xs h-8 w-16 text-center font-bold"
+                              />
+                              <span className="text-xs text-muted-foreground shrink-0">min</span>
+                            </div>
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveCreditHourTier(idx)}
+                              className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 cursor-pointer shrink-0 sm:ml-1"
                             >
-                              <SelectTrigger className="h-8 text-xs bg-background border-input text-foreground w-28 shrink-0">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="up_to" className="text-xs">Até</SelectItem>
-                                <SelectItem value="above" className="text-xs">Acima de</SelectItem>
-                              </SelectContent>
-                            </Select>
-
-                            <Input
-                              type="number"
-                              step="0.5"
-                              min="0.5"
-                              value={ctier.hours_limit}
-                              onChange={(e) => handleUpdateCreditHourTier(idx, 'hours_limit', parseFloat(e.target.value) || 0)}
-                              className="bg-surface-2 border-border text-foreground text-xs h-8 w-20 text-center"
-                            />
-                            <span className="text-xs text-muted-foreground shrink-0 font-medium">horas</span>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
-                          
-                          <div className="flex-1 flex items-center gap-2 sm:justify-end">
-                            <span className="text-xs text-muted-foreground shrink-0">custa</span>
-                            <Input
-                              type="number"
-                              step="0.5"
-                              min="0"
-                              value={ctier.credits_rate}
-                              onChange={(e) => handleUpdateCreditHourTier(idx, 'credits_rate', parseFloat(e.target.value) || 0)}
-                              className="bg-surface-2 border-border text-foreground text-xs h-8 w-24 text-center font-semibold"
-                            />
-                            <span className="text-xs text-muted-foreground shrink-0">créditos / h</span>
-                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                      Nota: Ao preencher o tempo estimado de demandas de clientes por crédito, o sistema calculará os créditos usando o tempo equivalente por faixa.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
 
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveCreditHourTier(idx)}
-                            className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 cursor-pointer shrink-0 sm:ml-2"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <p className="text-[10px] text-muted-foreground italic leading-relaxed">
-                    Nota: Ao preencher o tempo estimado de demandas de clientes por crédito, o sistema calculará a quantidade de créditos recomendada usando a faixa correspondente.
-                  </p>
-                </div>
+            </div>
 
-                <div className="pt-2 flex justify-end">
-                  <Button type="submit" disabled={savingPricing} className="gap-2 px-6 text-xs h-9 cursor-pointer">
-                    <Save className="h-4 w-4" /> {savingPricing ? "Salvando..." : "Salvar Configuração de Precificação"}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+            <div className="pt-2 flex justify-end">
+              <Button type="submit" disabled={savingPricing} className="gap-2 px-6 text-xs h-9 cursor-pointer font-bold">
+                <Save className="h-4 w-4" /> {savingPricing ? "Salvando..." : "Salvar Configuração de Precificação"}
+              </Button>
+            </div>
+          </form>
         </TabsContent>
       </Tabs>
 

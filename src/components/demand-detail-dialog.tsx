@@ -510,7 +510,7 @@ export function DemandDetailDialog({
   useEffect(() => {
     if (portalMode || !isCreditBillingEnabled || isCreditsManuallyEdited || !pricingConfig) return;
     if (estimatedHours > 0) {
-      const calc = calculateCreditsFromPricing(estimatedHours, pricingConfig.credit_tiers);
+      const calc = calculateCreditsFromPricing(estimatedHours, pricingConfig.credit_tiers, pricingConfig.base_credit_minutes);
       if (calc > 0) {
         setEstimatedCredits(calc);
       }
