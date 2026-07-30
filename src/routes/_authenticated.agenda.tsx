@@ -560,8 +560,8 @@ function AgendaPage() {
     const targetEnd = addHours(targetDate, duration);
     for (const demand of demands as AgendaDemand[]) {
       if (demand.id === demandId) continue;
-      // Demands in concluido or para_analise do not occupy time grid slots
-      if (demand.status === "concluido" || demand.status === "para_analise") continue;
+      // Demands in concluido, para_analise, rascunho or cancelado do not occupy time grid slots
+      if (demand.status === "concluido" || demand.status === "para_analise" || demand.status === "rascunho" || demand.status === "cancelado") continue;
 
       const dueDate = getEffectiveDueDate(demand);
       if (!dueDate) continue;
