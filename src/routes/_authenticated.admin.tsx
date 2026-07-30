@@ -180,6 +180,7 @@ function AdminPage() {
   // Pricing settings state
   const [baseHourlyRate, setBaseHourlyRate] = useState<number>(80);
   const [pricingTiers, setPricingTiers] = useState<{ type: "up_to" | "above"; hours_limit: number; hourly_rate: number }[]>([]);
+  const [creditHourTiers, setCreditHourTiers] = useState<{ type: "up_to" | "above"; hours_limit: number; credits_rate: number }[]>([]);
   const [savingPricing, setSavingPricing] = useState(false);
 
   const getPricingFn = useServerFn(getPricingSettings);
@@ -199,6 +200,20 @@ function AdminPage() {
     setPricingTiers(updated);
   };
 
+  const handleAddCreditHourTier = () => {
+    setCreditHourTiers([...creditHourTiers, { type: "up_to", hours_limit: 1, credits_rate: 2 }]);
+  };
+
+  const handleRemoveCreditHourTier = (index: number) => {
+    setCreditHourTiers(creditHourTiers.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateCreditHourTier = (index: number, key: 'type' | 'hours_limit' | 'credits_rate', val: any) => {
+    const updated = [...creditHourTiers];
+    updated[index] = { ...updated[index], [key]: val } as any;
+    setCreditHourTiers(updated);
+  };
+
   const handleSavePricing = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingPricing(true);
@@ -208,6 +223,10 @@ function AdminPage() {
         .filter(t => t.hours_limit > 0 && t.hourly_rate >= 0)
         .sort((a, b) => a.hours_limit - b.hours_limit);
 
+      const sortedCreditTiers = [...creditHourTiers]
+        .filter(t => t.hours_limit > 0 && t.credits_rate >= 0)
+        .sort((a, b) => a.hours_limit - b.hours_limit);
+
       const res = await savePricingFn({
         data: {
           base_hourly_rate: baseHourlyRate,
@@ -215,12 +234,18 @@ function AdminPage() {
             type: t.type || "up_to",
             hours_limit: t.hours_limit,
             hourly_rate: t.hourly_rate
+          })),
+          credit_tiers: sortedCreditTiers.map(t => ({
+            type: t.type || "up_to",
+            hours_limit: t.hours_limit,
+            credits_rate: t.credits_rate
           }))
         }
       });
       if (res.success) {
         toast.success("Configurações de precificação salvas com sucesso!");
         setPricingTiers(sortedTiers);
+        setCreditHourTiers(sortedCreditTiers);
       } else {
         toast.error(res.error || "Erro ao salvar.");
       }
@@ -1273,6 +1298,88 @@ function AdminPage() {
                   )}
                   <p className="text-[10px] text-muted-foreground italic leading-relaxed">
                     Nota: Ao preencher o tempo estimado de demandas avulsas ou por temporada, o sistema usará a faixa correspondente para calcular o valor sugerido de forma automática.
+                  </p>
+                </div>
+
+                {/* ── CONVERSÃO DE CRÉDITOS POR HORAS ── */}
+                <div className="space-y-3 pt-6 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-xs text-muted-foreground font-semibold">Conversão de Créditos por Horas</Label>
+                      <p className="text-[10px] text-muted-foreground">Defina a taxa de créditos cobrados por hora para clientes no modelo Créditos.</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddCreditHourTier}
+                      className="h-8 border-border text-xs gap-1.5 cursor-pointer text-foreground hover:bg-surface-2"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Adicionar Faixa
+                    </Button>
+                  </div>
+
+                  {creditHourTiers.length === 0 ? (
+                    <div className="text-center py-6 border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                      Nenhuma faixa cadastrada.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {creditHourTiers.map((ctier, idx) => (
+                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-surface-2/20 border border-border p-3 rounded-xl">
+                          <div className="flex-1 flex items-center gap-2">
+                            <Select 
+                              value={ctier.type || "up_to"} 
+                              onValueChange={(val) => handleUpdateCreditHourTier(idx, 'type', val as any)}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-background border-input text-foreground w-28 shrink-0">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="up_to" className="text-xs">Até</SelectItem>
+                                <SelectItem value="above" className="text-xs">Acima de</SelectItem>
+                              </SelectContent>
+                            </Select>
+
+                            <Input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              value={ctier.hours_limit}
+                              onChange={(e) => handleUpdateCreditHourTier(idx, 'hours_limit', parseFloat(e.target.value) || 0)}
+                              className="bg-surface-2 border-border text-foreground text-xs h-8 w-20 text-center"
+                            />
+                            <span className="text-xs text-muted-foreground shrink-0 font-medium">horas</span>
+                          </div>
+                          
+                          <div className="flex-1 flex items-center gap-2 sm:justify-end">
+                            <span className="text-xs text-muted-foreground shrink-0">custa</span>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              value={ctier.credits_rate}
+                              onChange={(e) => handleUpdateCreditHourTier(idx, 'credits_rate', parseFloat(e.target.value) || 0)}
+                              className="bg-surface-2 border-border text-foreground text-xs h-8 w-24 text-center font-semibold"
+                            />
+                            <span className="text-xs text-muted-foreground shrink-0">créditos / h</span>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveCreditHourTier(idx)}
+                            className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 cursor-pointer shrink-0 sm:ml-2"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                    Nota: Ao preencher o tempo estimado de demandas de clientes por crédito, o sistema calculará a quantidade de créditos recomendada usando a faixa correspondente.
                   </p>
                 </div>
 

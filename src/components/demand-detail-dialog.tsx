@@ -13,7 +13,7 @@ import {
 import { listComments, addComment, deleteComment, updateComment } from "@/lib/comments.functions";
 import { listProfiles } from "@/lib/users.functions";
 import { listClients, listClientEditions } from "@/lib/clients.functions";
-import { getPricingSettings } from "@/lib/pricing.functions";
+import { getPricingSettings, calculateCreditsFromPricing } from "@/lib/pricing.functions";
 import {
   getPortalDemandComments,
   addPortalComment,
@@ -506,24 +506,16 @@ export function DemandDetailDialog({
 
   const [isCreditsManuallyEdited, setIsCreditsManuallyEdited] = useState(false);
 
-  // Client credit tiers query for auto-calculating credits from hours
-  const getCreditTiersFn = useServerFn(getClientCreditTiers);
-  const { data: clientCreditConfig } = useQuery({
-    queryKey: ["client-credit-tiers", clientId],
-    queryFn: () => getCreditTiersFn({ data: { client_id: clientId } }),
-    enabled: !!clientId && isCreditBillingEnabled && !portalMode,
-  });
-
-  // Recalculate credits based on hours and client credit rules
+  // Recalculate credits based on hours and central pricing credit rules
   useEffect(() => {
-    if (portalMode || !isCreditBillingEnabled || isCreditsManuallyEdited) return;
+    if (portalMode || !isCreditBillingEnabled || isCreditsManuallyEdited || !pricingConfig) return;
     if (estimatedHours > 0) {
-      const calc = calculateCreditsFromHours(estimatedHours, clientCreditConfig?.hour_tiers);
+      const calc = calculateCreditsFromPricing(estimatedHours, pricingConfig.credit_tiers);
       if (calc > 0) {
         setEstimatedCredits(calc);
       }
     }
-  }, [estimatedHours, clientId, isCreditBillingEnabled, clientCreditConfig, isCreditsManuallyEdited, portalMode]);
+  }, [estimatedHours, clientId, isCreditBillingEnabled, pricingConfig, isCreditsManuallyEdited, portalMode]);
 
   const headerInfoText = useMemo(() => {
     if (isNew) return "";
@@ -1246,8 +1238,8 @@ export function DemandDetailDialog({
                   const showMoreDotsButton = hasOverflowedProperties || hasExtraFields;
 
                   return (
-                    <div ref={propBarRef} className="flex items-center justify-between gap-3 md:gap-4 py-2 px-1 border-b border-border/40 shrink-0 text-xs overflow-hidden whitespace-nowrap">
-                      <div className="flex items-center gap-3.5 sm:gap-4 md:gap-5 shrink-0 overflow-hidden">
+                    <div ref={propBarRef} className="flex items-center justify-between gap-3 md:gap-4 py-2 px-1 border-b border-border/40 shrink-0 text-xs whitespace-nowrap min-w-0">
+                      <div className="flex items-center gap-3.5 sm:gap-4 md:gap-5 shrink-0 min-w-0 pr-1">
                         {/* Client — admin only */}
                         {showClientInBar && (
                           <div data-prop-item className="flex flex-col gap-1 shrink-0">
@@ -1482,7 +1474,10 @@ export function DemandDetailDialog({
                                     type="number"
                                     min="0"
                                     value={estimatedCredits}
-                                    onChange={(e) => setEstimatedCredits(parseInt(e.target.value) || 0)}
+                                    onChange={(e) => {
+                                      setEstimatedCredits(parseInt(e.target.value) || 0);
+                                      setIsCreditsManuallyEdited(true);
+                                    }}
                                     className="h-7 text-xs bg-background border-input text-foreground w-20 py-0 px-2"
                                   />
                                 )}

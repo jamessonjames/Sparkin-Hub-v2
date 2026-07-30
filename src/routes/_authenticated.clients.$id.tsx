@@ -965,73 +965,17 @@ function CreditTiersEditor({
         {editingTiers.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-2">Sem faixas configuradas. Usando padrões.</p>
         )}
+      </div>
+
+      <div className="flex justify-between gap-2 mt-2 pt-2 border-t border-border">
         <Button
           variant="outline"
           size="sm"
           onClick={addTier}
           className="text-xs"
         >
-          + Adicionar faixa de valor
+          + Adicionar faixa
         </Button>
-      </div>
-
-      <div className="space-y-3 pt-3 border-t border-border/60">
-        <h4 className="font-bold text-xs text-foreground uppercase tracking-wider text-muted-foreground">Conversão (Horas → Créditos)</h4>
-        {editingHourTiers.map((htier, idx) => (
-          <div key={idx} className="flex items-center gap-2 bg-muted/40 p-2.5 rounded-lg border border-border/80 text-xs">
-            <div className="flex flex-col gap-1 w-24 shrink-0">
-              <span className="text-[9px] text-muted-foreground font-bold uppercase">Até (Horas)</span>
-              <Input
-                type="number"
-                step="0.5"
-                min="0.5"
-                placeholder="∞"
-                value={htier.max_hours ?? ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  updateHourTier(idx, "max_hours", val === "" ? null : parseFloat(val));
-                }}
-                className="h-8 text-center px-1"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1 flex-1 min-w-[100px]">
-              <span className="text-[9px] text-muted-foreground font-bold uppercase">Minutos por Crédito</span>
-              <div className="flex items-center gap-1">
-                <Input
-                  type="number"
-                  step="5"
-                  min="5"
-                  value={htier.minutes_per_credit}
-                  onChange={(e) => updateHourTier(idx, "minutes_per_credit", parseInt(e.target.value) || 30)}
-                  className="h-8 px-2 text-center"
-                />
-                <span className="text-[10px] text-muted-foreground shrink-0 font-medium">min</span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => removeHourTier(idx)}
-              className="text-muted-foreground hover:text-red-500 p-1 rounded hover:bg-muted self-end cursor-pointer mb-[2px] transition-colors"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        ))}
-        {editingHourTiers.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-2">Sem conversão configurada. Usando padrão (30min/crédito).</p>
-        )}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={addHourTier}
-          className="text-xs"
-        >
-          + Adicionar faixa de horas
-        </Button>
-      </div>
-
-      <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-border">
         <Button
           size="sm"
           onClick={handleSaveTiers}
