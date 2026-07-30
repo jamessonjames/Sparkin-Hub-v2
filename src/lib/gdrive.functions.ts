@@ -35,7 +35,7 @@ export async function getServerGDriveAccessToken(context: { supabase: any }): Pr
   if (creds.refresh_token) {
     try {
       const GOOGLE_CLIENT_ID = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_ID) || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
-      const GOOGLE_CLIENT_SECRET = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_SECRET) || "";
+      const GOOGLE_CLIENT_SECRET = creds.client_secret || (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_SECRET) || "";
       const params = new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
         grant_type: "refresh_token",
@@ -149,11 +149,12 @@ export const storeGoogleDriveCode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(z.object({
     code: z.string(),
+    clientSecret: z.string().optional().nullable(),
   }))
-  .handler(async ({ data: { code }, context }) => {
+  .handler(async ({ data: { code, clientSecret }, context }) => {
     try {
       const GOOGLE_CLIENT_ID = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_ID) || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
-      const GOOGLE_CLIENT_SECRET = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_SECRET) || "";
+      const GOOGLE_CLIENT_SECRET = clientSecret || (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_SECRET) || "";
 
       const params = new URLSearchParams({
         code,
@@ -234,6 +235,7 @@ export const storeGoogleDriveCode = createServerFn({ method: "POST" })
             folder_id: rootFolderId,
             access_token: accessToken,
             refresh_token: finalRefreshToken,
+            client_secret: GOOGLE_CLIENT_SECRET,
             expires_at: expiresAt,
           },
         });

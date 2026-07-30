@@ -162,6 +162,7 @@ function AdminPage() {
   const [trelloToken, setTrelloToken] = useState("");
   const [googleCalendarEnabled, setGoogleCalendarEnabled] = useState(false);
   const [googleClientId, setGoogleClientId] = useState("");
+  const [googleClientSecret, setGoogleClientSecret] = useState("");
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const [whatsappPhone, setWhatsappPhone] = useState("");
 
@@ -241,7 +242,7 @@ function AdminPage() {
       // 1. Try Code Client authorization flow first for permanent offline access
       try {
         const code = await connectGDriveCode();
-        const res = await storeCodeFn({ data: { code } });
+        const res = await storeCodeFn({ data: { code, clientSecret: googleClientSecret || undefined } });
         toast.dismiss();
         if (res.success) {
           setGDriveConnected(true);
@@ -944,59 +945,78 @@ function AdminPage() {
               </div>
 
               {/* Google Drive Integration */}
-              <div className="p-4 rounded-xl border border-border bg-surface-2/40 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
-                <div className="flex gap-3">
-                  <div className="h-10 w-10 bg-surface-2 rounded-lg flex items-center justify-center shrink-0 border border-border">
-                    <Upload className="h-5 w-5 text-muted-foreground" />
+              <div className="p-4 rounded-xl border border-border bg-surface-2/40 flex flex-col gap-3">
+                <div className="flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
+                  <div className="flex gap-3">
+                    <div className="h-10 w-10 bg-surface-2 rounded-lg flex items-center justify-center shrink-0 border border-border">
+                      <Upload className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        Google Drive
+                        {gDriveConnected && (
+                          <span className={cn("h-1.5 w-1.5 rounded-full animate-pulse", gDriveExpired ? "bg-amber-400" : "bg-emerald-500")} />
+                        )}
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
+                        {gDriveConnected 
+                          ? gDriveExpired
+                            ? `Conectado a: ${gDriveEmail} (Sessão Expirada). Clique em Reconectar para renovar o envio de anexos.`
+                            : `Conectado à conta: ${gDriveEmail}. Conexão permanente via Refresh Token.`
+                          : "Hospede e organize todos os uploads do editor rico e favicons na sua própria conta do Google Drive automaticamente."}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      Google Drive
-                      {gDriveConnected && (
-                        <span className={cn("h-1.5 w-1.5 rounded-full animate-pulse", gDriveExpired ? "bg-amber-400" : "bg-emerald-500")} />
-                      )}
-                    </h4>
-                    <p className="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
-                      {gDriveConnected 
-                        ? gDriveExpired
-                          ? `Conectado a: ${gDriveEmail} (Sessão Expirada). Clique em Reconectar para renovar o envio de anexos.`
-                          : `Conectado à conta: ${gDriveEmail}. Todos os uploads serão organizados em pastas no seu Drive.`
-                        : "Hospede e organize todos os uploads do editor rico e favicons na sua própria conta do Google Drive automaticamente."}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {gDriveConnected ? (
-                    <>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {gDriveConnected ? (
+                      <>
+                        <Button 
+                          type="button" 
+                          disabled={!isOwner}
+                          onClick={handleConnectGDrive}
+                          variant={gDriveExpired ? "default" : "outline"}
+                          className="text-xs h-8 px-3 rounded-lg cursor-pointer"
+                        >
+                          {gDriveExpired ? "Reconectar" : "Renovar Conexão"}
+                        </Button>
+                        <Button 
+                          type="button" 
+                          variant="destructive" 
+                          disabled={!isOwner}
+                          onClick={handleDisconnectGDrive}
+                          className="text-xs h-8 px-3 rounded-lg cursor-pointer"
+                        >
+                          Desconectar
+                        </Button>
+                      </>
+                    ) : (
                       <Button 
                         type="button" 
                         disabled={!isOwner}
                         onClick={handleConnectGDrive}
-                        variant={gDriveExpired ? "default" : "outline"}
-                        className="text-xs h-8 px-3 rounded-lg cursor-pointer"
+                        className="text-xs h-8 px-4 bg-primary text-primary-foreground hover:bg-primary/95 rounded-lg cursor-pointer"
                       >
-                        {gDriveExpired ? "Reconectar" : "Renovar Conexão"}
+                        Conectar
                       </Button>
-                      <Button 
-                        type="button" 
-                        variant="destructive" 
-                        disabled={!isOwner}
-                        onClick={handleDisconnectGDrive}
-                        className="text-xs h-8 px-3 rounded-lg cursor-pointer"
-                      >
-                        Desconectar
-                      </Button>
-                    </>
-                  ) : (
-                    <Button 
-                      type="button" 
-                      disabled={!isOwner}
-                      onClick={handleConnectGDrive}
-                      className="text-xs h-8 px-4 bg-primary text-primary-foreground hover:bg-primary/95 rounded-lg cursor-pointer"
-                    >
-                      Conectar
-                    </Button>
-                  )}
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-border/40 flex flex-col md:flex-row gap-2 items-center justify-between">
+                  <div className="w-full max-w-md space-y-1">
+                    <Label className="text-[10px] text-muted-foreground font-semibold">Google Client Secret (Chave Secreta OAuth)</Label>
+                    <Input
+                      type="password"
+                      placeholder="GOCSPX-..."
+                      value={googleClientSecret}
+                      onChange={(e) => {
+                        setGoogleClientSecret(e.target.value);
+                        localStorage.setItem("CF_Int_GoogleClientSecret", e.target.value);
+                      }}
+                      className="bg-surface-2 border-border text-xs h-7 text-foreground"
+                    />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground/80 self-end">Necessário para renovação eterna offline.</span>
                 </div>
               </div>
 
