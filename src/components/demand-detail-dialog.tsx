@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Trash2, Send, Calendar, X, Save, User, Users, Loader2, Pencil, Upload, Download, Lock, Share2, MoreVertical, Building2, Sparkles, AlertCircle, Clock, Coins, Layers, DollarSign, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getClientCreditTiers, calculateCreditsFromHours } from "@/lib/credit-tiers";
 
 const STATUS_CHIP: Record<string, string> = {
   rascunho:     "bg-zinc-700 text-zinc-200 hover:bg-zinc-600",
@@ -502,6 +503,27 @@ export function DemandDetailDialog({
   const isCreditBillingEnabled = portalMode
     ? portalBillingModel === "credits" && portalCreditsEnabled !== false
     : selectedClient?.billing_model === "credits";
+
+  const [isCreditsManuallyEdited, setIsCreditsManuallyEdited] = useState(false);
+
+  // Client credit tiers query for auto-calculating credits from hours
+  const getCreditTiersFn = useServerFn(getClientCreditTiers);
+  const { data: clientCreditConfig } = useQuery({
+    queryKey: ["client-credit-tiers", clientId],
+    queryFn: () => getCreditTiersFn({ data: { client_id: clientId } }),
+    enabled: !!clientId && isCreditBillingEnabled && !portalMode,
+  });
+
+  // Recalculate credits based on hours and client credit rules
+  useEffect(() => {
+    if (portalMode || !isCreditBillingEnabled || isCreditsManuallyEdited) return;
+    if (estimatedHours > 0) {
+      const calc = calculateCreditsFromHours(estimatedHours, clientCreditConfig?.hour_tiers);
+      if (calc > 0) {
+        setEstimatedCredits(calc);
+      }
+    }
+  }, [estimatedHours, clientId, isCreditBillingEnabled, clientCreditConfig, isCreditsManuallyEdited, portalMode]);
 
   const headerInfoText = useMemo(() => {
     if (isNew) return "";
@@ -1376,10 +1398,10 @@ export function DemandDetailDialog({
                           <PopoverTrigger asChild>
                             <button
                               type="button"
-                              className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors ml-auto shrink-0 cursor-pointer self-end mb-0.5"
+                              className="h-7 w-7 flex items-center justify-center rounded-md border border-border/80 bg-surface-2/80 text-foreground hover:bg-surface-2 hover:border-primary/50 transition-colors ml-auto shrink-0 cursor-pointer self-end mb-0.5"
                               title="Mais opções e campos adicionais"
                             >
-                              <MoreVertical className="h-4 w-4" />
+                              <MoreVertical className="h-4 w-4 text-foreground" />
                             </button>
                           </PopoverTrigger>
                           <PopoverContent align="end" className="w-64 p-3.5 bg-popover text-popover-foreground border border-border shadow-lg rounded-xl space-y-3">

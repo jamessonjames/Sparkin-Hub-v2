@@ -18,9 +18,57 @@ export const DEFAULT_CREDIT_TIERS: CreditTier[] = [
   { min_credits: 49, max_credits: null, price: 2400, extra_per_credit: 70 },
 ];
 
+export interface HourConversionTier {
+  max_hours: number | null;
+  minutes_per_credit: number;
+}
+
+export const DEFAULT_HOUR_TIERS: HourConversionTier[] = [
+  { max_hours: 2, minutes_per_credit: 30 },
+  { max_hours: null, minutes_per_credit: 60 },
+];
+
 export interface CreditConfig {
   show_progress_bar: boolean;
   tiers: CreditTier[];
+  hour_tiers?: HourConversionTier[];
+}
+
+export function calculateCreditsFromHours(estimatedHours: number, hourTiers?: HourConversionTier[]): number {
+  if (!estimatedHours || estimatedHours <= 0) return 0;
+  const tiersToUse = hourTiers && hourTiers.length > 0 ? hourTiers : DEFAULT_HOUR_TIERS;
+
+  let remainingHours = estimatedHours;
+  let totalCredits = 0;
+  let currentStartHour = 0;
+
+  const sorted = [...tiersToUse].sort((a, b) => {
+    if (a.max_hours === null) return 1;
+    if (b.max_hours === null) return -1;
+    return a.max_hours - b.max_hours;
+  });
+
+  for (const tier of sorted) {
+    if (remainingHours <= 0) break;
+
+    const minsPerCredit = tier.minutes_per_credit || 30;
+    const hoursPerCredit = minsPerCredit / 60;
+
+    if (tier.max_hours === null) {
+      totalCredits += remainingHours / hoursPerCredit;
+      remainingHours = 0;
+    } else {
+      const tierCapHours = Math.max(0, tier.max_hours - currentStartHour);
+      const hoursInThisTier = Math.min(remainingHours, tierCapHours);
+      if (hoursInThisTier > 0) {
+        totalCredits += hoursInThisTier / hoursPerCredit;
+        remainingHours -= hoursInThisTier;
+        currentStartHour = tier.max_hours;
+      }
+    }
+  }
+
+  return Math.max(1, Math.ceil(totalCredits));
 }
 
 export const getClientCreditTiers = createServerFn({ method: "GET" })
@@ -38,7 +86,7 @@ export const getClientCreditTiers = createServerFn({ method: "GET" })
       .limit(1);
 
     if (error) throw new Error(error.message);
-    const defaultConfig: CreditConfig = { show_progress_bar: true, tiers: DEFAULT_CREDIT_TIERS };
+    const defaultConfig: CreditConfig = { show_progress_bar: true, tiers: DEFAULT_CREDIT_TIERS, hour_tiers: DEFAULT_HOUR_TIERS };
 
     if (!rows || rows.length === 0) {
       return defaultConfig;
@@ -47,11 +95,12 @@ export const getClientCreditTiers = createServerFn({ method: "GET" })
     try {
       const parsed = JSON.parse(rows[0].content ?? "{}");
       if (parsed && Array.isArray(parsed)) {
-        return { show_progress_bar: true, tiers: parsed } as CreditConfig;
+        return { show_progress_bar: true, tiers: parsed, hour_tiers: DEFAULT_HOUR_TIERS } as CreditConfig;
       }
       return {
         show_progress_bar: parsed.show_progress_bar ?? true,
-        tiers: parsed.tiers && Array.isArray(parsed.tiers) ? parsed.tiers : DEFAULT_CREDIT_TIERS
+        tiers: parsed.tiers && Array.isArray(parsed.tiers) ? parsed.tiers : DEFAULT_CREDIT_TIERS,
+        hour_tiers: parsed.hour_tiers && Array.isArray(parsed.hour_tiers) ? parsed.hour_tiers : DEFAULT_HOUR_TIERS,
       } as CreditConfig;
     } catch {
       return defaultConfig;
@@ -60,7 +109,7 @@ export const getClientCreditTiers = createServerFn({ method: "GET" })
 
 export const saveClientCreditTiers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { client_id: string; tiers: CreditTier[]; show_progress_bar: boolean }) =>
+  .inputValidator((input: { client_id: string; tiers: CreditTier[]; show_progress_bar: boolean; hour_tiers?: HourConversionTier[] }) =>
     z
       .object({
         client_id: z.string().uuid(),
@@ -73,6 +122,14 @@ export const saveClientCreditTiers = createServerFn({ method: "POST" })
             extra_per_credit: z.number().positive().nullable().optional(),
           })
         ),
+        hour_tiers: z
+          .array(
+            z.object({
+              max_hours: z.number().positive().nullable(),
+              minutes_per_credit: z.number().positive(),
+            })
+          )
+          .optional(),
       })
       .parse(input),
   )
@@ -90,7 +147,8 @@ export const saveClientCreditTiers = createServerFn({ method: "POST" })
 
     const serializedContent = JSON.stringify({
       show_progress_bar: data.show_progress_bar,
-      tiers: data.tiers
+      tiers: data.tiers,
+      hour_tiers: data.hour_tiers || DEFAULT_HOUR_TIERS,
     });
 
     if (rows && rows.length > 0) {
