@@ -603,6 +603,18 @@ export const deleteFinancialEntryWithRecurrence = createServerFn({ method: "POST
           .neq("status", "paid");
 
         if (error) throw error;
+      } else if (delete_future && entry.client_id && entry.type === "revenue") {
+        // Delete future unpaid monthly receivables for this client where due_date >= entry.due_date
+        const { error } = await context.supabase
+          .from("financial_entries")
+          .delete()
+          .eq("type", "revenue")
+          .eq("client_id", entry.client_id)
+          .is("demand_id", null)
+          .gte("due_date", entry.due_date)
+          .neq("status", "paid");
+
+        if (error) throw error;
       } else {
         // Just delete this single entry
         const { error } = await context.supabase

@@ -528,7 +528,12 @@ function FinancePage() {
 
   const handleDeleteEntry = (id: string) => {
     const entry = entries?.find((e) => e.id === id);
-    if (entry?.recurrence_group_id) {
+    if (!entry) return;
+
+    const isRecurringExpense = !!entry.recurrence_group_id;
+    const isMonthlyClientReceivable = entry.type === "revenue" && !!entry.client_id && !entry.demand_id;
+
+    if (isRecurringExpense || isMonthlyClientReceivable) {
       setTargetDeleteEntry(entry);
       setDeleteRecurrenceOpen(true);
     } else {
