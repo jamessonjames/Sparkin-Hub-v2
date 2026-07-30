@@ -343,6 +343,7 @@ function AdminPage() {
       setTrelloToken(localStorage.getItem("CF_Int_TrelloToken") || "");
       setGoogleCalendarEnabled(localStorage.getItem("CF_Int_GoogleCalendarEnabled") === "true");
       setGoogleClientId(localStorage.getItem("CF_Int_GoogleClientId") || "");
+      setGoogleClientSecret(localStorage.getItem("CF_Int_GoogleClientSecret") || "");
       setWhatsappEnabled(localStorage.getItem("CF_Int_WhatsappEnabled") === "true");
       setWhatsappPhone(localStorage.getItem("CF_Int_WhatsappPhone") || "");
 
