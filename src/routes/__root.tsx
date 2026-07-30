@@ -151,6 +151,15 @@ function RootComponent() {
   const getPrefsFn = useServerFn(getUserPreferences);
 
   useEffect(() => {
+    // Unregister any stale Service Worker that might cache old HTML/JS
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          registration.unregister();
+        }
+      });
+    }
+
     // Apply global branding from localStorage (system name, favicon)
     applyThemeAndHighlight();
 
