@@ -49,7 +49,23 @@ export default {
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      const normalized = await normalizeCatastrophicSsrResponse(response);
+
+      // Force no-cache on HTML SSR responses so Cloudflare Edge CDN never caches stale HTML asset hashes
+      const contentType = normalized.headers.get("content-type") ?? "";
+      if (contentType.includes("text/html")) {
+        const newHeaders = new Headers(normalized.headers);
+        newHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+        newHeaders.set("Pragma", "no-cache");
+        newHeaders.set("Expires", "0");
+        return new Response(normalized.body, {
+          status: normalized.status,
+          statusText: normalized.statusText,
+          headers: newHeaders,
+        });
+      }
+
+      return normalized;
     } catch (error) {
       console.error(error);
       return new Response(renderErrorPage(), {
