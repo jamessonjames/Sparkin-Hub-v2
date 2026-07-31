@@ -23,7 +23,7 @@ import {
 import { listSuggestions, approveSuggestion, dismissSuggestion, type DemandSuggestion } from "@/lib/suggestions.functions";
 import { KanbanBoard } from "@/components/kanban-board";
 import { DemandForm, type DemandFormValues } from "@/components/demand-form";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { useUserContext } from "@/contexts/user-context";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -45,7 +45,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight, Search, X, Star, MoreHorizontal, Pencil, ExternalLink, Copy, Phone, Mail, User, DollarSign, FileText, CheckCircle2, Clock, Sparkles, Mic } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, ChevronLeft, ChevronRight, Search, X, Star, MoreHorizontal, Pencil, ExternalLink, Copy, Phone, Mail, User, DollarSign, FileText, CheckCircle2, Clock, Sparkles, Mic, Printer } from "lucide-react";
 import { getClientCreditTiers, saveClientCreditTiers, calculateTiersPrice, DEFAULT_CREDIT_TIERS, DEFAULT_HOUR_TIERS, type CreditTier, type HourConversionTier } from "@/lib/credit-tiers";
 import { CreditProgressBar } from "@/components/credit-progress-bar";
 import { ClientGemsTab } from "@/components/client-gems-tab";
@@ -730,6 +730,7 @@ function ClientPage() {
             <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
               <ClientReportsPanel
                 clientId={id}
+                clientName={client.name}
                 billingModel={client.billing_model}
                 fixedType={client.fixed_type}
                 monthlyValue={client.monthly_value}
@@ -991,6 +992,7 @@ function CreditTiersEditor({
 
 function ClientReportsPanel({
   clientId,
+  clientName,
   billingModel,
   fixedType,
   monthlyValue,
@@ -999,6 +1001,7 @@ function ClientReportsPanel({
   onOpenDemand,
 }: {
   clientId: string;
+  clientName?: string;
   billingModel: string;
   fixedType?: string | null;
   monthlyValue: number | null;
@@ -1008,6 +1011,13 @@ function ClientReportsPanel({
 }) {
   const isOneOff = billingModel === "fixed" && fixedType === "one_off";
   const getTiersFn = useServerFn(getClientCreditTiers);
+
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [showPdfCredits, setShowPdfCredits] = useState(false);
+  const [showPdfHours, setShowPdfHours] = useState(false);
+  const [showPdfIndividualPrices, setShowPdfIndividualPrices] = useState(false);
+  const [showPdfTotalSummary, setShowPdfTotalSummary] = useState(true);
+  const [pdfCustomNotes, setPdfCustomNotes] = useState("");
 
   const [period, setPeriod] = useState<"diario" | "semanal" | "mensal" | "anual" | "personalizado" | "edicao">(() =>
     billingModel === "seasonal" ? "edicao" : "mensal"
@@ -1199,6 +1209,223 @@ function ClientReportsPanel({
     };
   }, [sortedTiers, totalCredits]);
 
+  const handleGeneratePdfPrint = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Não foi possível abrir a janela de impressão. Verifique se o bloqueador de popups está ativo.");
+      return;
+    }
+
+    const titleText = `Relatório de Entregas — ${clientName || "Cliente"}`;
+    const subtitleText = `Período / Referência: ${formattedPeriodLabel}`;
+
+    const demandsTableRows = completedDemands.map((d) => {
+      const pureDate = d.due_date ? (d.due_date.includes("T") ? d.due_date.split("T")[0] : d.due_date) : "";
+      const dateParts = pureDate.split("-");
+      const formattedDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : pureDate || "—";
+      
+      const hoursCell = showPdfHours
+        ? `<td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #475569; text-align: center;">${d.estimated_hours ? `${Number(d.estimated_hours)}h` : "—"}</td>`
+        : "";
+
+      const creditsCell = (showPdfCredits && billingModel === "credits")
+        ? `<td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #059669; font-weight: 700; text-align: center;">${d.estimated_credits || 0}</td>`
+        : "";
+
+      const priceCell = (showPdfIndividualPrices && (billingModel === "seasonal" || isOneOff))
+        ? `<td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #059669; font-weight: 700; text-align: right;">${d.price ? `R$ ${Number(d.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}</td>`
+        : "";
+
+      return `
+        <tr>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #0f172a; font-weight: 600;">
+            ${d.title}
+          </td>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center;">
+            ${formattedDate}
+          </td>
+          ${hoursCell}
+          ${creditsCell}
+          ${priceCell}
+        </tr>
+      `;
+    }).join("");
+
+    const totalDemandsCount = completedDemands.length;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8">
+        <title>${titleText}</title>
+        <style>
+          @page { size: A4; margin: 15mm; }
+          body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: #0f172a;
+            margin: 0;
+            padding: 20px;
+            background: #ffffff;
+            -webkit-print-color-adjust: exact;
+          }
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+          }
+          .brand {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: -0.5px;
+          }
+          .brand span {
+            color: #4f46e5;
+          }
+          .meta {
+            text-align: right;
+          }
+          .meta h2 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: #1e293b;
+          }
+          .meta p {
+            margin: 4px 0 0 0;
+            font-size: 12px;
+            color: #64748b;
+          }
+          .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+          }
+          .summary-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+          }
+          .summary-card label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748b;
+            display: block;
+            margin-bottom: 4px;
+          }
+          .summary-card val {
+            font-size: 18px;
+            font-weight: 800;
+            color: #0f172a;
+            display: block;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+          }
+          th {
+            background: #f1f5f9;
+            color: #475569;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 8px 12px;
+            border-bottom: 2px solid #cbd5e1;
+          }
+          .footer {
+            margin-top: 40px;
+            padding-top: 12px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #94a3b8;
+          }
+          .notes-box {
+            background: #f8fafc;
+            border-left: 4px solid #4f46e5;
+            padding: 12px;
+            font-size: 11px;
+            color: #334155;
+            margin-bottom: 20px;
+            border-radius: 0 6px 6px 0;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="brand">
+            Sparkin<span>Hub</span>
+          </div>
+          <div class="meta">
+            <h2>${titleText}</h2>
+            <p>${subtitleText}</p>
+          </div>
+        </div>
+
+        ${pdfCustomNotes ? `<div class="notes-box">${pdfCustomNotes.replace(/\n/g, "<br>")}</div>` : ""}
+
+        ${showPdfTotalSummary ? `
+          <div class="summary-grid">
+            <div class="summary-card">
+              <label>Entregas Concluídas</label>
+              <val>${totalDemandsCount}</val>
+            </div>
+            ${showPdfHours ? `
+              <div class="summary-card">
+                <label>Total Horas</label>
+                <val>${totalHours}h</val>
+              </div>
+            ` : ""}
+            ${showPdfCredits && billingModel === "credits" ? `
+              <div class="summary-card">
+                <label>Total Créditos</label>
+                <val>${totalCredits}</val>
+              </div>
+            ` : ""}
+          </div>
+        ` : ""}
+
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align: left;">Demanda / Serviço</th>
+              <th style="text-align: center; width: 130px;">Data de Entrega</th>
+              ${showPdfHours ? `<th style="text-align: center; width: 80px;">Horas</th>` : ""}
+              ${showPdfCredits && billingModel === "credits" ? `<th style="text-align: center; width: 80px;">Créditos</th>` : ""}
+              ${showPdfIndividualPrices && (billingModel === "seasonal" || isOneOff) ? `<th style="text-align: right; width: 100px;">Valor</th>` : ""}
+            </tr>
+          </thead>
+          <tbody>
+            ${completedDemands.length > 0 ? demandsTableRows : `<tr><td colSpan="5" style="text-align: center; padding: 24px; color: #94a3b8; font-style: italic;">Nenhum serviço concluído neste período.</td></tr>`}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <span>Relatório oficial de entregas — ${clientName || "Cliente"}</span>
+          <span>Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    printWindow.focus();
+
+    setTimeout(() => {
+      printWindow.print();
+    }, 300);
+  };
+
   return (
     <div className="space-y-6">
       {/* Filters Card */}
@@ -1265,28 +1492,38 @@ function ClientReportsPanel({
           )}
         </div>
 
-        {period === "personalizado" && (
-          <div className="flex items-center gap-2">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[9px] text-muted-foreground uppercase font-bold pl-1">Início</span>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="h-8 text-xs w-36"
-              />
+        <div className="flex items-center gap-3">
+          {period === "personalizado" && (
+            <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[9px] text-muted-foreground uppercase font-bold pl-1">Início</span>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-8 text-xs w-36"
+                />
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[9px] text-muted-foreground uppercase font-bold pl-1">Fim</span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="h-8 text-xs w-36"
+                />
+              </div>
             </div>
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[9px] text-muted-foreground uppercase font-bold pl-1">Fim</span>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="h-8 text-xs w-36"
-              />
-            </div>
-          </div>
-        )}
+          )}
+
+          <Button
+            onClick={() => setIsPdfModalOpen(true)}
+            className="h-8 text-xs font-bold gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer shadow-sm"
+          >
+            <Printer className="h-3.5 w-3.5" />
+            Exportar PDF
+          </Button>
+        </div>
       </Card>
 
       {/* Summary Stats Cards */}
@@ -1425,6 +1662,122 @@ function ClientReportsPanel({
           </table>
         </div>
       </Card>
+
+      {/* PDF Export Configuration Dialog Modal */}
+      <Dialog open={isPdfModalOpen} onOpenChange={setIsPdfModalOpen}>
+        <DialogContent className="max-w-md bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-100">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Printer className="h-5 w-5 text-indigo-400" /> Exportar Relatório em PDF
+            </DialogTitle>
+            <DialogDescription className="text-xs text-zinc-400">
+              Configure quais informações estarão visíveis no documento PDF gerado para o cliente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Toggles Group */}
+            <div className="space-y-3 bg-zinc-900/60 p-3.5 rounded-lg border border-zinc-800/80">
+              <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                Opções de Exibição no PDF
+              </span>
+
+              {/* Show Credits toggle if billing_model === credits */}
+              {billingModel === "credits" && (
+                <label className="flex items-center justify-between cursor-pointer hover:bg-zinc-800/40 p-1.5 rounded-md transition-colors">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-zinc-200">Exibir Créditos Gastos</span>
+                    <span className="text-[10px] text-zinc-400">Mostra a coluna de créditos das demandas</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={showPdfCredits}
+                    onChange={(e) => setShowPdfCredits(e.target.checked)}
+                    className="h-4 w-4 rounded border-zinc-700 bg-zinc-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                </label>
+              )}
+
+              {/* Show Hours toggle */}
+              <label className="flex items-center justify-between cursor-pointer hover:bg-zinc-800/40 p-1.5 rounded-md transition-colors">
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-zinc-200">Exibir Horas Gastas</span>
+                  <span className="text-[10px] text-zinc-400">Mostra o tempo de execução de cada entrega</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={showPdfHours}
+                  onChange={(e) => setShowPdfHours(e.target.checked)}
+                  className="h-4 w-4 rounded border-zinc-700 bg-zinc-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+              </label>
+
+              {/* Show Individual Prices toggle (seasonal / one_off) */}
+              {(billingModel === "seasonal" || isOneOff) && (
+                <label className="flex items-center justify-between cursor-pointer hover:bg-zinc-800/40 p-1.5 rounded-md transition-colors">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-zinc-200">Exibir Valores Individuais (R$)</span>
+                    <span className="text-[10px] text-zinc-400">Mostra o preço individual de cada item</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={showPdfIndividualPrices}
+                    onChange={(e) => setShowPdfIndividualPrices(e.target.checked)}
+                    className="h-4 w-4 rounded border-zinc-700 bg-zinc-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                </label>
+              )}
+
+              {/* Show Total Summary Cards */}
+              <label className="flex items-center justify-between cursor-pointer hover:bg-zinc-800/40 p-1.5 rounded-md transition-colors">
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-zinc-200">Exibir Cards de Totais no Topo</span>
+                  <span className="text-[10px] text-zinc-400">Mostra o resumo de entregas no início do PDF</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={showPdfTotalSummary}
+                  onChange={(e) => setShowPdfTotalSummary(e.target.checked)}
+                  className="h-4 w-4 rounded border-zinc-700 bg-zinc-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+              </label>
+            </div>
+
+            {/* Custom Note input */}
+            <div className="space-y-1.5">
+              <span className="text-xs font-semibold text-zinc-300">Observação Adicional no PDF (Opcional)</span>
+              <textarea
+                value={pdfCustomNotes}
+                onChange={(e) => setPdfCustomNotes(e.target.value)}
+                placeholder="Ex: Relatório mensal de serviços prestados e entregues dentro do prazo estabelecido."
+                rows={2}
+                className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded-md p-2 text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="pt-3 border-t border-zinc-800">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsPdfModalOpen(false)}
+              className="text-xs text-zinc-400 hover:text-zinc-100"
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setIsPdfModalOpen(false);
+                handleGeneratePdfPrint();
+              }}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs gap-1.5"
+            >
+              <Printer className="h-4 w-4" /> Gerar PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
