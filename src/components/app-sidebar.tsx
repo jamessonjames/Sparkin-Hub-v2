@@ -28,6 +28,35 @@ import { getClientActivityStatus, getStatusColor } from "@/lib/activity.function
 import type { ClientActivity } from "@/lib/activity.functions";
 
 type NavItem = { title: string; to: string; icon: typeof LayoutDashboard; exact?: boolean };
+type ClientBillingGroup = {
+  key: string;
+  label: string;
+  matches: (client: any) => boolean;
+};
+
+const CLIENT_BILLING_GROUPS: ClientBillingGroup[] = [
+  {
+    key: "fixed-monthly",
+    label: "Mensal Fixo",
+    matches: (client) => client.billing_model === "fixed" && client.fixed_type !== "one_off",
+  },
+  {
+    key: "credits",
+    label: "Mensal com Créditos",
+    matches: (client) => client.billing_model === "credits",
+  },
+  {
+    key: "one-off",
+    label: "Por Projeto",
+    matches: (client) => client.billing_model === "fixed" && client.fixed_type === "one_off",
+  },
+  {
+    key: "seasonal",
+    label: "Por Temporada",
+    matches: (client) => client.billing_model === "seasonal",
+  },
+];
+
 const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Dashboard", to: "/", icon: LayoutDashboard, exact: true },
   { title: "Triagem de Demandas", to: "/inbox", icon: InboxIcon },
@@ -389,6 +418,83 @@ export function AppSidebar() {
       }
     }
 
+    const groupedClients = CLIENT_BILLING_GROUPS.map((group) => ({
+      ...group,
+      clients: masterClients.filter(group.matches),
+    })).filter((group) => group.clients.length > 0);
+
+    const renderClientEntry = (mc: any) => {
+      const projectList = (projectsByParent.get(mc.id) ?? []).slice(0, 10);
+      const isProjOpen = projectsOpen[mc.id] ?? true;
+
+      return (
+        <div key={mc.id} className="space-y-[1px]">
+          <SidebarMenuSubItem>
+            <SidebarMenuSubButton asChild size="sm" isActive={pathname === `/clients/${mc.id}`}>
+              <Link
+                to="/clients/$id"
+                params={{ id: mc.id }}
+                className="flex items-center gap-2 group/link"
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: getStatusColor(activityMap?.get(mc.id)?.status ?? "atencao") }}
+                />
+                <span className="truncate flex-1">{mc.name}</span>
+                {projectList.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleProjects(mc.id);
+                    }}
+                    className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors sidebar-action-btn"
+                  >
+                    {isProjOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent("open-client-form", { detail: { parentId: mc.id, isProject: true } }));
+                  }}
+                  className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors sidebar-action-btn opacity-0 group-hover/link:opacity-100"
+                  title={`Novo projeto em ${mc.name}`}
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
+              </Link>
+            </SidebarMenuSubButton>
+          </SidebarMenuSubItem>
+          {isProjOpen && projectList.length > 0 && (
+            <div className="pl-3 space-y-[1px] border-l border-border/40 ml-1.5">
+              {projectList.map((p: any) => (
+                <SidebarMenuSubItem key={p.id}>
+                  <SidebarMenuSubButton asChild size="sm" isActive={pathname === `/clients/${p.id}`}>
+                    <Link
+                      to="/clients/$id"
+                      params={{ id: p.id }}
+                      className="flex items-center gap-2"
+                    >
+                      <FolderKanban className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                      <span
+                        className="h-1.5 w-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: getStatusColor(activityMap?.get(p.id)?.status ?? "atencao") }}
+                      />
+                      <span className="truncate">{p.name}</span>
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    };
+
     return (
       <SidebarMenuItem
         key={item.to}
@@ -449,76 +555,15 @@ export function AppSidebar() {
           </div>
           {!collapsed && clientsOpen && isAdminOrOwner && (
             <SidebarMenuSub className="gap-[1px] pl-4">
-              {masterClients.slice(0, 20).map((mc: any) => {
-                const projectList = (projectsByParent.get(mc.id) ?? []).slice(0, 10);
-                const isProjOpen = projectsOpen[mc.id] ?? true;
-                return (
-                  <div key={mc.id} className="space-y-[1px]">
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild size="sm" isActive={pathname === `/clients/${mc.id}`}>
-                          <Link
-                            to="/clients/$id"
-                            params={{ id: mc.id }}
-                            className="flex items-center gap-2 group/link"
-                          >
-                            <span
-                              className="h-1.5 w-1.5 rounded-full shrink-0"
-                              style={{ backgroundColor: getStatusColor(activityMap?.get(mc.id)?.status ?? "atencao") }}
-                            />
-                            <span className="truncate flex-1">{mc.name}</span>
-                            {projectList.length > 0 && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  toggleProjects(mc.id);
-                                }}
-                                className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors sidebar-action-btn"
-                              >
-                                {isProjOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                window.dispatchEvent(new CustomEvent("open-client-form", { detail: { parentId: mc.id, isProject: true } }));
-                              }}
-                              className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors sidebar-action-btn opacity-0 group-hover/link:opacity-100"
-                              title={`Novo projeto em ${mc.name}`}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </button>
-                          </Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                    {isProjOpen && projectList.length > 0 && (
-                      <div className="pl-3 space-y-[1px] border-l border-border/40 ml-1.5">
-                        {projectList.map((p: any) => (
-                          <SidebarMenuSubItem key={p.id}>
-                            <SidebarMenuSubButton asChild size="sm" isActive={pathname === `/clients/${p.id}`}>
-                              <Link
-                                to="/clients/$id"
-                                params={{ id: p.id }}
-                                className="flex items-center gap-2"
-                              >
-                                <FolderKanban className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-                                <span
-                                  className="h-1.5 w-1.5 rounded-full shrink-0"
-                                  style={{ backgroundColor: getStatusColor(activityMap?.get(p.id)?.status ?? "atencao") }}
-                                />
-                                <span className="truncate">{p.name}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
-                      </div>
-                    )}
+              {groupedClients.map((group) => (
+                <div key={group.key} className="space-y-[1px] pb-1 last:pb-0">
+                  <div className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
+                    {group.label}
+                    <span className="ml-1.5 font-normal text-muted-foreground/45">{group.clients.length}</span>
                   </div>
-                );
-              })}
+                  {group.clients.map(renderClientEntry)}
+                </div>
+              ))}
               {(clients?.length ?? 0) === 0 && (
                 <div className="px-6 py-1 text-xs text-muted-foreground">
                   Nenhum cliente ainda.
