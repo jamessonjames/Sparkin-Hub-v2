@@ -1229,19 +1229,19 @@ function ClientReportsPanel({
         : "";
 
       const creditsCell = (showPdfCredits && billingModel === "credits")
-        ? `<td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #059669; font-weight: 700; text-align: center;">${d.estimated_credits || 0}</td>`
+        ? `<td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #000000; font-weight: 700; text-align: center;">${d.estimated_credits || 0}</td>`
         : "";
 
       const priceCell = (showPdfIndividualPrices && (billingModel === "seasonal" || isOneOff))
-        ? `<td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #059669; font-weight: 700; text-align: right;">${d.price ? `R$ ${Number(d.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}</td>`
+        ? `<td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #000000; font-weight: 700; text-align: right;">${d.price ? `R$ ${Number(d.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}</td>`
         : "";
 
       return `
         <tr>
-          <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #0f172a; font-weight: 600;">
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #000000; font-weight: 600;">
             ${d.title}
           </td>
-          <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center;">
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #333333; text-align: center;">
             ${formattedDate}
           </td>
           ${hoursCell}
@@ -1263,7 +1263,7 @@ function ClientReportsPanel({
           @page { size: A4; margin: 15mm; }
           body {
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            color: #0f172a;
+            color: #000000;
             margin: 0;
             padding: 20px;
             background: #ffffff;
@@ -1273,18 +1273,18 @@ function ClientReportsPanel({
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 2px solid #0f172a;
+            border-bottom: 2px solid #000000;
             padding-bottom: 16px;
             margin-bottom: 24px;
           }
           .brand {
             font-size: 20px;
             font-weight: 800;
-            color: #0f172a;
+            color: #000000;
             letter-spacing: -0.5px;
           }
           .brand span {
-            color: #4f46e5;
+            color: #000000;
           }
           .meta {
             text-align: right;
@@ -1293,12 +1293,12 @@ function ClientReportsPanel({
             margin: 0;
             font-size: 16px;
             font-weight: 700;
-            color: #1e293b;
+            color: #000000;
           }
           .meta p {
             margin: 4px 0 0 0;
             font-size: 12px;
-            color: #64748b;
+            color: #444444;
           }
           .summary-grid {
             display: grid;
@@ -1307,23 +1307,23 @@ function ClientReportsPanel({
             margin-bottom: 24px;
           }
           .summary-card {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
+            background: #ffffff;
+            border: 1px solid #000000;
+            border-radius: 6px;
             padding: 12px;
           }
           .summary-card label {
             font-size: 10px;
             font-weight: 700;
             text-transform: uppercase;
-            color: #64748b;
+            color: #444444;
             display: block;
             margin-bottom: 4px;
           }
           .summary-card val {
             font-size: 18px;
             font-weight: 800;
-            color: #0f172a;
+            color: #000000;
             display: block;
           }
           table {
@@ -1332,31 +1332,31 @@ function ClientReportsPanel({
             margin-top: 10px;
           }
           th {
-            background: #f1f5f9;
-            color: #475569;
+            background: #f2f2f2;
+            color: #000000;
             font-size: 10px;
             font-weight: 700;
             text-transform: uppercase;
             padding: 8px 12px;
-            border-bottom: 2px solid #cbd5e1;
+            border-bottom: 2px solid #000000;
           }
           .footer {
             margin-top: 40px;
             padding-top: 12px;
-            border-top: 1px solid #e2e8f0;
+            border-top: 1px solid #000000;
             display: flex;
             justify-content: space-between;
             font-size: 10px;
-            color: #94a3b8;
+            color: #555555;
           }
           .notes-box {
-            background: #f8fafc;
-            border-left: 4px solid #4f46e5;
+            background: #f8f8f8;
+            border-left: 4px solid #000000;
             padding: 12px;
             font-size: 11px;
-            color: #334155;
+            color: #000000;
             margin-bottom: 20px;
-            border-radius: 0 6px 6px 0;
+            border-radius: 0 4px 4px 0;
           }
         </style>
       </head>
