@@ -1769,7 +1769,9 @@ function ClientReportsPanel({
               size="sm"
               onClick={() => {
                 setIsPdfModalOpen(false);
-                handleGeneratePdfPrint();
+                setTimeout(() => {
+                  handleGeneratePdfPrint();
+                }, 100);
               }}
               className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs gap-1.5"
             >
