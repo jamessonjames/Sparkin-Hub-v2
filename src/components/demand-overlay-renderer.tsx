@@ -92,6 +92,8 @@ export function DemandOverlayRenderer() {
             defaultStatus={activeDemand.defaultStatus}
             defaultClientEditionId={activeDemand.defaultClientEditionId}
             defaultAssigneeId={activeDemand.defaultAssigneeId}
+            defaultDueDate={activeDemand.defaultDueDate}
+            defaultEstimatedHours={activeDemand.defaultEstimatedHours}
           />
         </Suspense>
       )}

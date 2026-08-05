@@ -7,6 +7,8 @@ type DemandEntry = {
   defaultStatus?: string;
   defaultClientEditionId?: string;
   defaultAssigneeId?: string;
+  defaultDueDate?: string;
+  defaultEstimatedHours?: number;
 };
 
 interface DemandOverlayState {
@@ -18,7 +20,9 @@ interface DemandOverlayState {
     defaultClientId?: string,
     defaultStatus?: string,
     defaultClientEditionId?: string,
-    defaultAssigneeId?: string
+    defaultAssigneeId?: string,
+    defaultDueDate?: string,
+    defaultEstimatedHours?: number
   ) => void;
   close: () => void;
   minimize: () => void;
@@ -36,6 +40,8 @@ function makeEntry(
     defaultStatus?: string;
     defaultClientEditionId?: string;
     defaultAssigneeId?: string;
+    defaultDueDate?: string;
+    defaultEstimatedHours?: number;
   }
 ): DemandEntry {
   return {
@@ -45,6 +51,8 @@ function makeEntry(
     defaultStatus: defaults?.defaultStatus,
     defaultClientEditionId: defaults?.defaultClientEditionId,
     defaultAssigneeId: defaults?.defaultAssigneeId,
+    defaultDueDate: defaults?.defaultDueDate,
+    defaultEstimatedHours: defaults?.defaultEstimatedHours,
   };
 }
 
@@ -63,7 +71,9 @@ export function DemandOverlayProvider({ children }: { children: ReactNode }) {
       defaultClientId?: string,
       defaultStatus?: string,
       defaultClientEditionId?: string,
-      defaultAssigneeId?: string
+      defaultAssigneeId?: string,
+      defaultDueDate?: string,
+      defaultEstimatedHours?: number
     ) => {
       setMinimizedDemands((prev) => prev.filter((e) => e.demandId !== "new"));
       setActiveDemand(
@@ -72,6 +82,8 @@ export function DemandOverlayProvider({ children }: { children: ReactNode }) {
           defaultStatus,
           defaultClientEditionId,
           defaultAssigneeId,
+          defaultDueDate,
+          defaultEstimatedHours,
         })
       );
     },

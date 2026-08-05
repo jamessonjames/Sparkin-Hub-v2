@@ -1029,7 +1029,15 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                 return (
                   <div
                     key={key}
-                    onClick={() => overlay.openNew(clientsForOverlay, iso, "nao_iniciado", undefined, isAdminOrOwner && activeUserId ? activeUserId : undefined)}
+                    onClick={() => overlay.openNew(
+                      clientsForOverlay,
+                      undefined,
+                      "nao_iniciado",
+                      undefined,
+                      isAdminOrOwner && activeUserId ? activeUserId : undefined,
+                      `${iso}T12:00:00`,
+                      1.0
+                    )}
                     className={cn(
                       "border-r border-b border-border/40 p-1 flex flex-col justify-start gap-1 overflow-hidden cursor-pointer hover:bg-muted/40 transition-colors",
                       isToday && "bg-primary/5"
@@ -1214,13 +1222,14 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
           onOpenChange={setSlotModalOpen}
           slotDateTime={selectedSlotDateTime}
           onCreateDemand={() => {
-            const dateStr = selectedSlotDateTime.slice(0, 10);
             overlay.openNew(
               clientsForOverlay,
-              dateStr,
+              undefined,
               "nao_iniciado",
               undefined,
-              isAdminOrOwner && activeUserId ? activeUserId : undefined
+              isAdminOrOwner && activeUserId ? activeUserId : undefined,
+              selectedSlotDateTime,
+              1.0
             );
           }}
           onCreateReminder={() => {

@@ -106,6 +106,8 @@ export function DemandDetailDialog({
   defaultStatus,
   defaultClientEditionId,
   defaultAssigneeId,
+  defaultDueDate,
+  defaultEstimatedHours,
   // Portal-mode props
   portalMode = false,
   portalSlug,
@@ -124,6 +126,8 @@ export function DemandDetailDialog({
   defaultStatus?: string;
   defaultClientEditionId?: string;
   defaultAssigneeId?: string;
+  defaultDueDate?: string;
+  defaultEstimatedHours?: number;
   portalMode?: boolean;
   portalSlug?: string;
   portalClientName?: string;
@@ -331,6 +335,7 @@ export function DemandDetailDialog({
   const [status, setStatus] = useState<DemandStatus>("nao_iniciado");
   const [priority, setPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
   const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("12:00");
   const [assigneeId, setAssigneeId] = useState("");
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
@@ -546,9 +551,10 @@ export function DemandDetailDialog({
       setDescription("");
       setStatus((defaultStatus as DemandStatus) || "nao_iniciado");
       setPriority("medium");
-      setDueDate("");
+      setDueDate(defaultDueDate ? defaultDueDate.slice(0, 10) : "");
+      setDueTime(defaultDueDate && defaultDueDate.includes("T") ? defaultDueDate.split("T")[1].slice(0, 5) : "12:00");
       setAssigneeId(defaultAssigneeId || "");
-      setEstimatedHours(1.0);
+      setEstimatedHours(defaultEstimatedHours ?? 1.0);
       setEstimatedCredits(0);
       setPrice(null);
       if (defaultClientEditionId) {
@@ -562,6 +568,7 @@ export function DemandDetailDialog({
       setStatus((initialDemandData.status as DemandStatus) || "nao_iniciado");
       setPriority((initialDemandData.priority as any) || "medium");
       setDueDate(initialDemandData.due_date ? initialDemandData.due_date.slice(0, 10) : "");
+      setDueTime(initialDemandData.due_date && initialDemandData.due_date.includes("T") ? initialDemandData.due_date.split("T")[1].slice(0, 5) : "12:00");
       setEstimatedCredits(initialDemandData.estimated_credits ? Number(initialDemandData.estimated_credits) : 0);
     } else if (!portalMode && demand) {
       setClientId(demand.client_id);
@@ -570,13 +577,14 @@ export function DemandDetailDialog({
       setStatus(demand.status as DemandStatus);
       setPriority(demand.priority as "low" | "medium" | "high" | "urgent");
       setDueDate(demand.due_date ? demand.due_date.slice(0, 10) : "");
+      setDueTime(demand.due_date && demand.due_date.includes("T") ? demand.due_date.split("T")[1].slice(0, 5) : "12:00");
       setAssigneeId(demand.assignee_user_id || "");
       setEstimatedHours(demand.estimated_hours ? Number(demand.estimated_hours) : 1.0);
       setEstimatedCredits(demand.estimated_credits ? Number(demand.estimated_credits) : 0);
       setClientEditionId(demand.client_edition_id || "");
       setPrice(demand.price ? Number(demand.price) : null);
     }
-  }, [demand, isNew, defaultClientId, defaultStatus, defaultClientEditionId, defaultAssigneeId, clients, portalMode, initialDemandData]);
+  }, [demand, isNew, defaultClientId, defaultStatus, defaultClientEditionId, defaultAssigneeId, defaultDueDate, defaultEstimatedHours, clients, portalMode, initialDemandData]);
 
   // Set default client edition when editions list is loaded
   useEffect(() => {
@@ -818,15 +826,8 @@ export function DemandDetailDialog({
 
     let finalDueDate = null;
     if (dueDate) {
-      const origDatePart = demand?.due_date ? demand.due_date.slice(0, 10) : "";
-      if (dueDate === origDatePart && demand?.due_date) {
-        finalDueDate = demand.due_date;
-      } else {
-        const origTimePart = demand?.due_date && demand.due_date.includes("T")
-          ? demand.due_date.split("T")[1]
-          : "12:00:00";
-        finalDueDate = `${dueDate}T${origTimePart}`;
-      }
+      const timePart = dueTime || (demand?.due_date && demand.due_date.includes("T") ? demand.due_date.split("T")[1].slice(0, 5) : "12:00");
+      finalDueDate = `${dueDate}T${timePart.length === 5 ? `${timePart}:00` : timePart}`;
     }
 
     setSaving(true);
@@ -1343,23 +1344,31 @@ export function DemandDetailDialog({
                           </div>
                         )}
 
-                        {/* Data de término */}
+                        {/* Data e Hora de término */}
                         {showDueDateInBar && (
                           <div data-prop-item className="flex flex-col gap-1 shrink-0">
-                            <span className="text-xs font-medium text-muted-foreground/80">Data de término</span>
+                            <span className="text-xs font-medium text-muted-foreground/80">Entrega</span>
                             {fieldsEditable ? (
-                              <Input
-                                type="date"
-                                value={dueDate}
-                                onChange={(e) => setDueDate(e.target.value)}
-                                className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-[144px] py-0 pl-2.5 pr-1 rounded-md [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-80 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
-                              />
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="date"
+                                  value={dueDate}
+                                  onChange={(e) => setDueDate(e.target.value)}
+                                  className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-[125px] py-0 pl-2 pr-1 rounded-md [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-80 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
+                                />
+                                <Input
+                                  type="time"
+                                  value={dueTime}
+                                  onChange={(e) => setDueTime(e.target.value)}
+                                  className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-[75px] py-0 px-1 rounded-md text-center [&::-webkit-calendar-picker-indicator]:hidden"
+                                />
+                              </div>
                             ) : (
                               <span className={cn(
                                 "inline-flex h-7 items-center px-2.5 rounded-md text-xs font-medium w-fit bg-muted/40",
                                 isOverdue ? "text-red-400" : "text-foreground"
                               )}>
-                                {dueDate ? new Date(dueDate + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
+                                {dueDate ? `${new Date(dueDate + "T12:00:00").toLocaleDateString("pt-BR")} às ${dueTime}` : "—"}
                               </span>
                             )}
                           </div>
