@@ -125,8 +125,8 @@ export function getFileIdFromUrl(url: string): string | null {
       return parts[1].split(/[?#]/)[0];
     }
   }
-  // If it's a uc link: https://drive.google.com/uc?export=view&id={fileId}
-  if (url.includes("drive.google.com/")) {
+  // If it's a uc, usercontent or file link
+  if (url.includes("drive.google.com/") || url.includes("drive.usercontent.google.com/")) {
     try {
       const urlObj = new URL(url);
       const id = urlObj.searchParams.get("id");
@@ -145,4 +145,14 @@ export function getFileIdFromUrl(url: string): string | null {
     }
   }
   return null;
+}
+
+export function getGoogleDriveViewUrl(urlOrFileId: string): string {
+  if (!urlOrFileId) return "";
+  if (urlOrFileId.includes("lh3.googleusercontent.com/d/")) return urlOrFileId;
+  const fileId = getFileIdFromUrl(urlOrFileId) || (urlOrFileId.match(/^[a-zA-Z0-9_-]{25,}$/) ? urlOrFileId : null);
+  if (fileId) {
+    return `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+  }
+  return urlOrFileId;
 }

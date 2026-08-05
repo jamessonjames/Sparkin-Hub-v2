@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Upload, Trash2, File, FileText, Image, Download, Loader2 } from "lucide-react";
+import { getGoogleDriveViewUrl } from "@/lib/gdrive-token";
 
 const FILE_ICONS: Record<string, typeof File> = {
   "image/": Image,
@@ -241,7 +242,7 @@ export function FileAttachments({
                   </p>
                 </div>
                 <a
-                  href={file.drive_url}
+                  href={getGoogleDriveViewUrl(file.drive_url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"

@@ -26,7 +26,9 @@ export const uploadAttachment = createServerFn({ method: "POST" })
       const folderId = await getOrCreateFolderPath(accessToken, folderPath, rootFolderId);
       const fileId = await uploadFile(accessToken, fileBase64, fileName, mimeType, folderId);
       await makeFilePublic(accessToken, fileId);
-      const viewUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+      const viewUrl = mimeType.startsWith("image/")
+        ? `https://lh3.googleusercontent.com/d/${fileId}`
+        : `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
 
       const { error: insErr } = await context.supabase
         .from("file_attachments" as any)

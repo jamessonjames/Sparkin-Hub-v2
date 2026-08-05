@@ -495,7 +495,7 @@ export const uploadToGDrive = createServerFn({ method: "POST" })
       await makeFilePublic(accessToken, fileId);
       const viewUrl = mimeType.startsWith("image/")
         ? `https://lh3.googleusercontent.com/d/${fileId}`
-        : `https://drive.google.com/uc?export=view&id=${fileId}`;
+        : `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
 
       return { success: true, fileId, url: viewUrl };
     } catch (error: any) {

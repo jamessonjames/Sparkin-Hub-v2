@@ -16,7 +16,7 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { uploadToGDrive, deleteFromGDrive } from "@/lib/gdrive.functions";
-import { getFileIdFromUrl } from "@/lib/gdrive-token";
+import { getFileIdFromUrl, getGoogleDriveViewUrl } from "@/lib/gdrive-token";
 import { Node, mergeAttributes } from "@tiptap/core";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -308,7 +308,7 @@ export function RichEditor({
           event.stopPropagation();
           const src = node.attrs?.src;
           if (src && !src.startsWith("#")) {
-            window.open(src, "_blank");
+            window.open(getGoogleDriveViewUrl(src), "_blank");
           }
           return true;
         }
@@ -317,7 +317,7 @@ export function RichEditor({
         if (linkEl && linkEl.href && !linkEl.href.startsWith("#")) {
           event.preventDefault();
           event.stopPropagation();
-          window.open(linkEl.href, "_blank");
+          window.open(getGoogleDriveViewUrl(linkEl.href), "_blank");
           return true;
         }
 
