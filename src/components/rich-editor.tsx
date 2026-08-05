@@ -15,8 +15,9 @@ import { TableHeader } from "@tiptap/extension-table-header";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { uploadToGDrive, deleteFromGDrive } from "@/lib/gdrive.functions";
+import { uploadToGDrive, deleteFromGDrive, getGDriveClientToken } from "@/lib/gdrive.functions";
 import { getFileIdFromUrl, getGoogleDriveViewUrl } from "@/lib/gdrive-token";
+import { uploadDirectToGDrive } from "@/lib/gdrive-client-upload";
 import { Node, mergeAttributes } from "@tiptap/core";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -376,6 +377,7 @@ export function RichEditor({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const uploadFn = useServerFn(uploadToGDrive);
+  const getGDriveTokenFn = useServerFn(getGDriveClientToken);
   const deleteFromGDriveFn = useServerFn(deleteFromGDrive);
 
   const knownFileIdsRef = useRef<string[]>([]);
@@ -460,12 +462,17 @@ export function RichEditor({
         }
       }, 300);
 
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const fullBase64 = e.target?.result as string;
-        const base64 = fullBase64.split(",")[1];
-        try {
-          const response = await uploadFn({
+      try {
+        let response = await uploadDirectToGDrive(file, gDrivePath, getGDriveTokenFn);
+
+        if (!response.success) {
+          const fullBase64 = await new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = (e) => res(e.target?.result as string);
+            r.readAsDataURL(file);
+          });
+          const base64 = fullBase64.split(",")[1];
+          const serverRes = await uploadFn({
             data: {
               fileBase64: base64,
               fileName: file.name,
@@ -473,66 +480,78 @@ export function RichEditor({
               pathParts: gDrivePath,
             },
           });
-
-          clearInterval(progressInterval);
-
-          let foundRange: { from: number; to: number } | null = null;
-          editor?.state.doc.descendants((node, pos) => {
-            if (node.marks) {
-              for (const mark of node.marks) {
-                if (mark.type.name === "link" && mark.attrs.href === `#upload-${tempId}`) {
-                  foundRange = { from: pos, to: pos + node.nodeSize };
-                  return false;
-                }
-              }
-            }
-            return true;
-          });
-
-          if (response.success && response.url) {
-            if (foundRange) {
-              editor?.chain().focus().deleteRange(foundRange).setImage({ src: response.url }).run();
-            } else {
-              editor?.chain().focus().setImage({ src: response.url }).run();
-            }
-            toast.success("Imagem enviada para o Google Drive com sucesso!");
-          } else {
-            if (foundRange) {
-              editor?.chain().focus().deleteRange(foundRange).setImage({ src: fullBase64 }).run();
-            } else {
-              editor?.chain().focus().setImage({ src: fullBase64 }).run();
-            }
-            toast.warning("Hospedagem Google Drive indisponível. Salvo em base64.");
+          if (serverRes.success && serverRes.url) {
+            response = { success: true, url: serverRes.url, fileId: serverRes.fileId };
           }
-        } catch (error) {
-          console.error("Upload error, using fallback:", error);
-          clearInterval(progressInterval);
-          let foundRange: { from: number; to: number } | null = null;
-          editor?.state.doc.descendants((node, pos) => {
-            if (node.marks) {
-              for (const mark of node.marks) {
-                if (mark.type.name === "link" && mark.attrs.href === `#upload-${tempId}`) {
-                  foundRange = { from: pos, to: pos + node.nodeSize };
-                  return false;
-                }
+        }
+
+        clearInterval(progressInterval);
+
+        let foundRange: { from: number; to: number } | null = null;
+        editor?.state.doc.descendants((node, pos) => {
+          if (node.marks) {
+            for (const mark of node.marks) {
+              if (mark.type.name === "link" && mark.attrs.href === `#upload-${tempId}`) {
+                foundRange = { from: pos, to: pos + node.nodeSize };
+                return false;
               }
             }
-            return true;
+          }
+          return true;
+        });
+
+        if (response.success && response.url) {
+          if (foundRange) {
+            editor?.chain().focus().deleteRange(foundRange).setImage({ src: response.url }).run();
+          } else {
+            editor?.chain().focus().setImage({ src: response.url }).run();
+          }
+          toast.success("Imagem enviada para o Google Drive com sucesso!");
+        } else {
+          const fullBase64 = await new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = (e) => res(e.target?.result as string);
+            r.readAsDataURL(file);
           });
           if (foundRange) {
             editor?.chain().focus().deleteRange(foundRange).setImage({ src: fullBase64 }).run();
           } else {
             editor?.chain().focus().setImage({ src: fullBase64 }).run();
           }
-          toast.warning("Falha ao subir para o Google Drive. Usando base64.");
-        } finally {
-          setUploading(false);
-          setUploadProgress(0);
+          toast.warning("Hospedagem Google Drive indisponível. Salvo em base64.");
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (error) {
+        console.error("Upload error, using fallback:", error);
+        clearInterval(progressInterval);
+        let foundRange: { from: number; to: number } | null = null;
+        editor?.state.doc.descendants((node, pos) => {
+          if (node.marks) {
+            for (const mark of node.marks) {
+              if (mark.type.name === "link" && mark.attrs.href === `#upload-${tempId}`) {
+                foundRange = { from: pos, to: pos + node.nodeSize };
+                return false;
+              }
+            }
+          }
+          return true;
+        });
+        const fullBase64 = await new Promise<string>((res) => {
+          const r = new FileReader();
+          r.onload = (e) => res(e.target?.result as string);
+          r.readAsDataURL(file);
+        });
+        if (foundRange) {
+          editor?.chain().focus().deleteRange(foundRange).setImage({ src: fullBase64 }).run();
+        } else {
+          editor?.chain().focus().setImage({ src: fullBase64 }).run();
+        }
+        toast.warning("Falha ao subir para o Google Drive. Usando base64.");
+      } finally {
+        setUploading(false);
+        setUploadProgress(0);
+      }
     },
-    [editor, uploadFn, gDrivePath]
+    [editor, uploadFn, getGDriveTokenFn, gDrivePath]
   );
 
   const handleEditorFileDropOrUpload = useCallback(
@@ -576,81 +595,66 @@ export function RichEditor({
       }, 300);
 
       try {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          const base64 = (e.target?.result as string).split(",")[1];
-          try {
-            const response = await uploadFn({
-              data: {
-                fileBase64: base64,
-                fileName: file.name,
-                mimeType: file.type || "application/octet-stream",
-                pathParts: gDrivePath,
-              },
-            });
+        let response = await uploadDirectToGDrive(file, gDrivePath, getGDriveTokenFn);
 
-            clearInterval(progressInterval);
-
-            let foundRange: { from: number; to: number } | null = null;
-            editor?.state.doc.descendants((node, pos) => {
-              if (
-                node.type.name === "attachmentCard" &&
-                (node.attrs.uploadId === tempId || node.attrs.src === `#upload-${tempId}`)
-              ) {
-                foundRange = { from: pos, to: pos + node.nodeSize };
-                return false;
-              }
-              return true;
-            });
-
-            if (response.success && response.url) {
-              const cardData = {
-                type: "attachmentCard",
-                attrs: {
-                  src: response.url,
-                  fileName: file.name,
-                  fileSize: formatFileSizeLocal(file.size),
-                  fileExt: ext,
-                  isUploading: "false",
-                },
-              };
-              if (foundRange) {
-                editor?.chain().focus().deleteRange(foundRange).insertContent(cardData).run();
-              } else {
-                editor?.chain().focus().insertContent(cardData).run();
-              }
-              toast.success(`Arquivo "${file.name}" anexado no destaque!`);
-            } else {
-              if (foundRange) {
-                editor?.chain().focus().deleteRange(foundRange).run();
-              }
-              toast.error(response.error || "Erro ao carregar arquivo.");
-            }
-          } catch (error: any) {
-            clearInterval(progressInterval);
-            let foundRange: { from: number; to: number } | null = null;
-            editor?.state.doc.descendants((node, pos) => {
-              if (
-                node.type.name === "attachmentCard" &&
-                (node.attrs.uploadId === tempId || node.attrs.src === `#upload-${tempId}`)
-              ) {
-                foundRange = { from: pos, to: pos + node.nodeSize };
-                return false;
-              }
-              return true;
-            });
-            if (foundRange) {
-              editor?.chain().focus().deleteRange(foundRange).run();
-            }
-            console.error("Upload error:", error);
-            toast.error("Erro ao subir arquivo.");
-          } finally {
-            setUploading(false);
-            setUploadProgress(0);
+        if (!response.success) {
+          const fullBase64 = await new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = (e) => res(e.target?.result as string);
+            r.readAsDataURL(file);
+          });
+          const base64 = fullBase64.split(",")[1];
+          const serverRes = await uploadFn({
+            data: {
+              fileBase64: base64,
+              fileName: file.name,
+              mimeType: file.type || "application/octet-stream",
+              pathParts: gDrivePath,
+            },
+          });
+          if (serverRes.success && serverRes.url) {
+            response = { success: true, url: serverRes.url, fileId: serverRes.fileId };
           }
-        };
-        reader.readAsDataURL(file);
-      } catch {
+        }
+
+        clearInterval(progressInterval);
+
+        let foundRange: { from: number; to: number } | null = null;
+        editor?.state.doc.descendants((node, pos) => {
+          if (
+            node.type.name === "attachmentCard" &&
+            (node.attrs.uploadId === tempId || node.attrs.src === `#upload-${tempId}`)
+          ) {
+            foundRange = { from: pos, to: pos + node.nodeSize };
+            return false;
+          }
+          return true;
+        });
+
+        if (response.success && response.url) {
+          const cardData = {
+            type: "attachmentCard",
+            attrs: {
+              src: response.url,
+              fileName: file.name,
+              fileSize: formatFileSizeLocal(file.size),
+              fileExt: ext,
+              isUploading: "false",
+            },
+          };
+          if (foundRange) {
+            editor?.chain().focus().deleteRange(foundRange).insertContent(cardData).run();
+          } else {
+            editor?.chain().focus().insertContent(cardData).run();
+          }
+          toast.success(`Arquivo "${file.name}" anexado no destaque!`);
+        } else {
+          if (foundRange) {
+            editor?.chain().focus().deleteRange(foundRange).run();
+          }
+          toast.error(response.error || "Erro ao carregar arquivo.");
+        }
+      } catch (error: any) {
         clearInterval(progressInterval);
         let foundRange: { from: number; to: number } | null = null;
         editor?.state.doc.descendants((node, pos) => {
@@ -666,12 +670,14 @@ export function RichEditor({
         if (foundRange) {
           editor?.chain().focus().deleteRange(foundRange).run();
         }
-        toast.error("Erro ao ler o arquivo.");
+        console.error("Upload error:", error);
+        toast.error("Erro ao subir arquivo.");
+      } finally {
         setUploading(false);
         setUploadProgress(0);
       }
     },
-    [onAttachFile, insertImage, uploadFn, gDrivePath, editor]
+    [onAttachFile, insertImage, uploadFn, getGDriveTokenFn, gDrivePath, editor]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

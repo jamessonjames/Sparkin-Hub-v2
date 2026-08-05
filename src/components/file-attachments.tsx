@@ -6,7 +6,10 @@ import {
   uploadAttachment,
   listAttachments,
   deleteAttachment,
+  createAttachmentRecord,
 } from "@/lib/attachments.functions";
+import { getGDriveClientToken } from "@/lib/gdrive.functions";
+import { uploadDirectToGDrive } from "@/lib/gdrive-client-upload";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Upload, Trash2, File, FileText, Image, Download, Loader2 } from "lucide-react";
@@ -47,6 +50,8 @@ export function FileAttachments({
   const [isDragging, setIsDragging] = useState(false);
 
   const uploadFn = useServerFn(uploadAttachment);
+  const createRecordFn = useServerFn(createAttachmentRecord);
+  const getGDriveTokenFn = useServerFn(getGDriveClientToken);
   const listFn = useServerFn(listAttachments);
   const deleteFn = useServerFn(deleteAttachment);
 
@@ -73,41 +78,51 @@ export function FileAttachments({
 
     setUploading(true);
     try {
-      const reader = new FileReader();
-      await new Promise<void>((resolve, reject) => {
-        reader.onload = async (e) => {
-          const base64 = (e.target?.result as string).split(",")[1];
-          try {
-            const res = await uploadFn({
-              data: {
-                entityType,
-                entityId,
-                fileBase64: base64,
-                fileName: file.name,
-                mimeType: file.type || "application/octet-stream",
-              },
-            });
-            if (res.success) {
-              toast.success(`"${file.name}" anexado!`);
-              qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
-              resolve();
-            } else {
-              toast.error(res.error || "Erro ao anexar arquivo.");
-              reject(new Error(res.error));
-            }
-          } catch (err: any) {
-            toast.error(err.message || "Erro ao anexar arquivo.");
-            reject(err);
-          }
-        };
-        reader.onerror = () => {
-          toast.error("Erro ao ler o arquivo.");
-          reject(new Error("Erro de leitura"));
-        };
-        reader.readAsDataURL(file);
-      });
-    } catch (err) {
+      const pathParts = ["Attachments", `${entityType}s`, entityId];
+      const directRes = await uploadDirectToGDrive(file, pathParts, getGDriveTokenFn);
+
+      if (directRes.success && directRes.fileId && directRes.url) {
+        await createRecordFn({
+          data: {
+            entityType,
+            entityId,
+            fileName: file.name,
+            fileType: file.type || "application/octet-stream",
+            fileSize: file.size,
+            driveFileId: directRes.fileId,
+            driveUrl: directRes.url,
+          },
+        });
+        toast.success(`"${file.name}" anexado!`);
+        qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
+      } else {
+        // Fallback to server upload function
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve((e.target?.result as string).split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const res = await uploadFn({
+          data: {
+            entityType,
+            entityId,
+            fileBase64: base64,
+            fileName: file.name,
+            mimeType: file.type || "application/octet-stream",
+          },
+        });
+        if (res.success) {
+          toast.success(`"${file.name}" anexado!`);
+          qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
+        } else {
+          toast.error(res.error || "Erro ao anexar arquivo.");
+        }
+      }
+    } catch (err: any) {
       console.error(err);
+      toast.error(err.message || "Erro ao anexar arquivo.");
     } finally {
       clearInterval(progressInterval);
       setUploadingFiles((prev) => prev.filter((item) => item.id !== tempId));

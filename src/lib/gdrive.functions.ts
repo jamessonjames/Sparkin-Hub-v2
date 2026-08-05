@@ -530,3 +530,16 @@ export const deleteFromGDrive = createServerFn({ method: "POST" })
       return { success: false, error: error.message || "Erro ao deletar do Google Drive." };
     }
   });
+
+// Server function to get valid server-side access token & root folder for direct client uploads
+export const getGDriveClientToken = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    try {
+      const accessToken = await getServerGDriveAccessToken(context);
+      const rootFolderId = await getRootFolderId(context);
+      return { success: true, accessToken, rootFolderId };
+    } catch (e: any) {
+      return { success: false, error: e.message || "Erro ao obter token do Google Drive." };
+    }
+  });

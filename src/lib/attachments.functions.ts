@@ -53,6 +53,37 @@ export const uploadAttachment = createServerFn({ method: "POST" })
     }
   });
 
+// ── Save attachment record in DB when already uploaded ──
+export const createAttachmentRecord = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator(z.object({
+    entityType: z.enum(["client", "demand"]),
+    entityId: z.string().uuid(),
+    fileName: z.string(),
+    fileType: z.string(),
+    fileSize: z.number(),
+    driveFileId: z.string(),
+    driveUrl: z.string(),
+  }))
+  .handler(async ({ data: { entityType, entityId, fileName, fileType, fileSize, driveFileId, driveUrl }, context }) => {
+    const { error: insErr } = await context.supabase
+      .from("file_attachments" as any)
+      .insert({
+        entity_type: entityType,
+        entity_id: entityId,
+        file_name: fileName,
+        file_type: fileType,
+        file_size: fileSize,
+        drive_file_id: driveFileId,
+        drive_url: driveUrl,
+        uploaded_by: context.userId,
+        file_path: fileName,
+      } as any);
+
+    if (insErr) throw new Error(insErr.message);
+    return { success: true };
+  });
+
 // ── List attachments for an entity ──
 export const listAttachments = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
