@@ -1342,31 +1342,23 @@ export function DemandDetailDialog({
                           </div>
                         )}
 
-                        {/* Data e Hora de término */}
+                        {/* Data de término */}
                         {showDueDateInBar && (
                           <div data-prop-item className="flex flex-col gap-1 shrink-0">
-                            <span className="text-xs font-medium text-muted-foreground/80">Entrega</span>
+                            <span className="text-xs font-medium text-muted-foreground/80">Data de término</span>
                             {fieldsEditable ? (
-                              <div className="flex items-center gap-1">
-                                <Input
-                                  type="date"
-                                  value={dueDate}
-                                  onChange={(e) => setDueDate(e.target.value)}
-                                  className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-[125px] py-0 pl-2 pr-1 rounded-md [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-80 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
-                                />
-                                <Input
-                                  type="time"
-                                  value={dueTime}
-                                  onChange={(e) => setDueTime(e.target.value)}
-                                  className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-[75px] py-0 px-1 rounded-md text-center [&::-webkit-calendar-picker-indicator]:hidden"
-                                />
-                              </div>
+                              <Input
+                                type="date"
+                                value={dueDate}
+                                onChange={(e) => setDueDate(e.target.value)}
+                                className="h-7 text-xs bg-muted/40 hover:bg-muted/60 border-transparent text-foreground font-medium w-[144px] py-0 pl-2.5 pr-1 rounded-md [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-80 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
+                              />
                             ) : (
                               <span className={cn(
                                 "inline-flex h-7 items-center px-2.5 rounded-md text-xs font-medium w-fit bg-muted/40",
                                 isOverdue ? "text-red-400" : "text-foreground"
                               )}>
-                                {dueDate ? `${new Date(dueDate + "T12:00:00").toLocaleDateString("pt-BR")} às ${dueTime}` : "—"}
+                                {dueDate ? new Date(dueDate + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
                               </span>
                             )}
                           </div>
