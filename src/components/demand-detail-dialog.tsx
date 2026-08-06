@@ -600,7 +600,7 @@ export function DemandDetailDialog({
 
   // Debounced auto-save for description
   useEffect(() => {
-    if (isNew) return;
+    if (isNew || (!portalMode && (isDemandLoading || !demand))) return;
 
     const dbDesc = portalMode 
       ? (initialDemandData?.description || "") 
@@ -633,15 +633,8 @@ export function DemandDetailDialog({
         } else {
           let finalDueDate = null;
           if (dueDate) {
-            const origDatePart = demand?.due_date ? demand.due_date.slice(0, 10) : "";
-            if (dueDate === origDatePart && demand?.due_date) {
-              finalDueDate = demand.due_date;
-            } else {
-              const origTimePart = demand?.due_date && demand.due_date.includes("T")
-                ? demand.due_date.split("T")[1]
-                : "12:00:00";
-              finalDueDate = `${dueDate}T${origTimePart}`;
-            }
+            const timePart = dueTime || (demand?.due_date && demand.due_date.includes("T") ? demand.due_date.split("T")[1].slice(0, 5) : "12:00");
+            finalDueDate = `${dueDate}T${timePart.length === 5 ? `${timePart}:00` : timePart}`;
           }
 
           await updateFn({
@@ -671,14 +664,19 @@ export function DemandDetailDialog({
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [description, isNew, portalMode, demand?.description, initialDemandData?.description, clientId, title, status, priority, dueDate, estimatedCredits, estimatedHours, assigneeId, clientEditionId, price]);
+  }, [description, isNew, isDemandLoading, demand, portalMode, initialDemandData?.description, clientId, title, status, priority, dueDate, dueTime, estimatedCredits, estimatedHours, assigneeId, clientEditionId, price]);
 
   async function handleClose() {
+    if (isNew || (!portalMode && (isDemandLoading || !demand))) {
+      onClose();
+      return;
+    }
+
     const dbDesc = portalMode 
       ? (initialDemandData?.description || "") 
       : (demand?.description || "");
       
-    if (!isNew && description !== dbDesc && title.trim()) {
+    if (description !== dbDesc && title.trim()) {
       try {
         if (portalMode) {
           await updatePortalFn({
