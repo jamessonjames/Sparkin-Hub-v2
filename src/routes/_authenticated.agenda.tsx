@@ -265,6 +265,7 @@ function AgendaPage() {
   // Slot modal state (Choice between Nova Demanda or Novo Lembrete)
   const [slotModalOpen, setSlotModalOpen] = useState(false);
   const [selectedSlotDateTime, setSelectedSlotDateTime] = useState<string>("");
+  const isDragOrResizeInProgressRef = useRef(false);
 
   // Reminder dialog state
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
@@ -586,6 +587,7 @@ function AgendaPage() {
   } | null>(null);
 
   function handleDragStart(e: DragStartEvent) {
+    isDragOrResizeInProgressRef.current = true;
     setActiveDragId(String(e.active.id));
   }
 
@@ -766,6 +768,9 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
 
   async function handleDragEnd(e: DragEndEvent) {
     setActiveDragId(null);
+    setTimeout(() => {
+      isDragOrResizeInProgressRef.current = false;
+    }, 250);
 
     const { active } = e;
     const targetSlotId = getSlotIdFromDragEnd(e);
@@ -897,6 +902,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
   }
 
   function handleSlotClick(iso: string, hour: number, minute: number) {
+    if (isDragOrResizeInProgressRef.current) return;
     const slotIso = `${iso}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
     setSelectedSlotDateTime(slotIso);
     setSlotModalOpen(true);
@@ -1162,6 +1168,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                                 onResize={handleResizeDemand}
                                 onTogglePin={handleTogglePin}
                                 onClick={() => overlay.open(demand.id, clientsForOverlay)}
+                                isDragOrResizeRef={isDragOrResizeInProgressRef}
                               />
                             )}
 
@@ -1676,11 +1683,13 @@ function DraggableDemandCard({
   onClick,
   onResize,
   onTogglePin,
+  isDragOrResizeRef,
 }: {
   demand: any;
   onClick: () => void;
   onResize: (demandId: string, hours: number) => Promise<void>;
   onTogglePin: (demandId: string, nextValue: boolean) => Promise<void>;
+  isDragOrResizeRef?: React.RefObject<boolean>;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: demand.id,
@@ -1693,6 +1702,9 @@ function DraggableDemandCard({
     e.stopPropagation();
     e.preventDefault();
     setIsResizing(true);
+    if (isDragOrResizeRef) {
+      isDragOrResizeRef.current = true;
+    }
     
     const startY = e.clientY;
     const startHours = demand.estimated_hours ? Number(demand.estimated_hours) : 1.0;
@@ -1724,6 +1736,12 @@ function DraggableDemandCard({
       if (finalHours !== startHours) {
         await onResize(demand.id, finalHours);
       }
+
+      setTimeout(() => {
+        if (isDragOrResizeRef) {
+          isDragOrResizeRef.current = false;
+        }
+      }, 250);
     };
     
     window.addEventListener("pointermove", handlePointerMove, { capture: true });
