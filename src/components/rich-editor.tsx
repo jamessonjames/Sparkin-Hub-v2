@@ -23,6 +23,60 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 
+const uploadToSupabaseStorage = async (file: File): Promise<string | null> => {
+  try {
+    const ext = (file.name.split(".").pop() || "png").replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "png";
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+    const { error } = await supabase.storage
+      .from("demand-attachments")
+      .upload(fileName, file, { upsert: true });
+
+    if (error) {
+      console.warn("Supabase storage upload notice:", error.message);
+      return null;
+    }
+
+    const { data: publicData } = supabase.storage
+      .from("demand-attachments")
+      .getPublicUrl(fileName);
+
+    return publicData?.publicUrl || null;
+  } catch (err) {
+    console.warn("Supabase storage error:", err);
+    return null;
+  }
+};
+
+const fetchUrlAsFile = async (url: string, defaultName = "imagem_colada.png"): Promise<File | null> => {
+  try {
+    if (!url) return null;
+    if (url.startsWith("data:")) {
+      const arr = url.split(",");
+      const mimeMatch = arr[0].match(/:(.*?);/);
+      const mime = mimeMatch ? mimeMatch[1] : "image/png";
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      const ext = mime.split("/")[1] || "png";
+      return new File([u8arr], `imagem_${Date.now()}.${ext}`, { type: mime });
+    }
+
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const mime = blob.type || "image/png";
+    const ext = mime.split("/")[1] || "png";
+    const fileName = defaultName.includes(".") ? defaultName : `${defaultName}.${ext}`;
+    return new File([blob], fileName, { type: mime });
+  } catch (e) {
+    console.warn("Could not fetch external image as file:", url, e);
+    return null;
+  }
+};
+
 export const AttachmentCardExtension = Node.create({
   name: "attachmentCard",
   group: "block",
