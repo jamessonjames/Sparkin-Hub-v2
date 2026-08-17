@@ -1763,6 +1763,17 @@ function DraggableDemandCard({
   const slotsCount = displayHours / 0.5;
   const cardHeight = slotsCount * 40 - 4; // in pixels (each cell = 40px)
 
+  // Compute time range for display under title (e.g. 09:30-10:30)
+  const timeRange = useMemo(() => {
+    if (!demand.due_date) return null;
+    const dateObj = new Date(demand.due_date);
+    if (isNaN(dateObj.getTime())) return null;
+    const startStr = `${String(dateObj.getHours()).padStart(2, "0")}:${String(dateObj.getMinutes()).padStart(2, "0")}`;
+    const endDate = new Date(dateObj.getTime() + displayHours * 3600 * 1000);
+    const endStr = `${String(endDate.getHours()).padStart(2, "0")}:${String(endDate.getMinutes()).padStart(2, "0")}`;
+    return `(${startStr}-${endStr})`;
+  }, [demand.due_date, displayHours]);
+
   const style = {
     height: `${cardHeight}px`,
     zIndex: isResizing || isDragging ? 50 : 20,
@@ -1795,6 +1806,11 @@ function DraggableDemandCard({
       >
         <div className="min-w-0">
           <div className="font-semibold truncate leading-tight">{demand.title}</div>
+          {timeRange && (
+            <div className="text-[9px] font-semibold opacity-90 truncate leading-tight tracking-tight mt-0.5">
+              {timeRange}
+            </div>
+          )}
           <div className="text-[9px] opacity-75 mt-0.5 truncate max-w-full">
             {demand.clients?.name ?? "Geral"}
           </div>
