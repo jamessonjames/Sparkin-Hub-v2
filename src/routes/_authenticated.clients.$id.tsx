@@ -28,6 +28,8 @@ import { useDemandOverlay } from "@/contexts/demand-overlay";
 import { useUserContext } from "@/contexts/user-context";
 import { useSidebar } from "@/components/ui/sidebar";
 import { ClientNotesPanel } from "@/components/client-notes-panel";
+import { ClientMeetingsPanel } from "@/components/client-meetings-panel";
+import { listMeetings } from "@/lib/meetings.functions";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -171,17 +173,30 @@ function ClientPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const listMeetingsFn = useServerFn(listMeetings);
+  const { data: clientMeetings = [] } = useQuery({
+    queryKey: ["meetings", id],
+    queryFn: () => listMeetingsFn({ data: { clientId: id } }),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const filteredDemands = useMemo(() => {
     if (!client) return [];
+    // Exclude meetings from production demands and reports
+    const productionDemands = clientDemands.filter(
+      (d: any) => !d.internal_notes || !d.internal_notes.includes('"is_meeting":true')
+    );
+
     // Non-seasonal clients (monthly, credits, single, project) never filter by edition
-    if (client.billing_model !== "seasonal") return clientDemands;
-    if (selectedEditionId === "all") return clientDemands;
+    if (client.billing_model !== "seasonal") return productionDemands;
+    if (selectedEditionId === "all") return productionDemands;
 
     // Verify selectedEditionId belongs to current client's editions
     const editionBelongsToClient = clientEditions.some((e: any) => e.id === selectedEditionId);
-    if (!editionBelongsToClient) return clientDemands;
+    if (!editionBelongsToClient) return productionDemands;
 
-    return clientDemands.filter((d) => d.client_edition_id === selectedEditionId);
+    return productionDemands.filter((d: any) => d.client_edition_id === selectedEditionId);
   }, [clientDemands, client, clientEditions, selectedEditionId]);
 
   const [saving, setSaving] = useState(false);
@@ -388,6 +403,7 @@ function ClientPage() {
               <TabsTrigger value="overview">Visão geral</TabsTrigger>
               <TabsTrigger value="ai_agents">IA / Agentes</TabsTrigger>
               <TabsTrigger value="notes">Notas</TabsTrigger>
+              <TabsTrigger value="meetings">Reuniões ({clientMeetings.length})</TabsTrigger>
               {!client.is_project && <TabsTrigger value="reports">Relatórios</TabsTrigger>}
             </div>
 
@@ -718,11 +734,19 @@ function ClientPage() {
         </Dialog>
 
         {activeTab === "notes" && (
-        <TabsContent value="notes" className="mt-4 overflow-y-auto">
-          <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
-            <ClientNotesPanel clientId={id} />
-          </div>
-        </TabsContent>
+          <TabsContent value="notes" className="mt-4 overflow-y-auto">
+            <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
+              <ClientNotesPanel clientId={id} />
+            </div>
+          </TabsContent>
+        )}
+
+        {activeTab === "meetings" && (
+          <TabsContent value="meetings" className="mt-4 overflow-y-auto">
+            <div className="w-full max-w-[1400px] mx-auto px-4 md:px-6">
+              <ClientMeetingsPanel clientId={id} />
+            </div>
+          </TabsContent>
         )}
 
         {!client.is_project && activeTab === "reports" && (

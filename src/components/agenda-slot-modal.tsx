@@ -1,13 +1,13 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ListChecks, Pin, Calendar, Clock, CalendarCheck } from "lucide-react";
+import { ListChecks, Pin, Calendar, Clock, Video } from "lucide-react";
 
 interface AgendaSlotModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   slotDateTime?: string; // YYYY-MM-DDTHH:mm
   onCreateDemand: () => void;
-  onCreateCommitment?: () => void;
+  onCreateMeeting?: () => void;
   onCreateReminder: () => void;
 }
 
@@ -16,7 +16,7 @@ export function AgendaSlotModal({
   onOpenChange,
   slotDateTime,
   onCreateDemand,
-  onCreateCommitment,
+  onCreateMeeting,
   onCreateReminder,
 }: AgendaSlotModalProps) {
   let dateFormatted = "";
@@ -66,16 +66,16 @@ export function AgendaSlotModal({
             type="button"
             onClick={() => {
               onOpenChange(false);
-              onCreateCommitment?.();
+              onCreateMeeting?.();
             }}
             className="flex items-center gap-3 p-3.5 rounded-xl border border-white/10 bg-[#262626] hover:bg-[#2e2e2e] hover:border-purple-500/40 transition-all text-left group cursor-pointer"
           >
             <div className="h-9 w-9 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <CalendarCheck className="h-5 w-5" />
+              <Video className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-foreground group-hover:text-purple-400 transition-colors">Novo Compromisso</p>
-              <p className="text-[11px] text-muted-foreground">Novo compromisso ou reunião vinculado ou não a um cliente cadastrado</p>
+              <p className="text-xs font-bold text-foreground group-hover:text-purple-400 transition-colors">Nova Reunião</p>
+              <p className="text-[11px] text-muted-foreground">Nova reunião vinculada ou não a um cliente cadastrado</p>
             </div>
           </button>
 

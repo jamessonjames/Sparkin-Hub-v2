@@ -15,7 +15,9 @@ import { useUserContext } from "@/contexts/user-context";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check, Repeat, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check, Repeat, Star, Video } from "lucide-react";
+import { MeetingDialog } from "@/components/meeting-dialog";
+import { type Meeting } from "@/lib/meetings.functions";
 import { STATUS_LABELS } from "@/lib/demand-labels";
 import { cn } from "@/lib/utils";
 import {
@@ -270,6 +272,10 @@ function AgendaPage() {
   // Reminder dialog state
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState<Partial<ReminderData> | null>(null);
+
+  // Meeting dialog state
+  const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
+  const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
 
   // Group demands by date/hour/minute slot for display (ACTIVE STATUSES ONLY)
   const demandsBySlot = useMemo(() => {
@@ -1167,7 +1173,26 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                                 demand={demand}
                                 onResize={handleResizeDemand}
                                 onTogglePin={handleTogglePin}
-                                onClick={() => overlay.open(demand.id, clientsForOverlay)}
+                                onClick={() => {
+                                  const dAny = demand as any;
+                                  if (dAny.internal_notes && dAny.internal_notes.includes('"is_meeting":true')) {
+                                    let parsedPayload: any = {};
+                                    try { parsedPayload = JSON.parse(dAny.internal_notes); } catch {}
+                                    setSelectedMeeting({
+                                      id: demand.id,
+                                      client_id: dAny.client_id,
+                                      title: demand.title,
+                                      due_date: demand.due_date || "",
+                                      estimated_hours: demand.estimated_hours ? Number(demand.estimated_hours) : 1.0,
+                                      notes: parsedPayload.notes || "",
+                                      audio_url: parsedPayload.audio_url || null,
+                                      ai_summary: parsedPayload.ai_summary || null,
+                                    });
+                                    setMeetingDialogOpen(true);
+                                  } else {
+                                    overlay.open(demand.id, clientsForOverlay);
+                                  }
+                                }}
                                 isDragOrResizeRef={isDragOrResizeInProgressRef}
                               />
                             )}
@@ -1223,7 +1248,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
           ) : null}
         </DragOverlay>
 
-        {/* Slot choice modal (Nova Demanda, Novo Compromisso, Adicionar Lembrete) */}
+        {/* Slot choice modal (Nova Demanda, Nova Reunião, Adicionar Lembrete) */}
         <AgendaSlotModal
           open={slotModalOpen}
           onOpenChange={setSlotModalOpen}
@@ -1239,16 +1264,9 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
               1.0
             );
           }}
-          onCreateCommitment={() => {
-            overlay.openNew(
-              clientsForOverlay,
-              undefined,
-              "nao_iniciado",
-              undefined,
-              isAdminOrOwner && activeUserId ? activeUserId : undefined,
-              selectedSlotDateTime,
-              1.0
-            );
+          onCreateMeeting={() => {
+            setSelectedMeeting(null);
+            setMeetingDialogOpen(true);
           }}
           onCreateReminder={() => {
             setEditingReminder({
@@ -1258,6 +1276,15 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
             });
             setReminderDialogOpen(true);
           }}
+        />
+
+        {/* Meeting Dialog */}
+        <MeetingDialog
+          open={meetingDialogOpen}
+          onOpenChange={setMeetingDialogOpen}
+          meeting={selectedMeeting}
+          defaultSlotDateTime={selectedSlotDateTime}
+          onSuccess={() => qc.invalidateQueries({ queryKey: ["demands"] })}
         />
 
         {/* Reminder dialog */}
@@ -1785,6 +1812,8 @@ function DraggableDemandCard({
     return `(${startStr}-${endStr})`;
   }, [demand.due_date, displayHours]);
 
+  const isMeeting = Boolean((demand as any).internal_notes && (demand as any).internal_notes.includes('"is_meeting":true'));
+
   const style = {
     height: `${cardHeight}px`,
     zIndex: isResizing || isDragging ? 50 : 20,
@@ -1797,7 +1826,9 @@ function DraggableDemandCard({
       className={cn(
         "group absolute inset-x-0.5 top-0.5 rounded border-l-4 p-1.5 text-[10px] font-medium cursor-pointer shadow-sm select-none",
         "transition-all flex flex-col justify-between overflow-hidden",
-        STATUS_BG[demand.status] ?? "bg-[#38a1db] text-white",
+        isMeeting
+          ? "bg-[#6b21a8] text-white border-l-purple-300"
+          : (STATUS_BG[demand.status] ?? "bg-[#38a1db] text-white"),
         PRIORITY_COLOR[demand.priority] ?? "border-l-zinc-500",
         isDragging && "opacity-40 scale-95 z-50 shadow-2xl rotate-1",
         demand.status === "concluido" && "line-through opacity-60",
@@ -1816,7 +1847,10 @@ function DraggableDemandCard({
         className="flex flex-col gap-0.5 h-full justify-between min-w-0 pb-1"
       >
         <div className="min-w-0">
-          <div className="font-semibold truncate leading-tight">{demand.title}</div>
+          <div className="font-semibold truncate leading-tight flex items-center gap-1">
+            {isMeeting && <Video className="h-3 w-3 text-purple-200 shrink-0" />}
+            <span className="truncate">{demand.title}</span>
+          </div>
           {timeRange && (
             <div className="text-[9px] font-semibold opacity-90 truncate leading-tight tracking-tight mt-0.5">
               {timeRange}
