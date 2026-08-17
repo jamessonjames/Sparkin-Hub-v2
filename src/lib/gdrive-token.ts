@@ -60,7 +60,9 @@ export async function connectGDriveCode(): Promise<string> {
         }
       },
     });
-    codeClient.requestCode();
+    // Force a fresh consent grant so Google issues a new refresh token instead
+    // of leaving the server tied to a revoked/expired grant.
+    codeClient.requestCode({ prompt: "consent" });
   });
 }
 

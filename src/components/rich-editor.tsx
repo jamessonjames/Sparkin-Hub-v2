@@ -21,30 +21,12 @@ import { uploadDirectToGDrive } from "@/lib/gdrive-client-upload";
 import { Node, mergeAttributes } from "@tiptap/core";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { uploadToFallbackStorage } from "@/lib/supabase-storage";
 
-const uploadToSupabaseStorage = async (file: File): Promise<string | null> => {
-  try {
-    const ext = (file.name.split(".").pop() || "png").replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "png";
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-    const { error } = await supabase.storage
-      .from("demand-attachments")
-      .upload(fileName, file, { upsert: true });
-
-    if (error) {
-      console.warn("Supabase storage upload notice:", error.message);
-      return null;
-    }
-
-    const { data: publicData } = supabase.storage
-      .from("demand-attachments")
-      .getPublicUrl(fileName);
-
-    return publicData?.publicUrl || null;
-  } catch (err) {
-    console.warn("Supabase storage error:", err);
-    return null;
-  }
+const uploadToSupabaseStorage = async (file: File, pathParts: string[] = []): Promise<string | null> => {
+  const result = await uploadToFallbackStorage(file, pathParts);
+  if (!result.success) console.warn("Supabase storage upload notice:", result.error);
+  return result.url || null;
 };
 
 const fetchUrlAsFile = async (url: string, defaultName = "imagem_colada.png"): Promise<File | null> => {
@@ -726,7 +708,7 @@ export function RichEditor({
           toast.success("Imagem enviada para o Google Drive com sucesso!");
         } else {
           // Fallback to Supabase Storage before base64
-          const supabaseUrl = await uploadToSupabaseStorage(file);
+          const supabaseUrl = await uploadToSupabaseStorage(file, gDrivePath);
           const finalUrl = supabaseUrl || (await new Promise<string>((res) => {
             const r = new FileReader();
             r.onload = (e) => res(e.target?.result as string);
@@ -758,7 +740,7 @@ export function RichEditor({
           }
           return true;
         });
-        const supabaseUrl = await uploadToSupabaseStorage(file);
+        const supabaseUrl = await uploadToSupabaseStorage(file, gDrivePath);
         const finalUrl = supabaseUrl || (await new Promise<string>((res) => {
           const r = new FileReader();
           r.onload = (e) => res(e.target?.result as string);
@@ -877,10 +859,28 @@ export function RichEditor({
           }
           toast.success(`Arquivo "${file.name}" anexado no destaque!`);
         } else {
-          if (foundRange) {
-            editor?.chain().focus().deleteRange(foundRange).run();
+          const fallback = await uploadToFallbackStorage(file, gDrivePath);
+          if (fallback.success && fallback.url) {
+            const cardData = {
+              type: "attachmentCard",
+              attrs: {
+                src: fallback.url,
+                fileName: file.name,
+                fileSize: formatFileSizeLocal(file.size),
+                fileExt: ext,
+                isUploading: "false",
+              },
+            };
+            if (foundRange) {
+              editor?.chain().focus().deleteRange(foundRange).insertContent(cardData).run();
+            } else {
+              editor?.chain().focus().insertContent(cardData).run();
+            }
+            toast.success(`Arquivo "${file.name}" salvo na nuvem de contingência.`);
+          } else {
+            if (foundRange) editor?.chain().focus().deleteRange(foundRange).run();
+            toast.error(fallback.error || response.error || "Erro ao carregar arquivo.");
           }
-          toast.error(response.error || "Erro ao carregar arquivo.");
         }
       } catch (error: any) {
         clearInterval(progressInterval);
@@ -895,11 +895,29 @@ export function RichEditor({
           }
           return true;
         });
-        if (foundRange) {
-          editor?.chain().focus().deleteRange(foundRange).run();
-        }
         console.error("Upload error:", error);
-        toast.error("Erro ao subir arquivo.");
+        const fallback = await uploadToFallbackStorage(file, gDrivePath);
+        if (fallback.success && fallback.url) {
+          const cardData = {
+            type: "attachmentCard",
+            attrs: {
+              src: fallback.url,
+              fileName: file.name,
+              fileSize: formatFileSizeLocal(file.size),
+              fileExt: ext,
+              isUploading: "false",
+            },
+          };
+          if (foundRange) {
+            editor?.chain().focus().deleteRange(foundRange).insertContent(cardData).run();
+          } else {
+            editor?.chain().focus().insertContent(cardData).run();
+          }
+          toast.success(`Arquivo "${file.name}" salvo na nuvem de contingência.`);
+        } else {
+          if (foundRange) editor?.chain().focus().deleteRange(foundRange).run();
+          toast.error(fallback.error || "Erro ao subir arquivo.");
+        }
       } finally {
         setUploading(false);
         setUploadProgress(0);

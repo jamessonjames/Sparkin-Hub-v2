@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Upload, Trash2, File, FileText, Image, Download, Loader2 } from "lucide-react";
 import { getGoogleDriveViewUrl } from "@/lib/gdrive-token";
+import { uploadToFallbackStorage } from "@/lib/supabase-storage";
 
 const FILE_ICONS: Record<string, typeof File> = {
   "image/": Image,
@@ -117,7 +118,23 @@ export function FileAttachments({
           toast.success(`"${file.name}" anexado!`);
           qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
         } else {
-          toast.error(res.error || "Erro ao anexar arquivo.");
+          const fallback = await uploadToFallbackStorage(file, pathParts);
+          if (!fallback.success || !fallback.url || !fallback.path) {
+            throw new Error(fallback.error || res.error || "Erro ao anexar arquivo.");
+          }
+          await createRecordFn({
+            data: {
+              entityType,
+              entityId,
+              fileName: file.name,
+              fileType: file.type || "application/octet-stream",
+              fileSize: file.size,
+              driveFileId: `supabase:${fallback.path}`,
+              driveUrl: fallback.url,
+            },
+          });
+          toast.success(`"${file.name}" salvo na nuvem de contingência.`);
+          qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
         }
       }
     } catch (err: any) {
@@ -261,7 +278,7 @@ export function FileAttachments({
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                  title="Abrir no Google Drive"
+                  title="Abrir arquivo"
                 >
                   <Download className="h-3.5 w-3.5" />
                 </a>

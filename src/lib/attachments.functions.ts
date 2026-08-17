@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { getOrCreateFolderPath, uploadFile, makeFilePublic, getRootFolderId, getServerGDriveAccessToken } from "@/lib/gdrive.functions";
+import { getOrCreateFolderPath, uploadFile, makeFilePublic, getRootFolderId, runDriveOperationWithRefresh } from "@/lib/gdrive.functions";
 
 // ── Upload a file attachment to Google Drive and save record ──
 export const uploadAttachment = createServerFn({ method: "POST" })
@@ -16,19 +16,21 @@ export const uploadAttachment = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data: { accessToken: providedToken, entityType, entityId, fileBase64, fileName, mimeType }, context }) => {
     try {
-      const accessToken = providedToken || (await getServerGDriveAccessToken(context));
-      const rootFolderId = await getRootFolderId(context);
-      if (!rootFolderId) {
-        throw new Error("Google Drive não conectado. Conecte em Admin > Integrações.");
-      }
+      const uploaded = await runDriveOperationWithRefresh(context, providedToken, async (accessToken) => {
+        const rootFolderId = await getRootFolderId(context);
+        if (!rootFolderId) {
+          throw new Error("Google Drive não conectado. Conecte em Admin > Integrações.");
+        }
 
-      const folderPath = ["Attachments", `${entityType}s`, entityId];
-      const folderId = await getOrCreateFolderPath(accessToken, folderPath, rootFolderId);
-      const fileId = await uploadFile(accessToken, fileBase64, fileName, mimeType, folderId);
-      await makeFilePublic(accessToken, fileId);
-      const viewUrl = mimeType.startsWith("image/")
-        ? `https://lh3.googleusercontent.com/d/${fileId}`
-        : `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+        const folderPath = ["Attachments", `${entityType}s`, entityId];
+        const folderId = await getOrCreateFolderPath(accessToken, folderPath, rootFolderId);
+        const fileId = await uploadFile(accessToken, fileBase64, fileName, mimeType, folderId);
+        await makeFilePublic(accessToken, fileId);
+        const viewUrl = mimeType.startsWith("image/")
+          ? `https://lh3.googleusercontent.com/d/${fileId}`
+          : `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+        return { fileId, viewUrl };
+      });
 
       const { error: insErr } = await context.supabase
         .from("file_attachments" as any)
@@ -38,15 +40,15 @@ export const uploadAttachment = createServerFn({ method: "POST" })
           file_name: fileName,
           file_type: mimeType,
           file_size: Math.ceil(Buffer.byteLength(fileBase64, "base64")),
-          drive_file_id: fileId,
-          drive_url: viewUrl,
+          drive_file_id: uploaded.fileId,
+          drive_url: uploaded.viewUrl,
           uploaded_by: context.userId,
           file_path: fileName, // fallback
         } as any);
 
       if (insErr) throw insErr;
 
-      return { success: true, fileId, url: viewUrl, fileName };
+      return { success: true, fileId: uploaded.fileId, url: uploaded.viewUrl, fileName };
     } catch (e: any) {
       console.error("uploadAttachment error:", e);
       return { success: false, error: e.message || "Erro ao fazer upload do anexo." };

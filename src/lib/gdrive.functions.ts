@@ -2,6 +2,16 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+class GoogleDriveApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "GoogleDriveApiError";
+    this.status = status;
+  }
+}
+
 function parseDriveError(resStatus: number, resText: string): string {
   if (resStatus === 401 || resText.includes("UNAUTHENTICATED") || resText.includes("invalid authentication credentials") || resText.includes("Invalid Credentials")) {
     return "A sessão do Google Drive expirou (token de 1 hora). Acesse Admin > Integrações para reconectar a conta.";
@@ -13,66 +23,116 @@ function parseDriveError(resStatus: number, resText: string): string {
   return resText;
 }
 
-// Helper to get or refresh valid Google Drive access token on the server
-export async function getServerGDriveAccessToken(context: { supabase: any }): Promise<string> {
-  const { data } = await (context.supabase as any)
+function getGoogleClientId(): string {
+  return process.env.GOOGLE_CLIENT_ID
+    || process.env.VITE_GOOGLE_CLIENT_ID
+    || (typeof import.meta !== "undefined" && import.meta.env?.VITE_GOOGLE_CLIENT_ID)
+    || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
+}
+
+function getGoogleClientSecret(storedSecret?: string | null): string {
+  return process.env.GOOGLE_CLIENT_SECRET
+    || storedSecret
+    || process.env.VITE_GOOGLE_CLIENT_SECRET
+    || (typeof import.meta !== "undefined" && import.meta.env?.VITE_GOOGLE_CLIENT_SECRET)
+    || "";
+}
+
+async function readGoogleDriveCredentials(context: { supabase: any }) {
+  const { data, error } = await (context.supabase as any)
     .from("system_settings")
     .select("value")
     .eq("key", "google_drive_credentials")
     .maybeSingle();
 
-  const creds = data?.value as any;
+  if (error) throw new Error(`Falha ao ler as credenciais do Google Drive: ${error.message}`);
+  return data?.value as any;
+}
+
+async function refreshGoogleDriveAccessToken(context: { supabase: any }, creds: any): Promise<string> {
+  if (!creds?.refresh_token) {
+    throw new Error("O Google Drive não possui refresh token. Reconecte a conta uma vez em Admin > Integrações.");
+  }
+
+  const params = new URLSearchParams({
+    client_id: getGoogleClientId(),
+    grant_type: "refresh_token",
+    refresh_token: creds.refresh_token,
+  });
+  const clientSecret = getGoogleClientSecret(creds.client_secret);
+  if (clientSecret) params.set("client_secret", clientSecret);
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  const responseText = await res.text();
+
+  if (!res.ok) {
+    let googleError = "";
+    let googleDescription = "";
+    try {
+      const parsed = JSON.parse(responseText);
+      googleError = parsed.error || "";
+      googleDescription = parsed.error_description || "";
+    } catch {}
+
+    console.error("[GoogleDrive] Token refresh rejected", {
+      status: res.status,
+      error: googleError || "unknown_error",
+    });
+
+    if (googleError === "invalid_grant") {
+      throw new Error(
+        "A autorização permanente do Google Drive expirou ou foi revogada. Reconecte a conta em Admin > Integrações. Se isso ocorrer a cada 7 dias, publique o app OAuth como 'Em produção' no Google Cloud."
+      );
+    }
+
+    throw new Error(
+      `Não foi possível renovar o acesso ao Google Drive${googleDescription ? `: ${googleDescription}` : "."}`
+    );
+  }
+
+  const tokenData = JSON.parse(responseText);
+  if (!tokenData.access_token) throw new Error("O Google não retornou um novo token de acesso.");
+
+  const newCredentials = {
+    ...creds,
+    access_token: tokenData.access_token,
+    refresh_token: tokenData.refresh_token || creds.refresh_token,
+    expires_at: Date.now() + (tokenData.expires_in || 3600) * 1000,
+  };
+  const { error: updateError } = await (context.supabase as any)
+    .from("system_settings")
+    .update({ value: newCredentials })
+    .eq("key", "google_drive_credentials");
+
+  if (updateError) {
+    throw new Error(`O token foi renovado, mas não pôde ser persistido: ${updateError.message}`);
+  }
+
+  return tokenData.access_token;
+}
+
+// Helper to get or refresh valid Google Drive access token on the server
+export async function getServerGDriveAccessToken(
+  context: { supabase: any },
+  options: { forceRefresh?: boolean } = {},
+): Promise<string> {
+  const creds = await readGoogleDriveCredentials(context);
   if (!creds) {
     throw new Error("Google Drive não configurado no sistema. Conecte sua conta em Admin > Integrações.");
   }
 
   // 1. If active access_token is valid (not expiring in next 60s)
-  if (creds.access_token && creds.expires_at && Date.now() < creds.expires_at - 60000) {
+  if (!options.forceRefresh && creds.access_token && creds.expires_at && Date.now() < creds.expires_at - 60000) {
     return creds.access_token;
   }
 
-  // 2. If refresh_token is present, exchange for a new access token
+  // 2. Exchange the permanent refresh token for a short-lived access token.
   if (creds.refresh_token) {
-    try {
-      const GOOGLE_CLIENT_ID = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_ID) || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
-      const GOOGLE_CLIENT_SECRET = creds.client_secret || (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_SECRET) || "";
-      const params = new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
-        grant_type: "refresh_token",
-        refresh_token: creds.refresh_token,
-      });
-      if (GOOGLE_CLIENT_SECRET) params.set("client_secret", GOOGLE_CLIENT_SECRET);
-
-      const res = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: params.toString(),
-      });
-
-      if (res.ok) {
-        const tokenData = await res.json();
-        const newAccessToken = tokenData.access_token;
-        const expiresIn = tokenData.expires_in || 3600;
-        const newExpiresAt = Date.now() + expiresIn * 1000;
-        const newRefreshToken = tokenData.refresh_token || creds.refresh_token;
-
-        await (context.supabase as any)
-          .from("system_settings")
-          .update({
-            value: {
-              ...creds,
-              access_token: newAccessToken,
-              refresh_token: newRefreshToken,
-              expires_at: newExpiresAt,
-            },
-          })
-          .eq("key", "google_drive_credentials");
-
-        return newAccessToken;
-      }
-    } catch (err) {
-      console.error("[getServerGDriveAccessToken] refresh token error:", err);
-    }
+    return refreshGoogleDriveAccessToken(context, creds);
   }
 
   // 3. Check if access_token is expired and cannot be refreshed
@@ -89,6 +149,21 @@ export async function getServerGDriveAccessToken(context: { supabase: any }): Pr
   }
 
   throw new Error("Sessão do Google Drive não conectada. Conecte sua conta em Admin > Integrações.");
+}
+
+export async function runDriveOperationWithRefresh<T>(
+  context: { supabase: any },
+  providedToken: string | null | undefined,
+  operation: (accessToken: string) => Promise<T>,
+): Promise<T> {
+  let accessToken = providedToken || await getServerGDriveAccessToken(context);
+  try {
+    return await operation(accessToken);
+  } catch (error) {
+    if (providedToken || !(error instanceof GoogleDriveApiError) || error.status !== 401) throw error;
+    accessToken = await getServerGDriveAccessToken(context, { forceRefresh: true });
+    return operation(accessToken);
+  }
 }
 
 // Store Google Drive token after client-side OAuth (GIS)
@@ -153,8 +228,8 @@ export const storeGoogleDriveCode = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data: { code, clientSecret }, context }) => {
     try {
-      const GOOGLE_CLIENT_ID = (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_ID) || "794191743424-c912rov9fp3d14kahf5vtau5pef9fcmm.apps.googleusercontent.com";
-      const GOOGLE_CLIENT_SECRET = clientSecret || (typeof import.meta !== "undefined" && import.meta?.env?.VITE_GOOGLE_CLIENT_SECRET) || "";
+      const GOOGLE_CLIENT_ID = getGoogleClientId();
+      const GOOGLE_CLIENT_SECRET = getGoogleClientSecret(clientSecret);
 
       const params = new URLSearchParams({
         code,
@@ -266,6 +341,15 @@ export const getGoogleDriveStatus = createServerFn({ method: "GET" })
 
       const val = data.value as any;
       let email = val.account_email || "";
+      let expired = false;
+      let connectionError = "";
+
+      try {
+        await getServerGDriveAccessToken(context);
+      } catch (tokenError: any) {
+        expired = true;
+        connectionError = tokenError.message || "Não foi possível renovar a sessão do Google Drive.";
+      }
 
       // If email is missing or Desconhecido, attempt safe background auto-heal if access_token is present
       if ((!email || email === "Desconhecido") && val.access_token) {
@@ -298,6 +382,8 @@ export const getGoogleDriveStatus = createServerFn({ method: "GET" })
       return {
         connected: true,
         email: email || "Conectado",
+        expired,
+        error: connectionError || undefined,
       };
     } catch (e) {
       console.error("getGoogleDriveStatus error:", e);
@@ -366,7 +452,7 @@ async function createFolder(accessToken: string, name: string, parentId?: string
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(parseDriveError(res.status, err));
+    throw new GoogleDriveApiError(res.status, parseDriveError(res.status, err));
   }
 
   const data = await res.json();
@@ -438,7 +524,7 @@ export async function uploadFile(
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(parseDriveError(res.status, err));
+    throw new GoogleDriveApiError(res.status, parseDriveError(res.status, err));
   }
 
   const data = await res.json();
@@ -461,7 +547,7 @@ export async function makeFilePublic(accessToken: string, fileId: string): Promi
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(parseDriveError(res.status, err));
+    throw new GoogleDriveApiError(res.status, parseDriveError(res.status, err));
   }
 }
 
@@ -488,16 +574,17 @@ export const uploadToGDrive = createServerFn({ method: "POST" })
   .validator(uploadSchema)
   .handler(async ({ data: { accessToken: providedToken, fileBase64, fileName, mimeType, pathParts }, context }) => {
     try {
-      const accessToken = providedToken || (await getServerGDriveAccessToken(context));
-      const rootFolderId = await getRootFolderId(context);
-      const folderId = await getOrCreateFolderPath(accessToken, pathParts, rootFolderId || undefined);
-      const fileId = await uploadFile(accessToken, fileBase64, fileName, mimeType, folderId);
-      await makeFilePublic(accessToken, fileId);
-      const viewUrl = mimeType.startsWith("image/")
-        ? `https://lh3.googleusercontent.com/d/${fileId}`
-        : `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+      return await runDriveOperationWithRefresh(context, providedToken, async (accessToken) => {
+        const rootFolderId = await getRootFolderId(context);
+        const folderId = await getOrCreateFolderPath(accessToken, pathParts, rootFolderId || undefined);
+        const fileId = await uploadFile(accessToken, fileBase64, fileName, mimeType, folderId);
+        await makeFilePublic(accessToken, fileId);
+        const viewUrl = mimeType.startsWith("image/")
+          ? `https://lh3.googleusercontent.com/d/${fileId}`
+          : `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
 
-      return { success: true, fileId, url: viewUrl };
+        return { success: true, fileId, url: viewUrl };
+      });
     } catch (error: any) {
       console.error("uploadToGDrive server function error:", error);
       return { success: false, error: error.message || "Erro durante o upload ao Google Drive." };
@@ -513,18 +600,19 @@ export const deleteFromGDrive = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data: { accessToken: providedToken, fileId }, context }) => {
     try {
-      const accessToken = providedToken || (await getServerGDriveAccessToken(context));
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
+      return await runDriveOperationWithRefresh(context, providedToken, async (accessToken) => {
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        if (!res.ok) {
+          const err = await res.text();
+          throw new GoogleDriveApiError(res.status, `Erro ao deletar arquivo do Drive: ${parseDriveError(res.status, err)}`);
+        }
+        return { success: true };
       });
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Erro ao deletar arquivo do Drive: ${err}`);
-      }
-      return { success: true };
     } catch (error: any) {
       console.error("deleteFromGDrive error:", error);
       return { success: false, error: error.message || "Erro ao deletar do Google Drive." };
