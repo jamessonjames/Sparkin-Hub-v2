@@ -1,12 +1,13 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ListChecks, Pin, Calendar, Clock } from "lucide-react";
+import { ListChecks, Pin, Calendar, Clock, CalendarCheck } from "lucide-react";
 
 interface AgendaSlotModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   slotDateTime?: string; // YYYY-MM-DDTHH:mm
   onCreateDemand: () => void;
+  onCreateCommitment?: () => void;
   onCreateReminder: () => void;
 }
 
@@ -15,6 +16,7 @@ export function AgendaSlotModal({
   onOpenChange,
   slotDateTime,
   onCreateDemand,
+  onCreateCommitment,
   onCreateReminder,
 }: AgendaSlotModalProps) {
   let dateFormatted = "";
@@ -28,7 +30,7 @@ export function AgendaSlotModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[360px] p-5 bg-[#202020] border border-white/10 text-foreground rounded-2xl shadow-2xl space-y-4">
+      <DialogContent className="sm:max-w-[380px] p-5 bg-[#202020] border border-white/10 text-foreground rounded-2xl shadow-2xl space-y-4">
         <DialogHeader>
           <DialogTitle className="text-sm font-bold text-foreground flex items-center gap-2">
             <Calendar className="h-4 w-4 text-primary" />
@@ -57,6 +59,23 @@ export function AgendaSlotModal({
             <div>
               <p className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">Nova Demanda</p>
               <p className="text-[11px] text-muted-foreground">Vincular a um cliente e fluxo do Kanban</p>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onOpenChange(false);
+              onCreateCommitment?.();
+            }}
+            className="flex items-center gap-3 p-3.5 rounded-xl border border-white/10 bg-[#262626] hover:bg-[#2e2e2e] hover:border-purple-500/40 transition-all text-left group cursor-pointer"
+          >
+            <div className="h-9 w-9 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <CalendarCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-foreground group-hover:text-purple-400 transition-colors">Novo Compromisso</p>
+              <p className="text-[11px] text-muted-foreground">Novo compromisso ou reunião vinculado ou não a um cliente cadastrado</p>
             </div>
           </button>
 

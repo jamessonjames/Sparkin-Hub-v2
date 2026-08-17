@@ -1223,12 +1223,23 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
           ) : null}
         </DragOverlay>
 
-        {/* Slot choice modal (Nova Demanda vs Novo Lembrete) */}
+        {/* Slot choice modal (Nova Demanda, Novo Compromisso, Adicionar Lembrete) */}
         <AgendaSlotModal
           open={slotModalOpen}
           onOpenChange={setSlotModalOpen}
           slotDateTime={selectedSlotDateTime}
           onCreateDemand={() => {
+            overlay.openNew(
+              clientsForOverlay,
+              undefined,
+              "nao_iniciado",
+              undefined,
+              isAdminOrOwner && activeUserId ? activeUserId : undefined,
+              selectedSlotDateTime,
+              1.0
+            );
+          }}
+          onCreateCommitment={() => {
             overlay.openNew(
               clientsForOverlay,
               undefined,
