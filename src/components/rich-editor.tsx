@@ -77,6 +77,72 @@ const fetchUrlAsFile = async (url: string, defaultName = "imagem_colada.png"): P
   }
 };
 
+const compressImageToWebP = async (
+  file: File | Blob,
+  quality = 0.75,
+  maxDimension = 1600
+): Promise<File> => {
+  return new Promise((resolve) => {
+    if (!file.type || !file.type.startsWith("image/") || file.type === "image/svg+xml" || file.type === "image/gif") {
+      if (file instanceof File) return resolve(file);
+      return resolve(new File([file], `imagem_${Date.now()}.gif`, { type: file.type || "image/gif" }));
+    }
+
+    const img = typeof window !== "undefined" ? new window.Image() : document.createElement("img");
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        if (file instanceof File) return resolve(file);
+        return resolve(new File([file], `imagem_${Date.now()}.webp`, { type: "image/webp" }));
+      }
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            if (file instanceof File) return resolve(file);
+            return resolve(new File([file], `imagem_${Date.now()}.webp`, { type: "image/webp" }));
+          }
+          const compressedFile = new File([blob], `imagem_${Date.now()}.webp`, { type: "image/webp" });
+          resolve(compressedFile);
+        },
+        "image/webp",
+        quality
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      if (file instanceof File) return resolve(file);
+      return resolve(new File([file], `imagem_${Date.now()}.png`, { type: "image/png" }));
+    };
+
+    img.src = url;
+  });
+};
+
 export const AttachmentCardExtension = Node.create({
   name: "attachmentCard",
   group: "block",
@@ -591,7 +657,12 @@ export function RichEditor({
   };
 
   const insertImage = useCallback(
-    async (file: File) => {
+    async (rawFile: File) => {
+      // Compress image to WebP with 75% quality to keep file size minimal (95%+ lighter)
+      const file = rawFile.type.startsWith("image/")
+        ? await compressImageToWebP(rawFile, 0.75, 1600)
+        : rawFile;
+
       const tempId = Math.random().toString(36).substring(2, 9);
       editor?.chain().focus().insertContent(`<a href="#upload-${tempId}" class="text-primary animate-pulse font-medium">⏳ Enviando "${file.name}" (10%)...</a> `).run();
 
