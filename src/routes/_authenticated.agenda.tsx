@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check, Repeat, Star, Video } from "lucide-react";
 import { MeetingDialog } from "@/components/meeting-dialog";
-import { listMeetings, type Meeting } from "@/lib/meetings.functions";
+import { listMeetings, upsertMeeting, type Meeting } from "@/lib/meetings.functions";
 import { STATUS_LABELS } from "@/lib/demand-labels";
 import { cn } from "@/lib/utils";
 import {
@@ -193,6 +193,7 @@ function AgendaPage() {
   const listFn = useServerFn(listDemands);
   const clientsFn = useServerFn(listClients);
   const listMeetingsFn = useServerFn(listMeetings);
+  const upsertMeetingFn = useServerFn(upsertMeeting);
   const batchUpdateFn = useServerFn(batchUpdateDueDates);
   const updateFn = useServerFn(updateDemand);
   const overlay = useDemandOverlay();
@@ -848,6 +849,44 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
       return;
     }
 
+    if (activeIdStr.startsWith("meeting:")) {
+      const meetingId = activeIdStr.slice("meeting:".length);
+      const meeting = meetings.find((item) => item.id === meetingId);
+      if (!meeting) return;
+
+      if (!isValidSlot(targetDate, config)) {
+        toast.error("Este intervalo fica fora do expediente configurado.");
+        return;
+      }
+
+      const nextDate = targetDate.toISOString();
+      qc.setQueryData<Meeting[]>(["meetings"], (previous) =>
+        (previous || []).map((item) => item.id === meetingId ? { ...item, due_date: nextDate } : item)
+      );
+
+      try {
+        await upsertMeetingFn({
+          data: {
+            id: meeting.id,
+            client_id: meeting.client_id || null,
+            title: meeting.title,
+            due_date: nextDate,
+            estimated_hours: meeting.estimated_hours,
+            notes: meeting.notes || "",
+            transcript: meeting.transcript || "",
+            ai_summary: meeting.ai_summary || "",
+            audio_url: meeting.audio_url || null,
+          },
+        });
+        toast.success("Reunião reagendada!");
+        qc.invalidateQueries({ queryKey: ["meetings"] });
+      } catch (err) {
+        toast.error("Erro ao reagendar reunião.");
+        qc.invalidateQueries({ queryKey: ["meetings"] });
+      }
+      return;
+    }
+
     const demandId = activeIdStr.replace(/^pill_demand:/, "");
 
     if (!isValidSlot(targetDate, config)) {
@@ -884,7 +923,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
   }
 
   const activeDragDemand = useMemo(() => {
-    if (!activeDragId || activeDragId.startsWith("reminder:")) return null;
+    if (!activeDragId || activeDragId.startsWith("reminder:") || activeDragId.startsWith("meeting:")) return null;
     const realId = activeDragId.startsWith("pill_demand:") ? activeDragId.replace("pill_demand:", "") : activeDragId;
     const demand = demands.find((d) => d.id === realId) as AgendaDemand | undefined;
     if (!demand) return null;
@@ -896,6 +935,11 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
     const remId = activeDragId.split(":")[1];
     return (reminders.find((r) => (r as any).id === remId) as any) || null;
   }, [activeDragId, reminders]);
+
+  const activeDragMeeting = useMemo(() => {
+    if (!activeDragId?.startsWith("meeting:")) return null;
+    return meetings.find((meeting) => meeting.id === activeDragId.slice("meeting:".length)) || null;
+  }, [activeDragId, meetings]);
 
   async function handleSaveReminder(data: ReminderData) {
     try {
@@ -1219,24 +1263,16 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                             )}
 
                             {meetingsInSlot.map((meeting) => (
-                              <button
+                              <DraggableMeetingCard
                                 key={meeting.id}
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
+                                meeting={meeting}
+                                onClick={() => {
                                   setSelectedMeeting(meeting);
                                   setSelectedSlotDateTime("");
                                   setMeetingDialogOpen(true);
                                 }}
-                                className={cn(
-                                  "relative z-10 mt-1 w-full rounded-md border-l-4 border-l-purple-500 bg-purple-600/90 px-2 py-1 text-left text-white shadow-sm hover:bg-purple-500",
-                                  demand && "ml-1 w-[calc(100%-0.25rem)]"
-                                )}
-                                style={{ minHeight: `${Math.max(32, meeting.estimated_hours * 80 - 4)}px` }}
-                              >
-                                <span className="flex items-center gap-1 text-[10px] font-bold"><Video className="h-3 w-3" /> {meeting.title}</span>
-                                <span className="block truncate text-[9px] text-purple-100">{meeting.clients?.name || "Reunião avulsa"}</span>
-                              </button>
+                                hasDemandInSlot={!!demand}
+                              />
                             ))}
 
                             {remindersInSlot.map((rem) => (
@@ -1287,6 +1323,8 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
             <AgendaDemandCardPreview demand={activeDragDemand} />
           ) : activeDragReminder ? (
             <ReminderPostItCardPreview reminder={activeDragReminder} />
+          ) : activeDragMeeting ? (
+            <MeetingCardPreview meeting={activeDragMeeting} />
           ) : null}
         </DragOverlay>
 
@@ -1586,6 +1624,54 @@ function DaySummaryPill({
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+function DraggableMeetingCard({
+  meeting,
+  onClick,
+  hasDemandInSlot,
+}: {
+  meeting: Meeting;
+  onClick: () => void;
+  hasDemandInSlot?: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `meeting:${meeting.id}`,
+  });
+
+  return (
+    <button
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        if (!isDragging) onClick();
+      }}
+      className={cn(
+        "relative z-10 mt-1 w-full cursor-grab rounded-md border-l-4 border-l-purple-500 bg-purple-600/90 px-2 py-1 text-left text-white shadow-sm hover:bg-purple-500 active:cursor-grabbing",
+        hasDemandInSlot && "ml-1 w-[calc(100%-0.25rem)]",
+        isDragging && "opacity-30"
+      )}
+      style={{ minHeight: `${Math.max(32, meeting.estimated_hours * 80 - 4)}px` }}
+    >
+      <span className="flex items-center gap-1 text-[10px] font-bold"><Video className="h-3 w-3" /> {meeting.title}</span>
+      <span className="block truncate text-[9px] text-purple-100">{meeting.clients?.name || "Reunião avulsa"}</span>
+    </button>
+  );
+}
+
+function MeetingCardPreview({ meeting }: { meeting: Meeting }) {
+  return (
+    <div
+      className="w-[180px] rounded-md border-l-4 border-l-purple-500 bg-purple-600 px-2 py-1 text-white shadow-2xl"
+      style={{ minHeight: `${Math.max(32, meeting.estimated_hours * 80 - 4)}px` }}
+    >
+      <span className="flex items-center gap-1 text-[10px] font-bold"><Video className="h-3 w-3" /> {meeting.title}</span>
+      <span className="block truncate text-[9px] text-purple-100">{meeting.clients?.name || "Reunião avulsa"}</span>
+    </div>
   );
 }
 

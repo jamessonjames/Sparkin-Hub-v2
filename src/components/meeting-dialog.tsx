@@ -211,7 +211,9 @@ export function MeetingDialog({
           id: meeting?.id,
           title: title.trim(),
           client_id: clientId === "none" ? null : clientId,
-          due_date: dueDate,
+          // datetime-local has no timezone; convert in the browser so 09:00 remains
+          // 09:00 in the user's timezone when persisted as timestamptz.
+          due_date: new Date(dueDate).toISOString(),
           estimated_hours: Number(estimatedHours),
           notes,
           ai_summary: aiSummary,
