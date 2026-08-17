@@ -21,6 +21,7 @@ import { uploadDirectToGDrive } from "@/lib/gdrive-client-upload";
 import { Node, mergeAttributes } from "@tiptap/core";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 export const AttachmentCardExtension = Node.create({
   name: "attachmentCard",
@@ -325,7 +326,10 @@ export function RichEditor({
         return false;
       },
       handleDrop: (view, event, slice, moved) => {
-        if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+        if (moved) return false;
+
+        // 1. Files dropped directly from local machine
+        if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
           event.preventDefault();
           event.stopPropagation();
           const files = Array.from(event.dataTransfer.files);
@@ -334,6 +338,35 @@ export function RichEditor({
           }
           return true;
         }
+
+        // 2. Dragged image from another web page or browser tab
+        const html = event.dataTransfer ? event.dataTransfer.getData("text/html") : "";
+        const uriList = event.dataTransfer ? event.dataTransfer.getData("text/uri-list") : "";
+
+        if (html && html.includes("<img")) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, "text/html");
+          const img = doc.querySelector("img");
+          const src = img?.getAttribute("src");
+          if (src && !src.includes("lh3.googleusercontent.com/d/") && !src.includes("drive.google.com")) {
+            event.preventDefault();
+            event.stopPropagation();
+            fetchUrlAsFile(src, `imagem_arrastada_${Date.now()}.png`).then((file) => {
+              if (file) handleEditorFileDropOrUpload(file);
+            });
+            return true;
+          }
+        } else if (uriList && (uriList.startsWith("http://") || uriList.startsWith("https://") || uriList.startsWith("data:image/"))) {
+          if (!uriList.includes("lh3.googleusercontent.com/d/") && !uriList.includes("drive.google.com")) {
+            event.preventDefault();
+            event.stopPropagation();
+            fetchUrlAsFile(uriList, `imagem_arrastada_${Date.now()}.png`).then((file) => {
+              if (file) handleEditorFileDropOrUpload(file);
+            });
+            return true;
+          }
+        }
+
         return false;
       },
       handlePaste: (view, event) => {
@@ -354,6 +387,7 @@ export function RichEditor({
           return true;
         }
 
+        // 1. Files in clipboard (e.g. copied files)
         if (event.clipboardData && event.clipboardData.files && event.clipboardData.files.length > 0) {
           event.preventDefault();
           event.stopPropagation();
@@ -363,6 +397,64 @@ export function RichEditor({
           }
           return true;
         }
+
+        // 2. Clipboard items (e.g. Snipping Tool, PrintScreen, copied image from Mac/Windows clipboard)
+        if (event.clipboardData && event.clipboardData.items && event.clipboardData.items.length > 0) {
+          const imageItems: File[] = [];
+          for (let i = 0; i < event.clipboardData.items.length; i++) {
+            const item = event.clipboardData.items[i];
+            if (item.type.startsWith("image/")) {
+              const blobFile = item.getAsFile();
+              if (blobFile) {
+                const ext = item.type.split("/")[1] || "png";
+                const namedFile = new File([blobFile], blobFile.name || `imagem_colada_${Date.now()}_${i}.${ext}`, { type: item.type });
+                imageItems.push(namedFile);
+              }
+            }
+          }
+          if (imageItems.length > 0) {
+            event.preventDefault();
+            event.stopPropagation();
+            for (const file of imageItems) {
+              handleEditorFileDropOrUpload(file);
+            }
+            return true;
+          }
+        }
+
+        // 3. HTML paste containing <img> tags with temporary/external URLs
+        if (html && html.includes("<img")) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, "text/html");
+          const imgs = Array.from(doc.querySelectorAll("img"));
+          const externalImgSrcs: string[] = [];
+
+          for (const img of imgs) {
+            const src = img.getAttribute("src");
+            if (
+              src &&
+              !src.includes("lh3.googleusercontent.com/d/") &&
+              !src.includes("drive.google.com")
+            ) {
+              externalImgSrcs.push(src);
+            }
+          }
+
+          if (externalImgSrcs.length > 0) {
+            event.preventDefault();
+            event.stopPropagation();
+            (async () => {
+              for (const imgSrc of externalImgSrcs) {
+                const file = await fetchUrlAsFile(imgSrc, `imagem_colada_${Date.now()}.png`);
+                if (file) {
+                  await handleEditorFileDropOrUpload(file);
+                }
+              }
+            })();
+            return true;
+          }
+        }
+
         return false;
       },
     },
@@ -508,17 +600,23 @@ export function RichEditor({
           }
           toast.success("Imagem enviada para o Google Drive com sucesso!");
         } else {
-          const fullBase64 = await new Promise<string>((res) => {
+          // Fallback to Supabase Storage before base64
+          const supabaseUrl = await uploadToSupabaseStorage(file);
+          const finalUrl = supabaseUrl || (await new Promise<string>((res) => {
             const r = new FileReader();
             r.onload = (e) => res(e.target?.result as string);
             r.readAsDataURL(file);
-          });
+          }));
           if (foundRange) {
-            editor?.chain().focus().deleteRange(foundRange).setImage({ src: fullBase64 }).run();
+            editor?.chain().focus().deleteRange(foundRange).setImage({ src: finalUrl }).run();
           } else {
-            editor?.chain().focus().setImage({ src: fullBase64 }).run();
+            editor?.chain().focus().setImage({ src: finalUrl }).run();
           }
-          toast.warning("Hospedagem Google Drive indisponível. Salvo em base64.");
+          if (supabaseUrl) {
+            toast.success("Imagem enviada para o servidor com sucesso!");
+          } else {
+            toast.warning("Hospedagem em nuvem indisponível. Salvo em base64.");
+          }
         }
       } catch (error) {
         console.error("Upload error, using fallback:", error);
@@ -535,17 +633,22 @@ export function RichEditor({
           }
           return true;
         });
-        const fullBase64 = await new Promise<string>((res) => {
+        const supabaseUrl = await uploadToSupabaseStorage(file);
+        const finalUrl = supabaseUrl || (await new Promise<string>((res) => {
           const r = new FileReader();
           r.onload = (e) => res(e.target?.result as string);
           r.readAsDataURL(file);
-        });
+        }));
         if (foundRange) {
-          editor?.chain().focus().deleteRange(foundRange).setImage({ src: fullBase64 }).run();
+          editor?.chain().focus().deleteRange(foundRange).setImage({ src: finalUrl }).run();
         } else {
-          editor?.chain().focus().setImage({ src: fullBase64 }).run();
+          editor?.chain().focus().setImage({ src: finalUrl }).run();
         }
-        toast.warning("Falha ao subir para o Google Drive. Usando base64.");
+        if (supabaseUrl) {
+          toast.success("Imagem enviada para o servidor com sucesso!");
+        } else {
+          toast.warning("Falha no Google Drive. Salvo em base64.");
+        }
       } finally {
         setUploading(false);
         setUploadProgress(0);
