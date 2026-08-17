@@ -330,7 +330,8 @@ export function MeetingDialog({
           </div>
         </DialogHeader>
 
-        {/* Content Tabs */}
+        {/* Notes and transcription are available only after the meeting exists. */}
+        {meeting?.id ? (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
           <div className="px-4 pt-2 border-b border-zinc-800/80 bg-zinc-900/40">
             <TabsList className="bg-zinc-900 border border-zinc-800 p-1 rounded-xl h-auto gap-1">
@@ -449,6 +450,13 @@ export function MeetingDialog({
             </TabsContent>
           </div>
         </Tabs>
+        ) : (
+          <div className="flex min-h-[110px] flex-1 items-center justify-center border-t border-zinc-800/80 px-6 text-center">
+            <p className="max-w-md text-xs leading-relaxed text-zinc-500">
+              Depois de criar a reunião, clique nela na Agenda ou em Reuniões para adicionar anotações, gravar e transcrever o áudio.
+            </p>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="p-3.5 border-t border-zinc-800/80 bg-zinc-900/60 flex items-center justify-between shrink-0">
