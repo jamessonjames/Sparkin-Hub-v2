@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check, Repeat, Star, Video } from "lucide-react";
 import { MeetingDialog } from "@/components/meeting-dialog";
-import { type Meeting } from "@/lib/meetings.functions";
+import { listMeetings, type Meeting } from "@/lib/meetings.functions";
 import { STATUS_LABELS } from "@/lib/demand-labels";
 import { cn } from "@/lib/utils";
 import {
@@ -192,6 +192,7 @@ const customCollisionDetection = (args: any) => {
 function AgendaPage() {
   const listFn = useServerFn(listDemands);
   const clientsFn = useServerFn(listClients);
+  const listMeetingsFn = useServerFn(listMeetings);
   const batchUpdateFn = useServerFn(batchUpdateDueDates);
   const updateFn = useServerFn(updateDemand);
   const overlay = useDemandOverlay();
@@ -215,6 +216,12 @@ function AgendaPage() {
   const { data: allClients = [] } = useQuery({
     queryKey: ["clients"],
     queryFn: () => clientsFn(),
+  });
+
+  const { data: meetings = [] } = useQuery({
+    queryKey: ["meetings"],
+    queryFn: () => listMeetingsFn({ data: {} }),
+    staleTime: 60 * 1000,
   });
 
   // Config State
@@ -276,6 +283,19 @@ function AgendaPage() {
   // Meeting dialog state
   const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
+
+  const meetingsBySlot = useMemo(() => {
+    const map = new Map<string, Meeting[]>();
+    for (const meeting of meetings) {
+      const dt = new Date(meeting.due_date);
+      if (Number.isNaN(dt.getTime())) continue;
+      const hStr = String(dt.getHours()).padStart(2, "0");
+      const mStr = dt.getMinutes() >= 30 ? "30" : "00";
+      const key = `${toISO(dt)}_${hStr}_${mStr}`;
+      map.set(key, [...(map.get(key) || []), meeting]);
+    }
+    return map;
+  }, [meetings]);
 
   // Group demands by date/hour/minute slot for display (ACTIVE STATUSES ONLY)
   const demandsBySlot = useMemo(() => {
@@ -1159,6 +1179,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                         const slotKey = `${iso}_${hStr}_${mStr}`;
                         const demand = demandsBySlot.get(slotKey);
                         const remindersInSlot = remindersBySlot.get(slotKey) || [];
+                        const meetingsInSlot = meetingsBySlot.get(slotKey) || [];
                         const isBusiness = isValidSlot(new Date(`${iso}T${hStr}:${mStr}:00`), config);
 
                         return (
@@ -1196,6 +1217,27 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                                 isDragOrResizeRef={isDragOrResizeInProgressRef}
                               />
                             )}
+
+                            {meetingsInSlot.map((meeting) => (
+                              <button
+                                key={meeting.id}
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setSelectedMeeting(meeting);
+                                  setSelectedSlotDateTime("");
+                                  setMeetingDialogOpen(true);
+                                }}
+                                className={cn(
+                                  "relative z-10 mt-1 w-full rounded-md border-l-4 border-l-purple-500 bg-purple-600/90 px-2 py-1 text-left text-white shadow-sm hover:bg-purple-500",
+                                  demand && "ml-1 w-[calc(100%-0.25rem)]"
+                                )}
+                                style={{ minHeight: `${Math.max(32, meeting.estimated_hours * 80 - 4)}px` }}
+                              >
+                                <span className="flex items-center gap-1 text-[10px] font-bold"><Video className="h-3 w-3" /> {meeting.title}</span>
+                                <span className="block truncate text-[9px] text-purple-100">{meeting.clients?.name || "Reunião avulsa"}</span>
+                              </button>
+                            ))}
 
                             {remindersInSlot.map((rem) => (
                               <DraggableReminderCard
@@ -1284,7 +1326,10 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
           onOpenChange={setMeetingDialogOpen}
           meeting={selectedMeeting}
           defaultSlotDateTime={selectedSlotDateTime}
-          onSuccess={() => qc.invalidateQueries({ queryKey: ["demands"] })}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ["meetings"] });
+            qc.invalidateQueries({ queryKey: ["demands"] });
+          }}
         />
 
         {/* Reminder dialog */}

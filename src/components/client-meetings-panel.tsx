@@ -26,7 +26,7 @@ function formatDate(iso?: string | null): string {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export function ClientMeetingsPanel({ clientId }: { clientId: string }) {
+export function ClientMeetingsPanel({ clientId }: { clientId?: string }) {
   const qc = useQueryClient();
   const listMeetingsFn = useServerFn(listMeetings);
 
@@ -37,7 +37,7 @@ export function ClientMeetingsPanel({ clientId }: { clientId: string }) {
 
   const { data: meetings = [], isPending } = useQuery({
     queryKey: ["meetings", clientId],
-    queryFn: () => listMeetingsFn({ data: { clientId } }),
+    queryFn: () => listMeetingsFn({ data: clientId ? { clientId } : {} }),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -158,6 +158,7 @@ export function ClientMeetingsPanel({ clientId }: { clientId: string }) {
                   <h4 className="text-sm font-bold text-zinc-100 group-hover:text-purple-300 transition-colors line-clamp-1">
                     {m.title}
                   </h4>
+                  {!clientId && <p className="text-[10px] font-semibold text-purple-300">{m.clients?.name || "Reunião avulsa"}</p>}
 
                   <p className="text-xs text-zinc-400 line-clamp-3 leading-relaxed">
                     {previewText}

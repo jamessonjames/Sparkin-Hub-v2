@@ -11,17 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Video, Calendar, Clock, Mic, Sparkles, FileText, Trash2, Save,
-  Square, Loader2, RefreshCw, CheckCircle2, ListTodo
+  Square, Loader2, CheckCircle2
 } from "lucide-react";
 import { listClients } from "@/lib/clients.functions";
 import { upsertMeeting, deleteMeeting, type Meeting } from "@/lib/meetings.functions";
 import { RichEditor } from "./rich-editor";
 import { MarkdownView } from "./markdown-view";
 import {
-  transcribeAudioChunk,
-  reanalyzeMeetingSummary,
-  reanalyzeMeetingSuggestionsList,
-  approveSuggestion,
+  analyzeMeetingTranscript,
   type DemandSuggestion
 } from "@/lib/suggestions.functions";
 
@@ -39,13 +36,11 @@ function getSupportedMimeType(): string {
   return types.find((t) => MediaRecorder.isTypeSupported(t)) ?? "audio/webm";
 }
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+function toLocalDateTime(value?: string) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return value?.slice(0, 16) || "";
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
 export function MeetingDialog({
@@ -60,10 +55,7 @@ export function MeetingDialog({
   const listClientsFn = useServerFn(listClients);
   const upsertMeetingFn = useServerFn(upsertMeeting);
   const deleteMeetingFn = useServerFn(deleteMeeting);
-  const transcribeFn = useServerFn(transcribeAudioChunk);
-  const reanalyzeSummaryFn = useServerFn(reanalyzeMeetingSummary);
-  const reanalyzeSuggestionsFn = useServerFn(reanalyzeMeetingSuggestionsList);
-  const approveFn = useServerFn(approveSuggestion);
+  const analyzeFn = useServerFn(analyzeMeetingTranscript);
 
   const { data: clients = [] } = useQuery({
     queryKey: ["clients"],
@@ -97,18 +89,20 @@ export function MeetingDialog({
       if (meeting) {
         setTitle(meeting.title || "");
         setClientId(meeting.client_id || "none");
-        setDueDate(meeting.due_date || "");
+        setDueDate(toLocalDateTime(meeting.due_date));
         setEstimatedHours(meeting.estimated_hours || 1.0);
         setNotes(meeting.notes || "");
         setAiSummary(meeting.ai_summary || "");
+        setRawTranscript(meeting.transcript || "");
       } else {
-        const nowIso = defaultSlotDateTime || new Date().toISOString().substring(0, 16);
+        const nowIso = defaultSlotDateTime?.slice(0, 16) || toLocalDateTime();
         setTitle("");
         setClientId(defaultClientId || "none");
         setDueDate(nowIso);
         setEstimatedHours(1.0);
         setNotes("");
         setAiSummary("");
+        setRawTranscript("");
       }
       setIsRecording(false);
       setRecordingSeconds(0);
@@ -153,38 +147,49 @@ export function MeetingDialog({
     if (!mediaRecorderRef.current || !isRecording) return;
     setIsRecording(false);
 
-    mediaRecorderRef.current.stop();
-    mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
-
     setIsTranscribing(true);
-    toast.info("Processando áudio gravado com IA...");
+    toast.info("Transcrevendo localmente, sem consumir créditos de IA...");
 
     try {
-      const blob = new Blob(audioChunksRef.current, { type: getSupportedMimeType() });
-      const base64 = await blobToBase64(blob);
-
-      const res = await transcribeFn({
-        data: { audioBase64: base64, mimeType: getSupportedMimeType() },
+      const recorder = mediaRecorderRef.current;
+      await new Promise<void>((resolve) => {
+        recorder.addEventListener("stop", () => resolve(), { once: true });
+        recorder.stop();
       });
+      recorder.stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || getSupportedMimeType() });
+      const { transcribeAudio } = await import("@/lib/local-whisper");
+      const text = (await transcribeAudio(blob, (message) => toast.info(message, { id: "local-transcription" }))).trim();
+      toast.dismiss("local-transcription");
 
-      if (res?.text) {
-        const text = res.text.trim();
+      if (text) {
         setRawTranscript((prev) => (prev ? `${prev}\n${text}` : text));
-        toast.success("Áudio transcrito com sucesso!");
-
-        // Auto generate AI summary
-        setIsAnalyzing(true);
-        const summaryRes = await reanalyzeSummaryFn({
-          data: { transcript: text, clientName: clientId !== "none" ? clients.find((c: any) => c.id === clientId)?.name : "Geral" },
-        });
-        if (summaryRes?.summary_markdown) {
-          setAiSummary(summaryRes.summary_markdown);
-        }
+        toast.success("Áudio transcrito localmente com sucesso!");
+      } else {
+        toast.warning("Nenhuma fala foi identificada no áudio.");
       }
     } catch (err: any) {
       toast.error("Erro na transcrição: " + (err.message || "Tente novamente."));
     } finally {
       setIsTranscribing(false);
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!rawTranscript.trim() || clientId === "none") return;
+    setIsAnalyzing(true);
+    try {
+      const result = await analyzeFn({
+        data: { clientId, title: title.trim() || "Reunião", transcript: rawTranscript },
+      });
+      setAiSummary(result.summary?.join("\n") || "");
+      setRawTranscript(result.rawTranscript || rawTranscript);
+      setSuggestions(result.suggestions || []);
+      toast.success("Resumo e sugestões gerados.");
+    } catch (err: any) {
+      toast.error(err.message || "Não foi possível gerar a análise.");
+    } finally {
       setIsAnalyzing(false);
     }
   };
@@ -210,6 +215,7 @@ export function MeetingDialog({
           estimated_hours: Number(estimatedHours),
           notes,
           ai_summary: aiSummary,
+          transcript: rawTranscript,
         },
       });
 
@@ -363,10 +369,10 @@ export function MeetingDialog({
                   )}
                   <div>
                     <p className="text-xs font-bold text-zinc-200">
-                      {isRecording ? `Gravando áudio (${formatTimer(recordingSeconds)})` : "Gravação de Áudio com IA"}
+                      {isRecording ? `Gravando áudio (${formatTimer(recordingSeconds)})` : "Transcrição local gratuita"}
                     </p>
                     <p className="text-[11px] text-zinc-400">
-                      {isRecording ? "Fale normalmente. Clique em encerrar para transcrever." : "Grave o microfone para transcrição automática."}
+                      {isRecording ? "Fale normalmente. Clique em encerrar para transcrever." : "O áudio é transcrito no seu navegador, sem créditos de IA."}
                     </p>
                   </div>
                 </div>
@@ -419,6 +425,27 @@ export function MeetingDialog({
                   <p className="text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed">{rawTranscript}</p>
                 </div>
               ) : null}
+
+              {rawTranscript && (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+                  <p className="text-[11px] text-zinc-400">
+                    O resumo e as sugestões usam o Gemini e exigem um cliente vinculado.
+                  </p>
+                  <Button size="sm" onClick={handleAnalyze} disabled={isAnalyzing || clientId === "none"} className="gap-1.5 text-xs">
+                    {isAnalyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    Gerar resumo e sugestões
+                  </Button>
+                </div>
+              )}
+
+              {suggestions.length > 0 && (
+                <div className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+                  <p className="flex items-center gap-1.5 text-xs font-bold text-zinc-300"><CheckCircle2 className="h-4 w-4" /> Sugestões enviadas para a Triagem</p>
+                  {suggestions.map((suggestion) => (
+                    <div key={suggestion.id} className="rounded-lg border border-zinc-800 p-2 text-xs text-zinc-300">{suggestion.suggested_title}</div>
+                  ))}
+                </div>
+              )}
             </TabsContent>
           </div>
         </Tabs>

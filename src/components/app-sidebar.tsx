@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Users, ListChecks, Plus, CalendarDays, Settings, DollarSign, TrendingUp, GripVertical, ChevronDown, ChevronRight, FolderKanban, Inbox as InboxIcon } from "lucide-react";
+import { LayoutDashboard, Users, ListChecks, Plus, CalendarDays, Settings, DollarSign, TrendingUp, GripVertical, ChevronDown, ChevronRight, FolderKanban, Inbox as InboxIcon, Video } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -64,6 +64,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Funil Comercial", to: "/crm", icon: TrendingUp },
   { title: "Financeiro", to: "/finance", icon: DollarSign },
   { title: "Agenda", to: "/agenda", icon: CalendarDays },
+  { title: "Reuniões", to: "/meetings", icon: Video },
 ];
 
 function applyOrder(order: string[], items: NavItem[]): NavItem[] {
