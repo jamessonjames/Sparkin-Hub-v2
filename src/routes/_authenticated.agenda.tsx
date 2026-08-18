@@ -220,8 +220,8 @@ function AgendaPage() {
   });
 
   const { data: meetings = [] } = useQuery({
-    queryKey: ["meetings"],
-    queryFn: () => listMeetingsFn({ data: {} }),
+    queryKey: ["meetings", targetAgendaUserId],
+    queryFn: () => listMeetingsFn({ data: targetAgendaUserId ? { assigneeUserId: targetAgendaUserId } : {} }),
     staleTime: 60 * 1000,
   });
 
@@ -256,8 +256,18 @@ function AgendaPage() {
       created_at: d.created_at,
       is_manually_scheduled: !!d.is_manually_scheduled,
     }));
-    return scheduleByPriority(items as any, config);
-  }, [demands, config]);
+    const meetingBlocks = meetings.map((meeting) => ({
+      id: `meeting-block:${meeting.id}`,
+      title: meeting.title,
+      priority: "urgent" as const,
+      status: "nao_iniciado",
+      due_date: meeting.due_date,
+      estimated_hours: meeting.estimated_hours,
+      created_at: meeting.created_at || meeting.due_date,
+      is_manually_scheduled: true,
+    }));
+    return scheduleByPriority(items as any, config, meetingBlocks);
+  }, [demands, meetings, config]);
 
   // Persistence handled globally by useAutoScheduler hook (mounted in AppShell).
 
@@ -849,6 +859,14 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
       return;
     }
 
+    for (const meeting of meetings) {
+      const meetingStart = new Date(meeting.due_date);
+      const meetingEnd = addHours(meetingStart, meeting.estimated_hours || 1);
+      if (rangesOverlap(targetDate, targetEnd, meetingStart, meetingEnd)) {
+        return { ok: false as const, message: `Horário ocupado pela reunião “${meeting.title}”. Escolha um intervalo livre.` };
+      }
+    }
+
     if (activeIdStr.startsWith("meeting:")) {
       const meetingId = activeIdStr.slice("meeting:".length);
       const meeting = meetings.find((item) => item.id === meetingId);
@@ -860,7 +878,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
       }
 
       const nextDate = targetDate.toISOString();
-      qc.setQueryData<Meeting[]>(["meetings"], (previous) =>
+      qc.setQueryData<Meeting[]>(["meetings", targetAgendaUserId], (previous) =>
         (previous || []).map((item) => item.id === meetingId ? { ...item, due_date: nextDate } : item)
       );
 
@@ -876,6 +894,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
             transcript: meeting.transcript || "",
             ai_summary: meeting.ai_summary || "",
             audio_url: meeting.audio_url || null,
+            assignee_user_id: meeting.assignee_user_id || targetAgendaUserId,
           },
         });
         toast.success("Reunião reagendada!");
@@ -891,6 +910,12 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
 
     if (!isValidSlot(targetDate, config)) {
       toast.error("Este intervalo fica fora do expediente configurado.");
+      return;
+    }
+
+    const conflict = findSchedulingConflict(demandId, targetDate);
+    if (!conflict.ok) {
+      toast.error(conflict.message);
       return;
     }
 
@@ -1363,7 +1388,8 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
           open={meetingDialogOpen}
           onOpenChange={setMeetingDialogOpen}
           meeting={selectedMeeting}
-          defaultSlotDateTime={selectedSlotDateTime}
+        defaultSlotDateTime={selectedSlotDateTime}
+        defaultAssigneeId={targetAgendaUserId || undefined}
           onSuccess={() => {
             qc.invalidateQueries({ queryKey: ["meetings"] });
             qc.invalidateQueries({ queryKey: ["demands"] });

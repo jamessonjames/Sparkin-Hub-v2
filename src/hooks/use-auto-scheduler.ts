@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listDemands, batchUpdateDueDates } from "@/lib/demands.functions";
+import { listMeetings } from "@/lib/meetings.functions";
 import { useUserContext } from "@/contexts/user-context";
 import {
   scheduleByPriority,
@@ -27,6 +28,7 @@ function isSameDate(a: string | null | undefined, b: string | null | undefined):
 export function useAutoScheduler() {
   const listFn = useServerFn(listDemands);
   const batchFn = useServerFn(batchUpdateDueDates);
+  const listMeetingsFn = useServerFn(listMeetings);
   const qc = useQueryClient();
   const timeoutRef = useRef<any>(null);
   const runningRef = useRef(false);
@@ -37,6 +39,13 @@ export function useAutoScheduler() {
     queryKey: ["demands"],
     queryFn: () => listFn(),
     staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: meetings = [] } = useQuery({
+    queryKey: ["meetings", currentUser?.id],
+    queryFn: () => listMeetingsFn({ data: currentUser?.id ? { assigneeUserId: currentUser.id } : {} }),
+    enabled: !!currentUser?.id,
+    staleTime: 60 * 1000,
   });
 
   useEffect(() => {
@@ -72,7 +81,17 @@ export function useAutoScheduler() {
       is_manually_scheduled: !!d.is_manually_scheduled,
     }));
 
-    const scheduled = scheduleByPriority(items as any, config);
+    const meetingBlocks = meetings.map((meeting) => ({
+      id: `meeting-block:${meeting.id}`,
+      title: meeting.title,
+      priority: "urgent" as const,
+      status: "nao_iniciado",
+      due_date: meeting.due_date,
+      estimated_hours: meeting.estimated_hours,
+      created_at: meeting.created_at || meeting.due_date,
+      is_manually_scheduled: true,
+    }));
+    const scheduled = scheduleByPriority(items as any, config, meetingBlocks);
     const updates: { id: string; due_date: string | null }[] = [];
     for (const d of active) {
       if (d.is_manually_scheduled && d.due_date) continue;
@@ -140,5 +159,5 @@ export function useAutoScheduler() {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [demands, batchFn, qc, currentUser?.id]);
+  }, [demands, meetings, batchFn, qc, currentUser?.id]);
 }

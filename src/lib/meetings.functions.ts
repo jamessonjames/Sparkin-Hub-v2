@@ -14,6 +14,7 @@ export type Meeting = {
   transcript?: string | null;
   created_at?: string;
   created_by_user_id?: string | null;
+  assignee_user_id?: string | null;
   clients?: { id: string; name: string } | null;
 };
 
@@ -27,6 +28,7 @@ const meetingSchema = z.object({
   audio_url: z.string().optional().nullable(),
   ai_summary: z.string().optional().nullable(),
   transcript: z.string().optional().nullable(),
+  assignee_user_id: z.string().uuid().optional().nullable(),
 });
 
 export const listMeetings = createServerFn({ method: "GET" })
@@ -35,17 +37,19 @@ export const listMeetings = createServerFn({ method: "GET" })
     z.object({
       clientId: z.string().uuid().optional().nullable(),
       search: z.string().optional().nullable(),
+      assigneeUserId: z.string().uuid().optional().nullable(),
     }).optional().parse(input ?? {})
   )
   .handler(async ({ data, context }) => {
     let query = (context.supabase as any)
       .from("meetings")
-      .select("id, client_id, title, starts_at, duration_minutes, notes, transcript, audio_url, ai_summary, created_at, created_by_user_id, clients(id, name)")
+      .select("id, client_id, title, starts_at, duration_minutes, notes, transcript, audio_url, ai_summary, created_at, created_by_user_id, assignee_user_id, clients(id, name)")
       .order("starts_at", { ascending: false });
 
     if (data?.clientId) {
       query = query.eq("client_id", data.clientId);
     }
+    if (data?.assigneeUserId) query = query.eq("assignee_user_id", data.assigneeUserId);
 
     if (data?.search && data.search.trim() !== "") {
       query = query.ilike("title", `%${data.search.trim()}%`);
@@ -70,6 +74,7 @@ export const listMeetings = createServerFn({ method: "GET" })
         ai_summary: row.ai_summary || null,
         created_at: row.created_at,
         created_by_user_id: row.created_by_user_id,
+        assignee_user_id: row.assignee_user_id,
         clients: row.clients ? { id: row.clients.id, name: row.clients.name } : null,
       };
     });
@@ -81,16 +86,49 @@ export const upsertMeeting = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => meetingSchema.parse(data))
   .handler(async ({ data, context }) => {
+    const assigneeUserId = data.assignee_user_id || context.userId;
+    const startsAt = new Date(data.due_date);
+    const endsAt = new Date(startsAt.getTime() + data.estimated_hours * 60 * 60 * 1000);
+
+    const [{ data: otherMeetings }, { data: assignedDemands }] = await Promise.all([
+      (context.supabase as any)
+        .from("meetings")
+        .select("id, title, starts_at, duration_minutes")
+        .eq("assignee_user_id", assigneeUserId)
+        .neq("id", data.id || "00000000-0000-0000-0000-000000000000"),
+      (context.supabase as any)
+        .from("demands")
+        .select("id, title, due_date, estimated_hours")
+        .eq("assignee_user_id", assigneeUserId)
+        .is("deleted_at", null)
+        .in("status", ["nao_iniciado", "fazendo", "com_ajustes"])
+        .not("due_date", "is", null),
+    ]);
+
+    const overlaps = (start: Date, end: Date) => startsAt < end && endsAt > start;
+    const meetingConflict = (otherMeetings || []).find((item: any) => {
+      const start = new Date(item.starts_at);
+      return overlaps(start, new Date(start.getTime() + Number(item.duration_minutes || 60) * 60_000));
+    });
+    const demandConflict = (assignedDemands || []).find((item: any) => {
+      const start = new Date(item.due_date);
+      return overlaps(start, new Date(start.getTime() + Number(item.estimated_hours || 1) * 3_600_000));
+    });
+    if (meetingConflict || demandConflict) {
+      throw new Error(`Horário ocupado por “${(meetingConflict || demandConflict).title}”. Escolha um intervalo livre.`);
+    }
+
     const rowData: any = {
       title: data.title,
       client_id: data.client_id || null,
-      starts_at: new Date(data.due_date).toISOString(),
+      starts_at: startsAt.toISOString(),
       duration_minutes: Math.round(data.estimated_hours * 60),
       notes: data.notes || "",
       transcript: data.transcript || "",
       audio_url: data.audio_url || null,
       ai_summary: data.ai_summary || "",
       created_by_user_id: context.userId,
+      assignee_user_id: assigneeUserId,
     };
 
     if (data.id) {

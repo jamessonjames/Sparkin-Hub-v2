@@ -17,6 +17,7 @@ import { listClients } from "@/lib/clients.functions";
 import { upsertMeeting, deleteMeeting, type Meeting } from "@/lib/meetings.functions";
 import { RichEditor } from "./rich-editor";
 import { MarkdownView } from "./markdown-view";
+import { useUserContext } from "@/contexts/user-context";
 import {
   analyzeMeetingTranscript,
   type DemandSuggestion
@@ -28,6 +29,7 @@ interface MeetingDialogProps {
   meeting?: Meeting | null;
   defaultSlotDateTime?: string;
   defaultClientId?: string;
+  defaultAssigneeId?: string;
   onSuccess?: () => void;
 }
 
@@ -49,9 +51,11 @@ export function MeetingDialog({
   meeting,
   defaultSlotDateTime,
   defaultClientId,
+  defaultAssigneeId,
   onSuccess,
 }: MeetingDialogProps) {
   const qc = useQueryClient();
+  const { profiles, currentUser } = useUserContext();
   const listClientsFn = useServerFn(listClients);
   const upsertMeetingFn = useServerFn(upsertMeeting);
   const deleteMeetingFn = useServerFn(deleteMeeting);
@@ -65,6 +69,7 @@ export function MeetingDialog({
 
   const [title, setTitle] = useState("");
   const [clientId, setClientId] = useState<string>("none");
+  const [assigneeUserId, setAssigneeUserId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [estimatedHours, setEstimatedHours] = useState(1.0);
   const [notes, setNotes] = useState("");
@@ -89,6 +94,7 @@ export function MeetingDialog({
       if (meeting) {
         setTitle(meeting.title || "");
         setClientId(meeting.client_id || "none");
+        setAssigneeUserId(meeting.assignee_user_id || meeting.created_by_user_id || currentUser?.id || "");
         setDueDate(toLocalDateTime(meeting.due_date));
         setEstimatedHours(meeting.estimated_hours || 1.0);
         setNotes(meeting.notes || "");
@@ -98,6 +104,7 @@ export function MeetingDialog({
         const nowIso = defaultSlotDateTime?.slice(0, 16) || toLocalDateTime();
         setTitle("");
         setClientId(defaultClientId || "none");
+        setAssigneeUserId(defaultAssigneeId || currentUser?.id || "");
         setDueDate(nowIso);
         setEstimatedHours(1.0);
         setNotes("");
@@ -108,7 +115,7 @@ export function MeetingDialog({
       setRecordingSeconds(0);
       setSuggestions([]);
     }
-  }, [open, meeting, defaultSlotDateTime, defaultClientId]);
+  }, [open, meeting, defaultSlotDateTime, defaultClientId, defaultAssigneeId, currentUser?.id]);
 
   // Handle recording timer
   useEffect(() => {
@@ -211,6 +218,7 @@ export function MeetingDialog({
           id: meeting?.id,
           title: title.trim(),
           client_id: clientId === "none" ? null : clientId,
+          assignee_user_id: assigneeUserId || currentUser?.id || null,
           // datetime-local has no timezone; convert in the browser so 09:00 remains
           // 09:00 in the user's timezone when persisted as timestamptz.
           due_date: new Date(dueDate).toISOString(),
@@ -292,6 +300,21 @@ export function MeetingDialog({
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
                     </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Date Time */}
+            <div className="flex items-center gap-1.5">
+              <Label className="text-[11px] font-semibold text-zinc-400">Responsável:</Label>
+              <Select value={assigneeUserId} onValueChange={setAssigneeUserId}>
+                <SelectTrigger className="h-7 min-w-[130px] border-zinc-700 bg-zinc-900 text-xs text-zinc-200">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-200">
+                  {profiles.map((profile: any) => (
+                    <SelectItem key={profile.id} value={profile.id}>{profile.name || profile.email}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
