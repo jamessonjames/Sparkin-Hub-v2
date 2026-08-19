@@ -239,14 +239,19 @@ function AgendaPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [showSettings, setShowSettings] = useState(false);
 
-  // Live real-time clock state (updates every 10s for smooth continuous tracking with 0 DB queries)
+  // Live real-time clock state (updates every 5s + instantly on tab focus with 0 DB queries)
   const [now, setNow] = useState(() => getTzTime(config.timezone));
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(getTzTime(config.timezone));
-    }, 10000);
-    return () => clearInterval(interval);
+    const updateClock = () => setNow(getTzTime(config.timezone));
+    const interval = setInterval(updateClock, 5000);
+    window.addEventListener("focus", updateClock);
+    document.addEventListener("visibilitychange", updateClock);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", updateClock);
+      document.removeEventListener("visibilitychange", updateClock);
+    };
   }, [config.timezone]);
 
   const today = now;
