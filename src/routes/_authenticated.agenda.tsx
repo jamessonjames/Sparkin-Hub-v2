@@ -238,7 +238,18 @@ function AgendaPage() {
 
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [showSettings, setShowSettings] = useState(false);
-  const today = useMemo(() => getTzTime(config.timezone), [config.timezone]);
+
+  // Live real-time clock state (updates every 30s to move red line & update past transparency with 0 DB queries)
+  const [now, setNow] = useState(() => getTzTime(config.timezone));
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(getTzTime(config.timezone));
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [config.timezone]);
+
+  const today = now;
   const todayISO = toISO(today);
 
   // Selected date anchor
@@ -1880,8 +1891,10 @@ function DraggableDemandCard({
   onResize,
   onTogglePin,
   isDragOrResizeRef,
+  now,
 }: {
   demand: any;
+  now?: Date;
   onClick: () => void;
   onResize: (demandId: string, hours: number) => Promise<void>;
   onTogglePin: (demandId: string, nextValue: boolean) => Promise<void>;
@@ -1951,8 +1964,9 @@ function DraggableDemandCard({
     const start = new Date(demand.due_date);
     const hours = demand.estimated_hours ? Number(demand.estimated_hours) : 1.0;
     const end = new Date(start.getTime() + hours * 3600 * 1000);
-    return end < new Date();
-  }, [demand.due_date, demand.estimated_hours]);
+    const currentClock = now || new Date();
+    return end < currentClock;
+  }, [demand.due_date, demand.estimated_hours, now]);
 
   // Calculate dynamic card height representing estimated time
   const displayHours = isResizing ? tempHours : (demand.estimated_hours ? Number(demand.estimated_hours) : 1.0);
