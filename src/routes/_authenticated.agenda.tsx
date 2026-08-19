@@ -859,6 +859,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
       return;
     }
 
+    const targetEnd = addHours(targetDate, 1);
     for (const meeting of meetings) {
       const meetingStart = new Date(meeting.due_date);
       const meetingEnd = addHours(meetingStart, meeting.estimated_hours || 1);

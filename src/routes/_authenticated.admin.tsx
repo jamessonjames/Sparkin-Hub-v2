@@ -123,7 +123,7 @@ function AdminPage() {
           // Fallback if not configured
           const fallbackUrl = event.target?.result as string; // use base64 direct URL
           setFaviconUrl(fallbackUrl);
-          toast.warning(`Hospedagem falhou: ${response.error || 'Erro desconhecido'}. Usando fallback local.`);
+          toast.warning(`Hospedagem falhou: ${(response as any).error || 'Erro desconhecido'}. Usando fallback local.`);
         }
       } catch (error: any) {
         console.error("Favicon upload failed, using fallback:", error);

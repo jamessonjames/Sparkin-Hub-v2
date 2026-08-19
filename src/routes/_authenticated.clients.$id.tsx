@@ -1431,6 +1431,21 @@ function ClientReportsPanel({
           <tbody>
             ${completedDemands.length > 0 ? demandsTableRows : `<tr><td colSpan="5" style="text-align: center; padding: 24px; color: #94a3b8; font-style: italic;">Nenhum serviço concluído neste período.</td></tr>`}
           </tbody>
+          ${completedDemands.length > 0 ? `
+            <tfoot>
+              <tr style="background: #f8fafc; font-weight: 700;">
+                <td style="padding: 12px; border-top: 2px solid #000000; border-bottom: 2px solid #000000; font-size: 11px; color: #000000;">
+                  VALOR TOTAL DAS ENTREGAS
+                </td>
+                <td style="padding: 12px; border-top: 2px solid #000000; border-bottom: 2px solid #000000; font-size: 11px; color: #000000; text-align: center;">
+                  ${completedDemands.length} item(ns)
+                </td>
+                ${showPdfHours ? `<td style="padding: 12px; border-top: 2px solid #000000; border-bottom: 2px solid #000000; font-size: 11px; color: #000000; text-align: center;">${totalHours}h</td>` : ""}
+                ${showPdfCredits && billingModel === "credits" ? `<td style="padding: 12px; border-top: 2px solid #000000; border-bottom: 2px solid #000000; font-size: 11px; color: #000000; text-align: center;">${totalCredits}</td>` : ""}
+                ${showPdfIndividualPrices && (billingModel === "seasonal" || isOneOff) ? `<td style="padding: 12px; border-top: 2px solid #000000; border-bottom: 2px solid #000000; font-size: 12px; color: #000000; text-align: right; font-weight: 800;">R$ ${totalPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ""}
+              </tr>
+            </tfoot>
+          ` : ""}
         </table>
 
         <div class="footer">
@@ -1736,12 +1751,12 @@ function ClientReportsPanel({
                 />
               </label>
 
-              {/* Show Individual Prices toggle (seasonal / one_off) */}
+              {/* Show Prices toggle (seasonal / one_off) */}
               {(billingModel === "seasonal" || isOneOff) && (
                 <label className="flex items-center justify-between cursor-pointer hover:bg-zinc-800/40 p-1.5 rounded-md transition-colors">
                   <div className="flex flex-col">
-                    <span className="text-xs font-semibold text-zinc-200">Exibir Valores Individuais (R$)</span>
-                    <span className="text-[10px] text-zinc-400">Mostra o preço individual de cada item</span>
+                    <span className="text-xs font-semibold text-zinc-200">Exibir Valores (R$)</span>
+                    <span className="text-[10px] text-zinc-400">Mostra o preço de cada item e o valor total no final</span>
                   </div>
                   <input
                     type="checkbox"
