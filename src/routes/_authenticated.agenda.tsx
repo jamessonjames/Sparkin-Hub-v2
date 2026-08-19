@@ -239,13 +239,13 @@ function AgendaPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [showSettings, setShowSettings] = useState(false);
 
-  // Live real-time clock state (updates every 30s to move red line & update past transparency with 0 DB queries)
+  // Live real-time clock state (updates every 10s for smooth continuous tracking with 0 DB queries)
   const [now, setNow] = useState(() => getTzTime(config.timezone));
 
   useEffect(() => {
     const interval = setInterval(() => {
       setNow(getTzTime(config.timezone));
-    }, 30000);
+    }, 10000);
     return () => clearInterval(interval);
   }, [config.timezone]);
 
@@ -1245,6 +1245,8 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                   const isToday = iso === todayISO;
                   const currentHour = today.getHours();
                   const currentMinute = today.getMinutes();
+                  const currentSecond = today.getSeconds();
+                  const timePointerTopPx = ((currentHour * 3600 + currentMinute * 60 + currentSecond) / 3600) * 80;
 
                   return (
                     <div
@@ -1332,11 +1334,11 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                       {/* Time pointer */}
                       {isToday && (
                         <div
-                          className="absolute left-0 right-0 z-20 pointer-events-none"
-                          style={{ top: `${(currentHour * 60 + currentMinute) / 60 * 80}px` }}
+                          className="absolute left-0 right-0 z-20 pointer-events-none transition-all duration-500 ease-out"
+                          style={{ top: `${timePointerTopPx}px` }}
                         >
                           <div className="relative flex items-center">
-                            <div className="h-2 w-2 rounded-full bg-red-500 -ml-1 shrink-0" />
+                            <div className="h-2.5 w-2.5 rounded-full bg-red-500 -ml-1 shrink-0 shadow-sm shadow-red-500/50" />
                             <div className="h-px flex-1 bg-red-500" />
                           </div>
                         </div>
