@@ -738,12 +738,13 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
     cfg: SchedulingConfig
   ): { id: string; due_date: string; is_manually_scheduled?: boolean }[] {
     const updates: { id: string; due_date: string; is_manually_scheduled?: boolean }[] = [];
-    const droppedDemand = allDemands.find(d => d.id === droppedDemandId);
+    const droppedDemand = allDemands.find((d) => d.id === droppedDemandId);
     if (!droppedDemand) return updates;
 
     const droppedDurationHours = getDemandDurationHours(droppedDemand);
     const formattedDroppedDate = formatTzString(targetDate);
 
+    // 1. Position the manually dropped demand at targetDate
     updates.push({
       id: droppedDemandId,
       due_date: formattedDroppedDate,
@@ -751,68 +752,83 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
     });
 
     const droppedEnd = addHours(targetDate, droppedDurationHours);
-    const targetDayStr = toISO(targetDate);
 
-    const otherDemandsOnDay = allDemands.filter(d => {
+    // 2. Block all fixed Meetings in takenSlots so they are NEVER moved or overwritten
+    const takenSlots = new Set<string>();
+    for (const meeting of meetings) {
+      if (meeting.due_date) {
+        const mStart = safeParseDate(meeting.due_date);
+        const mDur = meeting.estimated_hours ? Number(meeting.estimated_hours) : 1.0;
+        blockSlots(mStart, mDur, takenSlots);
+      }
+    }
+
+    // 3. Block the dropped demand's slot
+    blockSlots(targetDate, droppedDurationHours, takenSlots);
+
+    // 4. Collect active demands to reschedule
+    const activeDemands = allDemands.filter((d) => {
       if (d.id === droppedDemandId) return false;
       if (d.status === "concluido" || d.status === "para_analise" || d.status === "rascunho") return false;
       if (!d.due_date) return false;
-      return d.due_date.slice(0, 10) === targetDayStr;
+      return true;
     });
 
-    otherDemandsOnDay.sort((a, b) => {
+    // Block active demands that were scheduled BEFORE targetDate
+    for (const d of activeDemands) {
+      if (d.due_date) {
+        const dt = safeParseDate(d.due_date);
+        if (dt.getTime() < targetDate.getTime()) {
+          const dur = getDemandDurationHours(d);
+          blockSlots(dt, dur, takenSlots);
+        }
+      }
+    }
+
+    // Filter demands that need to be re-allocated in the cascade (demands at or after targetDate)
+    const demandsToCascade = activeDemands.filter((d) => {
+      if (!d.due_date) return false;
+      const dt = safeParseDate(d.due_date);
+      const dur = getDemandDurationHours(d);
+      const dEnd = addHours(dt, dur);
+      return rangesOverlap(targetDate, droppedEnd, dt, dEnd) || dt.getTime() >= targetDate.getTime();
+    });
+
+    demandsToCascade.sort((a, b) => {
       const dtA = safeParseDate(a.due_date!).getTime();
       const dtB = safeParseDate(b.due_date!).getTime();
       return dtA - dtB;
     });
 
-    const takenSlots = new Set<string>();
-    blockSlots(targetDate, droppedDurationHours, takenSlots);
-
-    for (const d of otherDemandsOnDay) {
-      if (d.is_manually_scheduled && d.due_date && d.due_date.length > 10) {
-        const dt = safeParseDate(d.due_date);
-        const dur = getDemandDurationHours(d);
-        blockSlots(dt, dur, takenSlots);
-      }
+    // 5. Cascade allocation cursor starts right after droppedDemand
+    let search = new Date(droppedEnd);
+    if (!isValidSlot(search, cfg)) {
+      search = getNextSlot(search, cfg);
     }
 
-    let cursor = new Date(droppedEnd);
-    if (!isValidSlot(cursor, cfg)) {
-      cursor = getNextSlot(cursor, cfg);
-    }
-
-    for (const d of otherDemandsOnDay) {
-      if (d.is_manually_scheduled && d.due_date && d.due_date.length > 10) continue;
-
-      const dt = safeParseDate(d.due_date!);
+    for (const d of demandsToCascade) {
       const dur = getDemandDurationHours(d);
-      const dEnd = addHours(dt, dur);
+      let safety = 0;
 
-      if (rangesOverlap(targetDate, droppedEnd, dt, dEnd) || dt.getTime() >= targetDate.getTime()) {
-        let search = new Date(cursor);
-        let safety = 0;
-
-        while (safety < 1000) {
-          if (isValidSlot(search, cfg) && areSlotsFree(search, dur, takenSlots)) {
-            const newSlotStr = formatTzString(search);
-            if (newSlotStr !== d.due_date) {
-              updates.push({
-                id: d.id,
-                due_date: newSlotStr,
-                is_manually_scheduled: false,
-              });
-            }
-            blockSlots(search, dur, takenSlots);
-            cursor = addHours(search, dur);
-            if (!isValidSlot(cursor, cfg)) {
-              cursor = getNextSlot(cursor, cfg);
-            }
-            break;
+      while (safety < 2000) {
+        if (isValidSlot(search, cfg) && areSlotsFree(search, dur, takenSlots)) {
+          const newSlotStr = formatTzString(search);
+          if (newSlotStr !== d.due_date) {
+            updates.push({
+              id: d.id,
+              due_date: newSlotStr,
+              is_manually_scheduled: false,
+            });
           }
-          search = getNextSlot(search, cfg);
-          safety++;
+          blockSlots(search, dur, takenSlots);
+          search = addHours(search, dur);
+          if (!isValidSlot(search, cfg)) {
+            search = getNextSlot(search, cfg);
+          }
+          break;
         }
+        search = getNextSlot(search, cfg);
+        safety++;
       }
     }
 
@@ -889,11 +905,6 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
       const meeting = meetings.find((item) => item.id === meetingId);
       if (!meeting) return;
 
-      if (!isValidSlot(targetDate, config)) {
-        toast.error("Este intervalo fica fora do expediente configurado.");
-        return;
-      }
-
       const nextDate = targetDate.toISOString();
       qc.setQueryData<Meeting[]>(["meetings", targetAgendaUserId], (previous) =>
         (previous || []).map((item) => item.id === meetingId ? { ...item, due_date: nextDate } : item)
@@ -924,11 +935,6 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
     }
 
     const demandId = activeIdStr.replace(/^pill_demand:/, "");
-
-    if (!isValidSlot(targetDate, config)) {
-      toast.error("Este intervalo fica fora do expediente configurado.");
-      return;
-    }
 
     const conflict = findSchedulingConflict(demandId, targetDate);
     if (!conflict.ok) {
