@@ -81,47 +81,53 @@ export function FileAttachments({
     try {
       const pathParts = ["Attachments", `${entityType}s`, entityId];
 
-      // 1. Upload to Supabase Storage first for instant, guaranteed, permanent 100% public access
-      const supabaseRes = await uploadToFallbackStorage(file, pathParts);
-      let finalUrl = supabaseRes.success ? supabaseRes.url : undefined;
-      let finalFileId = supabaseRes.success ? `supabase:${supabaseRes.path}` : undefined;
+      // 1. Direct Client-side upload to Google Drive (5TB capacity)
+      let res = await uploadDirectToGDrive(file, pathParts, getGDriveTokenFn);
 
-      // 2. Dual upload to Google Drive for cloud backup if configured
-      try {
-        const directRes = await uploadDirectToGDrive(file, pathParts, getGDriveTokenFn);
-        if (directRes.success && directRes.fileId) {
-          if (!finalUrl && directRes.url) {
-            finalUrl = directRes.url;
-          }
-          if (!finalFileId && directRes.fileId) {
-            finalFileId = directRes.fileId;
-          }
+      // 2. Server-side fallback to Google Drive using server refresh token
+      if (!res.success) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve((e.target?.result as string).split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const serverRes = await uploadFn({
+          data: {
+            entityType,
+            entityId,
+            fileBase64: base64,
+            fileName: file.name,
+            mimeType: file.type || "application/octet-stream",
+          },
+        });
+
+        if (serverRes.success && serverRes.fileId && serverRes.url) {
+          res = { success: true, fileId: serverRes.fileId, url: serverRes.url };
+        } else {
+          throw new Error(serverRes.error || res.error || "Erro ao conectar com o Google Drive.");
         }
-      } catch (gdriveErr) {
-        console.warn("Aviso no backup do Google Drive:", gdriveErr);
       }
 
-      if (!finalUrl || !finalFileId) {
-        throw new Error(supabaseRes.error || "Erro ao anexar arquivo.");
+      if (res.success && res.fileId && res.url) {
+        await createRecordFn({
+          data: {
+            entityType,
+            entityId,
+            fileName: file.name,
+            fileType: file.type || "application/octet-stream",
+            fileSize: file.size,
+            driveFileId: res.fileId,
+            driveUrl: res.url,
+          },
+        });
+        toast.success(`"${file.name}" anexado no Google Drive!`);
+        qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
       }
-
-      await createRecordFn({
-        data: {
-          entityType,
-          entityId,
-          fileName: file.name,
-          fileType: file.type || "application/octet-stream",
-          fileSize: file.size,
-          driveFileId: finalFileId,
-          driveUrl: finalUrl,
-        },
-      });
-
-      toast.success(`"${file.name}" anexado com sucesso!`);
-      qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
     } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Erro ao anexar arquivo.");
+      console.error("Erro no upload para o Google Drive:", err);
+      toast.error(err.message || "Erro ao anexar arquivo no Google Drive.");
     } finally {
       clearInterval(progressInterval);
       setUploadingFiles((prev) => prev.filter((item) => item.id !== tempId));

@@ -531,23 +531,30 @@ export async function uploadFile(
   return data.id;
 }
 
-// Grant anyone with link read access to a file
+// Grant anyone with link read access to a file on Google Drive (5TB storage)
 export async function makeFilePublic(accessToken: string, fileId: string): Promise<void> {
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      role: "reader",
-      type: "anyone",
-    }),
-  });
+  try {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        role: "reader",
+        type: "anyone",
+        allowFileDiscovery: false,
+      }),
+    });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new GoogleDriveApiError(res.status, parseDriveError(res.status, err));
+    if (!res.ok) {
+      const err = await res.text();
+      if (res.status !== 400 && res.status !== 409) {
+        console.warn("[GoogleDrive] Warning setting permission:", err);
+      }
+    }
+  } catch (e) {
+    console.warn("[GoogleDrive] Non-fatal error setting file permission:", e);
   }
 }
 
@@ -581,7 +588,7 @@ export const uploadToGDrive = createServerFn({ method: "POST" })
         await makeFilePublic(accessToken, fileId);
         const viewUrl = mimeType.startsWith("image/")
           ? `https://lh3.googleusercontent.com/d/${fileId}`
-          : `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+          : `https://drive.google.com/uc?export=download&id=${fileId}`;
 
         return { success: true, fileId, url: viewUrl };
       });

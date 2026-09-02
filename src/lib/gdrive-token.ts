@@ -154,7 +154,7 @@ export function getGoogleDriveViewUrl(urlOrFileId: string): string {
   if (urlOrFileId.includes("lh3.googleusercontent.com/d/")) return urlOrFileId;
   const fileId = getFileIdFromUrl(urlOrFileId) || (urlOrFileId.match(/^[a-zA-Z0-9_-]{25,}$/) ? urlOrFileId : null);
   if (fileId) {
-    return `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+    return `https://drive.google.com/uc?export=download&id=${fileId}`;
   }
   return urlOrFileId;
 }
