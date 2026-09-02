@@ -603,29 +603,17 @@ function AgendaPage() {
     if (!movingDemand) return { ok: false as const, message: "Demanda não encontrada." };
 
     const duration = durationOverride ?? getDemandDurationHours(movingDemand);
-    const slotCursor = new Date(targetDate);
-    for (let step = 0; step < Math.ceil(duration / 0.5); step += 1) {
-      if (!isValidSlot(slotCursor, config)) {
-        return { ok: false as const, message: "Este intervalo fica fora do expediente configurado." };
-      }
-      slotCursor.setMinutes(slotCursor.getMinutes() + 30);
-    }
-
     const targetEnd = addHours(targetDate, duration);
-    for (const demand of demands as AgendaDemand[]) {
-      if (demand.id === demandId) continue;
-      // Demands in concluido, para_analise, rascunho or cancelado do not occupy time grid slots
-      if (demand.status === "concluido" || demand.status === "para_analise" || demand.status === "rascunho" || demand.status === "cancelado") continue;
 
-      const dueDate = getEffectiveDueDate(demand);
-      if (!dueDate) continue;
-
-      const otherStart = safeParseDate(dueDate);
-      const otherEnd = addHours(otherStart, getDemandDurationHours(demand));
-      if (rangesOverlap(targetDate, targetEnd, otherStart, otherEnd)) {
+    // Only check if target slot overlaps with a fixed Meeting
+    for (const meeting of meetings) {
+      if (!meeting.due_date) continue;
+      const meetingStart = safeParseDate(meeting.due_date);
+      const meetingEnd = addHours(meetingStart, meeting.estimated_hours || 1);
+      if (rangesOverlap(targetDate, targetEnd, meetingStart, meetingEnd)) {
         return {
           ok: false as const,
-          message: `Horário ocupado por “${demand.title}”. Escolha um intervalo livre.`,
+          message: `Horário ocupado pela reunião “${meeting.title}”. Escolha um intervalo livre.`,
         };
       }
     }

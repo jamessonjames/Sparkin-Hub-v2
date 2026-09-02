@@ -80,63 +80,45 @@ export function FileAttachments({
     setUploading(true);
     try {
       const pathParts = ["Attachments", `${entityType}s`, entityId];
-      const directRes = await uploadDirectToGDrive(file, pathParts, getGDriveTokenFn);
 
-      if (directRes.success && directRes.fileId && directRes.url) {
-        await createRecordFn({
-          data: {
-            entityType,
-            entityId,
-            fileName: file.name,
-            fileType: file.type || "application/octet-stream",
-            fileSize: file.size,
-            driveFileId: directRes.fileId,
-            driveUrl: directRes.url,
-          },
-        });
-        toast.success(`"${file.name}" anexado!`);
-        qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
-      } else {
-        // Fallback to server upload function
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve((e.target?.result as string).split(",")[1]);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
+      // 1. Upload to Supabase Storage first for instant, guaranteed, permanent 100% public access
+      const supabaseRes = await uploadToFallbackStorage(file, pathParts);
+      let finalUrl = supabaseRes.success ? supabaseRes.url : undefined;
+      let finalFileId = supabaseRes.success ? `supabase:${supabaseRes.path}` : undefined;
 
-        const res = await uploadFn({
-          data: {
-            entityType,
-            entityId,
-            fileBase64: base64,
-            fileName: file.name,
-            mimeType: file.type || "application/octet-stream",
-          },
-        });
-        if (res.success) {
-          toast.success(`"${file.name}" anexado!`);
-          qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
-        } else {
-          const fallback = await uploadToFallbackStorage(file, pathParts);
-          if (!fallback.success || !fallback.url || !fallback.path) {
-            throw new Error(fallback.error || res.error || "Erro ao anexar arquivo.");
+      // 2. Dual upload to Google Drive for cloud backup if configured
+      try {
+        const directRes = await uploadDirectToGDrive(file, pathParts, getGDriveTokenFn);
+        if (directRes.success && directRes.fileId) {
+          if (!finalUrl && directRes.url) {
+            finalUrl = directRes.url;
           }
-          await createRecordFn({
-            data: {
-              entityType,
-              entityId,
-              fileName: file.name,
-              fileType: file.type || "application/octet-stream",
-              fileSize: file.size,
-              driveFileId: `supabase:${fallback.path}`,
-              driveUrl: fallback.url,
-            },
-          });
-          toast.success(`"${file.name}" salvo na nuvem de contingência.`);
-          qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
+          if (!finalFileId && directRes.fileId) {
+            finalFileId = directRes.fileId;
+          }
         }
+      } catch (gdriveErr) {
+        console.warn("Aviso no backup do Google Drive:", gdriveErr);
       }
+
+      if (!finalUrl || !finalFileId) {
+        throw new Error(supabaseRes.error || "Erro ao anexar arquivo.");
+      }
+
+      await createRecordFn({
+        data: {
+          entityType,
+          entityId,
+          fileName: file.name,
+          fileType: file.type || "application/octet-stream",
+          fileSize: file.size,
+          driveFileId: finalFileId,
+          driveUrl: finalUrl,
+        },
+      });
+
+      toast.success(`"${file.name}" anexado com sucesso!`);
+      qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Erro ao anexar arquivo.");
