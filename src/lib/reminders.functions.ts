@@ -39,8 +39,15 @@ export const upsertReminder = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
+    const { data: roleRow } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    const isAdmin = roleRow?.role === "owner" || roleRow?.role === "admin";
+
     if (data.id) {
-      const { error } = await context.supabase
+      let query = context.supabase
         .from("agenda_reminders" as any)
         .update({
           title: data.title,
@@ -53,8 +60,12 @@ export const upsertReminder = createServerFn({ method: "POST" })
           is_completed: data.is_completed,
           updated_at: new Date().toISOString(),
         } as any)
-        .eq("id", data.id)
-        .eq("user_id", context.userId);
+        .eq("id", data.id);
+
+      if (!isAdmin) {
+        query = query.eq("user_id", context.userId);
+      }
+      const { error } = await query;
       if (error) throw new Error(error.message);
       return { id: data.id };
     }

@@ -123,13 +123,13 @@ export const upsertMeeting = createServerFn({ method: "POST" })
       client_id: data.client_id || null,
       starts_at: startsAt.toISOString(),
       duration_minutes: Math.round(data.estimated_hours * 60),
-      notes: data.notes || "",
-      transcript: data.transcript || "",
-      audio_url: data.audio_url || null,
-      ai_summary: data.ai_summary || "",
       created_by_user_id: context.userId,
       assignee_user_id: assigneeUserId,
     };
+    if (data.notes !== undefined) rowData.notes = data.notes || "";
+    if (data.transcript !== undefined) rowData.transcript = data.transcript || "";
+    if (data.audio_url !== undefined) rowData.audio_url = data.audio_url || null;
+    if (data.ai_summary !== undefined) rowData.ai_summary = data.ai_summary || "";
 
     if (data.id) {
       const { data: updated, error } = await (context.supabase as any)

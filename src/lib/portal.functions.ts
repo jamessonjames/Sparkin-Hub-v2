@@ -229,15 +229,19 @@ export const updatePortalDemand = createServerFn({ method: "POST" })
     if (data.status === "fazendo") throw new Error("O cliente não pode definir o status como 'Fazendo'");
     if (data.status === "para_analise") throw new Error("O cliente não pode definir o status como 'Para análise'");
 
+    const patch: any = {
+      title: data.title,
+      status: data.status as any,
+      priority: data.priority,
+      due_date: data.due_date ?? null,
+    };
+    if (data.description !== undefined) {
+      patch.description = data.description || null;
+    }
+
     const { error } = await sb
       .from("demands")
-      .update({
-        title: data.title,
-        description: data.description ?? null,
-        status: data.status as any,
-        priority: data.priority,
-        due_date: data.due_date ?? null,
-      })
+      .update(patch)
       .eq("id", data.id)
       .eq("client_id", client.id);
 
