@@ -60,7 +60,7 @@ export const listDemands = createServerFn({ method: "GET" })
 
     let query = context.supabase
       .from("demands")
-      .select("id, title, status, status_id, client_id, priority, due_date, sort_order, assignee_user_id, client_edition_id, created_at, estimated_credits, estimated_hours, price, deleted_at, is_manually_scheduled, clients(id, name), demand_comments(count)")
+      .select("id, title, description, status, status_id, client_id, priority, due_date, sort_order, assignee_user_id, client_edition_id, created_at, estimated_credits, estimated_hours, price, deleted_at, is_manually_scheduled, clients(id, name), demand_comments(count)")
       .is("deleted_at", null);
 
     if (data?.clientId) {
@@ -182,14 +182,14 @@ export const updateDemand = createServerFn({ method: "POST" })
     const payload: any = {
       client_id: rest.client_id,
       title: rest.title,
-      description: rest.description || null,
+      ...(rest.description !== undefined ? { description: rest.description || null } : {}),
       demand_type_id: rest.demand_type_id || null,
       status: dbStatus,
       status_id: dbStatusId,
       priority: rest.priority,
       due_date: rest.due_date || null,
       estimated_credits: rest.estimated_credits ?? undefined,
-      internal_notes: rest.internal_notes || null,
+      ...(rest.internal_notes !== undefined ? { internal_notes: rest.internal_notes || null } : {}),
       assignee_user_id: rest.assignee_user_id || null,
       client_edition_id: rest.client_edition_id || null,
       price: rest.price ?? null,

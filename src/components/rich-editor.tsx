@@ -380,7 +380,7 @@ export function RichEditor({
     content: content || "",
     editable: !readOnly,
     onUpdate: ({ editor }) => {
-      if (!readOnly) {
+      if (!readOnly && !isProgrammaticSetContentRef.current) {
         onChange(editor.getHTML());
       }
     },
@@ -563,9 +563,13 @@ export function RichEditor({
     immediatelyRender: false,
   });
 
+  const isProgrammaticSetContentRef = useRef(false);
+
   // Sync content from prop to editor (only if editor is not focused to prevent cursor jumping)
   if (editor && editor.getHTML() !== content && !editor.isFocused) {
+    isProgrammaticSetContentRef.current = true;
     editor.commands.setContent(content || "");
+    isProgrammaticSetContentRef.current = false;
   }
 
   const [uploading, setUploading] = useState(false);

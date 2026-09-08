@@ -598,6 +598,12 @@ export function DemandDetailDialog({
     }
   }, [isNew, clientEditions, defaultClientEditionId, clientEditionId]);
 
+function isHtmlEmpty(html: string | null | undefined): boolean {
+  if (!html) return true;
+  const stripped = html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+  return stripped.length === 0 && !html.includes("<img");
+}
+
   // Debounced auto-save for description
   useEffect(() => {
     if (isNew || (!portalMode && (isDemandLoading || !demand))) return;
@@ -607,6 +613,11 @@ export function DemandDetailDialog({
       : (demand?.description || "");
 
     if (description === dbDesc) return;
+
+    // Safety: If DB has a non-empty description, never auto-save an empty string over it
+    if (!isHtmlEmpty(dbDesc) && isHtmlEmpty(description)) {
+      return;
+    }
 
     const timer = setTimeout(async () => {
       try {
@@ -676,7 +687,7 @@ export function DemandDetailDialog({
       ? (initialDemandData?.description || "") 
       : (demand?.description || "");
       
-    if (description !== dbDesc && title.trim()) {
+    if (description !== dbDesc && title.trim() && (isHtmlEmpty(dbDesc) || !isHtmlEmpty(description))) {
       try {
         if (portalMode) {
           await updatePortalFn({
