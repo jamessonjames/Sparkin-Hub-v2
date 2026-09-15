@@ -34,13 +34,11 @@ import {
   rectIntersection,
 } from "@dnd-kit/core";
 import {
-  scheduleByPriority,
   DEFAULT_CONFIG,
   type SchedulingConfig,
   formatTzString,
   getTzTime,
   isValidSlot,
-  getNextSlot,
   safeParseDate,
 } from "@/utils/scheduler";
 import { Button } from "@/components/ui/button";
@@ -260,33 +258,6 @@ function AgendaPage() {
   // Selected date anchor
   const [currentDate, setCurrentDate] = useState(() => new Date(today));
 
-  // Auto-schedule logic
-  const scheduledMap = useMemo(() => {
-    const items = demands.map((d: any) => ({
-      id: d.id,
-      title: d.title,
-      priority: d.priority as "low" | "medium" | "high" | "urgent",
-      status: d.status,
-      due_date: d.due_date,
-      estimated_hours: d.estimated_hours ? Number(d.estimated_hours) : 1.0,
-      created_at: d.created_at,
-      is_manually_scheduled: !!d.is_manually_scheduled,
-    }));
-    const meetingBlocks = meetings.map((meeting) => ({
-      id: `meeting-block:${meeting.id}`,
-      title: meeting.title,
-      priority: "urgent" as const,
-      status: "nao_iniciado",
-      due_date: meeting.due_date,
-      estimated_hours: meeting.estimated_hours,
-      created_at: meeting.created_at || meeting.due_date,
-      is_manually_scheduled: true,
-    }));
-    return scheduleByPriority(items as any, config, meetingBlocks);
-  }, [demands, meetings, config]);
-
-  // Persistence handled globally by useAutoScheduler hook (mounted in AppShell).
-
   const listRemindersFn = useServerFn(listReminders);
   const upsertReminderFn = useServerFn(upsertReminder);
   const completeReminderFn = useServerFn(completeReminder);
@@ -326,24 +297,26 @@ function AgendaPage() {
 
   // Group demands by date/hour/minute slot for display (ACTIVE STATUSES ONLY)
   const demandsBySlot = useMemo(() => {
-    const map = new Map<string, AgendaDemand>();
+    const map = new Map<string, AgendaDemand[]>();
     for (const d of demands) {
       if (d.status !== "nao_iniciado" && d.status !== "fazendo" && d.status !== "com_ajustes") continue;
+      // Demands without due_date NEVER appear on the agenda grid
+      if (!d.due_date) continue;
       // If it's a date-only adjustment, render it in DaySummaryPill at the top of the day
       if (d.status === "com_ajustes" && !d.is_manually_scheduled) {
         continue;
       }
-      const finalDate = scheduledMap[d.id] ?? d.due_date;
-      if (finalDate) {
-        const dt = safeParseDate(finalDate);
-        const hStr = String(dt.getHours()).padStart(2, "0");
-        const mStr = dt.getMinutes() >= 30 ? "30" : "00";
-        const key = `${toISO(dt)}_${hStr}_${mStr}`;
-        map.set(key, { ...(d as AgendaDemand), due_date: finalDate });
-      }
+      const dt = safeParseDate(d.due_date);
+      if (isNaN(dt.getTime())) continue;
+      const hStr = String(dt.getHours()).padStart(2, "0");
+      const mStr = dt.getMinutes() >= 30 ? "30" : "00";
+      const key = `${toISO(dt)}_${hStr}_${mStr}`;
+      const list = map.get(key) || [];
+      list.push(d as AgendaDemand);
+      map.set(key, list);
     }
     return map;
-  }, [demands, scheduledMap]);
+  }, [demands]);
 
   // Group concluida, para_analise, com_ajustes & sem_responsavel demands for day header summary pill
   const daySummaryDemands = useMemo(() => {
@@ -423,16 +396,14 @@ function AgendaPage() {
   const demandsByDate = useMemo(() => {
     const map = new Map<string, typeof demands>();
     for (const d of demands) {
-      const finalDate = d.status === "concluido" ? d.due_date : (scheduledMap[d.id] ?? d.due_date);
-      if (finalDate) {
-        const key = finalDate.slice(0, 10);
-        const arr = map.get(key) ?? [];
-        arr.push(d);
-        map.set(key, arr);
-      }
+      if (!d.due_date) continue;
+      const key = d.due_date.slice(0, 10);
+      const arr = map.get(key) ?? [];
+      arr.push(d);
+      map.set(key, arr);
     }
     return map;
-  }, [demands, scheduledMap]);
+  }, [demands]);
 
   // Calculate day columns for daily and weekly views
   const weekDays = useMemo(() => {
@@ -528,7 +499,7 @@ function AgendaPage() {
 
   async function handleTogglePin(demandId: string, nextValue: boolean) {
     const currentDemand = demands.find((d) => d.id === demandId) as AgendaDemand | undefined;
-    const effectiveDueDate = currentDemand ? (scheduledMap[demandId] ?? currentDemand.due_date ?? null) : null;
+    const effectiveDueDate = currentDemand?.due_date ?? null;
 
     qc.setQueryData<typeof demands>(["demands", targetAgendaUserId, isAdminOrOwner], (prev) =>
       (prev ?? []).map((d) =>
@@ -549,7 +520,7 @@ function AgendaPage() {
           ],
         },
       });
-      toast.success(nextValue ? "Demanda fixada nesta posição." : "Demanda liberada — o sistema pode reagendar.");
+      toast.success(nextValue ? "Demanda fixada nesta posição." : "Demanda liberada.");
       qc.invalidateQueries({ queryKey: ["demands"] });
     } catch (err) {
       toast.error("Erro ao alterar o pin.");
@@ -595,7 +566,7 @@ function AgendaPage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   function getEffectiveDueDate(demand: AgendaDemand) {
-    return demand.status === "concluido" ? demand.due_date : (scheduledMap[demand.id] ?? demand.due_date);
+    return demand.due_date;
   }
 
   function findSchedulingConflict(demandId: string, targetDate: Date, durationOverride?: number) {
@@ -729,6 +700,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
     const droppedDemand = allDemands.find((d) => d.id === droppedDemandId);
     if (!droppedDemand) return updates;
 
+    const targetDayStr = toISO(targetDate);
     const droppedDurationHours = getDemandDurationHours(droppedDemand);
     const formattedDroppedDate = formatTzString(targetDate);
 
@@ -741,82 +713,112 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
 
     const droppedEnd = addHours(targetDate, droppedDurationHours);
 
-    // 2. Block all fixed Meetings in takenSlots so they are NEVER moved or overwritten
+    // 2. Block all fixed Meetings strictly on this target day in takenSlots
     const takenSlots = new Set<string>();
     for (const meeting of meetings) {
       if (meeting.due_date) {
         const mStart = safeParseDate(meeting.due_date);
-        const mDur = meeting.estimated_hours ? Number(meeting.estimated_hours) : 1.0;
-        blockSlots(mStart, mDur, takenSlots);
-      }
-    }
-
-    // 3. Block the dropped demand's slot
-    blockSlots(targetDate, droppedDurationHours, takenSlots);
-
-    // 4. Collect active demands to reschedule
-    const activeDemands = allDemands.filter((d) => {
-      if (d.id === droppedDemandId) return false;
-      if (d.status === "concluido" || d.status === "para_analise" || d.status === "rascunho") return false;
-      if (!d.due_date) return false;
-      return true;
-    });
-
-    // Block active demands that were scheduled BEFORE targetDate
-    for (const d of activeDemands) {
-      if (d.due_date) {
-        const dt = safeParseDate(d.due_date);
-        if (dt.getTime() < targetDate.getTime()) {
-          const dur = getDemandDurationHours(d);
-          blockSlots(dt, dur, takenSlots);
+        if (toISO(mStart) === targetDayStr) {
+          const mDur = meeting.estimated_hours ? Number(meeting.estimated_hours) : 1.0;
+          blockSlots(mStart, mDur, takenSlots);
         }
       }
     }
 
-    // Filter demands that need to be re-allocated in the cascade (demands at or after targetDate)
-    const demandsToCascade = activeDemands.filter((d) => {
+    // 3. Block the dropped demand's target slot
+    blockSlots(targetDate, droppedDurationHours, takenSlots);
+
+    // 4. Collect active demands strictly on the SAME DAY (Never touch demands on other days!)
+    const sameDayDemands = allDemands.filter((d) => {
+      if (d.id === droppedDemandId) return false;
+      if (d.status === "concluido" || d.status === "para_analise" || d.status === "rascunho") return false;
       if (!d.due_date) return false;
       const dt = safeParseDate(d.due_date);
+      return toISO(dt) === targetDayStr;
+    });
+
+    // Demands that start BEFORE targetDate and do not collide with [targetDate, droppedEnd] stay intact
+    for (const d of sameDayDemands) {
+      const dt = safeParseDate(d.due_date!);
+      const dur = getDemandDurationHours(d);
+      const dEnd = addHours(dt, dur);
+      if (dt.getTime() < targetDate.getTime() && !rangesOverlap(targetDate, droppedEnd, dt, dEnd)) {
+        blockSlots(dt, dur, takenSlots);
+      }
+    }
+
+    // Demands on the same day that collide with the dropped range OR start at/after targetDate
+    const demandsToCascade = sameDayDemands.filter((d) => {
+      const dt = safeParseDate(d.due_date!);
       const dur = getDemandDurationHours(d);
       const dEnd = addHours(dt, dur);
       return rangesOverlap(targetDate, droppedEnd, dt, dEnd) || dt.getTime() >= targetDate.getTime();
     });
 
+    // Sort to preserve previous relative order and priority
     demandsToCascade.sort((a, b) => {
       const dtA = safeParseDate(a.due_date!).getTime();
       const dtB = safeParseDate(b.due_date!).getTime();
-      return dtA - dtB;
+      if (dtA !== dtB) return dtA - dtB;
+      const pWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
+      const wA = (pWeight as any)[a.priority] || 1;
+      const wB = (pWeight as any)[b.priority] || 1;
+      return wB - wA;
     });
 
     // 5. Cascade allocation cursor starts right after droppedDemand
     let search = new Date(droppedEnd);
-    if (!isValidSlot(search, cfg)) {
-      search = getNextSlot(search, cfg);
+    const m = search.getMinutes();
+    if (m > 0 && m < 30) search.setMinutes(30, 0, 0);
+    else if (m > 30) {
+      search.setHours(search.getHours() + 1, 0, 0, 0);
+    } else {
+      search.setSeconds(0, 0);
     }
 
     for (const d of demandsToCascade) {
       const dur = getDemandDurationHours(d);
+      let found = false;
       let safety = 0;
 
-      while (safety < 2000) {
-        if (isValidSlot(search, cfg) && areSlotsFree(search, dur, takenSlots)) {
+      while (safety < 48 && toISO(search) === targetDayStr && search.getHours() < 24) {
+        // If during lunch break, jump past lunch
+        if (search.getHours() >= cfg.lunchStart && search.getHours() < cfg.lunchEnd) {
+          search.setHours(cfg.lunchEnd, 0, 0, 0);
+          if (toISO(search) !== targetDayStr) break;
+        }
+
+        if (areSlotsFree(search, dur, takenSlots)) {
           const newSlotStr = formatTzString(search);
           if (newSlotStr !== d.due_date) {
             updates.push({
               id: d.id,
               due_date: newSlotStr,
-              is_manually_scheduled: false,
+              is_manually_scheduled: d.is_manually_scheduled ?? false,
             });
           }
           blockSlots(search, dur, takenSlots);
           search = addHours(search, dur);
-          if (!isValidSlot(search, cfg)) {
-            search = getNextSlot(search, cfg);
-          }
+          found = true;
           break;
         }
-        search = getNextSlot(search, cfg);
+
+        search.setMinutes(search.getMinutes() + 30);
         safety++;
+      }
+
+      // If cannot find slot before end of day, keep it on same day at latest available slot
+      if (!found) {
+        if (toISO(search) === targetDayStr && search.getHours() < 24) {
+          const newSlotStr = formatTzString(search);
+          updates.push({
+            id: d.id,
+            due_date: newSlotStr,
+            is_manually_scheduled: d.is_manually_scheduled ?? false,
+          });
+          blockSlots(search, dur, takenSlots);
+          search = addHours(search, dur);
+        }
       }
     }
 
@@ -964,7 +966,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
     const demand = demands.find((d) => d.id === realId) as AgendaDemand | undefined;
     if (!demand) return null;
     return { ...demand, due_date: getEffectiveDueDate(demand) };
-  }, [activeDragId, demands, scheduledMap]);
+  }, [activeDragId, demands]);
 
   const activeDragReminder = useMemo(() => {
     if (!activeDragId || !activeDragId.startsWith("reminder:")) return null;
@@ -1259,7 +1261,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                         const hStr = String(slot.h).padStart(2, "0");
                         const mStr = String(slot.m).padStart(2, "0");
                         const slotKey = `${iso}_${hStr}_${mStr}`;
-                        const demand = demandsBySlot.get(slotKey);
+                        const demandsInSlot = demandsBySlot.get(slotKey) || [];
                         const remindersInSlot = remindersBySlot.get(slotKey) || [];
                         const meetingsInSlot = meetingsBySlot.get(slotKey) || [];
                         const isBusiness = isValidSlot(new Date(`${iso}T${hStr}:${mStr}:00`), config);
@@ -1271,9 +1273,11 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                             isBusiness={isBusiness}
                             onClick={() => handleSlotClick(iso, slot.h, slot.m)}
                           >
-                            {demand && (
+                            {demandsInSlot.map((demand) => (
                               <DraggableDemandCard
+                                key={demand.id}
                                 demand={demand}
+                                now={now}
                                 onResize={handleResizeDemand}
                                 onTogglePin={handleTogglePin}
                                 onClick={() => {
@@ -1298,7 +1302,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                                 }}
                                 isDragOrResizeRef={isDragOrResizeInProgressRef}
                               />
-                            )}
+                            ))}
 
                             {meetingsInSlot.map((meeting) => (
                               <DraggableMeetingCard
@@ -1309,7 +1313,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                                   setSelectedSlotDateTime("");
                                   setMeetingDialogOpen(true);
                                 }}
-                                hasDemandInSlot={!!demand}
+                                hasDemandInSlot={demandsInSlot.length > 0}
                               />
                             ))}
 
@@ -1318,7 +1322,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                                 key={`${rem.id}_${slotKey}`}
                                 reminder={rem}
                                 slotDateTime={`${iso}T${hStr}:${mStr}:00`}
-                                hasDemandInSlot={!!demand}
+                                hasDemandInSlot={demandsInSlot.length > 0}
                                 onClick={() => {
                                   setEditingReminder(rem);
                                   setReminderDialogOpen(true);

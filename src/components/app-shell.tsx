@@ -15,14 +15,8 @@ import { useUserContext } from "@/contexts/user-context";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { useAutoScheduler } from "@/hooks/use-auto-scheduler";
 import { MeetingTranscriptionDialog } from "@/components/meeting-transcription-dialog";
 import { useQueryClient } from "@tanstack/react-query";
-
-function AutoSchedulerGate() {
-  useAutoScheduler();
-  return null;
-}
 
 import {
   DropdownMenu,
@@ -226,7 +220,6 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
 
   return (
     <UserProvider>
-    <AutoSchedulerGate />
     <DemandOverlayProvider>
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-background">

@@ -1552,6 +1552,14 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
                   );
                 })()}
 
+                {/* Aviso quando demanda não possui data */}
+                {!dueDate && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 my-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>Esta demanda está sem data de término e ficará no <strong>Kanban / Backlog</strong> (fora da Agenda).</span>
+                  </div>
+                )}
+
                 {/* Description editor — Maximize vertical space, borderless */}
                 <div className="description-editor-wrapper flex-1 flex flex-col min-h-[300px]">
                   <Suspense fallback={<div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">Carregando editor...</div>}>

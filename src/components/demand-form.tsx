@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { AlertCircle } from "lucide-react";
 import {
   Select,
   SelectTrigger,
@@ -117,6 +118,12 @@ export function DemandForm({
             value={v.due_date ?? ""}
             onChange={(e) => setV({ ...v, due_date: e.target.value })}
           />
+          {!v.due_date && (
+            <p className="text-[11px] text-amber-500/90 flex items-center gap-1 font-medium mt-1">
+              <AlertCircle className="h-3 w-3 shrink-0" />
+              <span>Sem data: ficará no Kanban/Backlog (fora da Agenda).</span>
+            </p>
+          )}
         </div>
         <div>
           <Label>Créditos estimados</Label>
