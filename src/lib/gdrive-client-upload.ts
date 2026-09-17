@@ -30,31 +30,62 @@ export async function uploadDirectToGDrive(
 
     const fullRequestBody = new Blob([metadataBlob, fileHeaderBlob, file, closingBlob]);
 
-    const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": `multipart/related; boundary=${boundary}`,
-      },
-      body: fullRequestBody,
-    });
+    let uploadRes: Response | null = null;
+    let uploadErrText = "";
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Erro no Google Drive (${res.status}): ${errText}`);
+    // Retry multipart upload up to 2 times on network glitch or 5xx
+    for (let uploadAttempt = 1; uploadAttempt <= 2; uploadAttempt++) {
+      try {
+        uploadRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": `multipart/related; boundary=${boundary}`,
+          },
+          body: fullRequestBody,
+        });
+        if (uploadRes.ok) break;
+        uploadErrText = await uploadRes.text();
+        console.warn(`[GoogleDrive] Tentativa de upload ${uploadAttempt} falhou (${uploadRes.status}):`, uploadErrText);
+      } catch (networkErr: any) {
+        uploadErrText = networkErr?.message || "Erro de rede";
+        console.warn(`[GoogleDrive] Falha de conexão no upload (tentativa ${uploadAttempt}):`, uploadErrText);
+      }
+
+      if (uploadAttempt < 2) {
+        await new Promise((r) => setTimeout(r, 600));
+      }
     }
 
-    const data = await res.json();
+    if (!uploadRes || !uploadRes.ok) {
+      throw new Error(`Erro no Google Drive: ${uploadErrText || "Falha na resposta"}`);
+    }
+
+    const data = await uploadRes.json();
     const fileId = data.id;
 
     if (!fileId) {
       throw new Error("Não foi possível obter o ID do arquivo no Google Drive.");
     }
 
-    try {
-      await makeFilePublic(accessToken, fileId);
-    } catch (permErr) {
-      console.warn("Aviso ao tornar arquivo público no Google Drive:", permErr);
+    // Guarantee that the file is publicly accessible to all users (prevent 403 / 404 for gestora/team)
+    let isPublic = false;
+    for (let permAttempt = 1; permAttempt <= 3; permAttempt++) {
+      try {
+        await makeFilePublic(accessToken, fileId);
+        isPublic = true;
+        break;
+      } catch (permErr) {
+        console.warn(`[GoogleDrive] Tentativa ${permAttempt} de permissão falhou:`, permErr);
+        if (permAttempt < 3) {
+          await new Promise((r) => setTimeout(r, permAttempt * 500));
+        }
+      }
+    }
+
+    if (!isPublic) {
+      console.warn("[GoogleDrive] Não foi possível tornar arquivo público no Drive. Acionando contingência...");
+      throw new Error("Arquivo enviado ao Drive, mas não foi possível garantir acesso público irrestrito.");
     }
 
     const viewUrl = file.type.startsWith("image/")

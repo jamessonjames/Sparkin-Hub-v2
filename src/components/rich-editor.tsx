@@ -15,7 +15,7 @@ import { TableHeader } from "@tiptap/extension-table-header";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { uploadToGDrive, deleteFromGDrive, getGDriveClientToken } from "@/lib/gdrive.functions";
+import { uploadToGDrive, getGDriveClientToken } from "@/lib/gdrive.functions";
 import { getFileIdFromUrl, getGoogleDriveViewUrl } from "@/lib/gdrive-token";
 import { uploadDirectToGDrive } from "@/lib/gdrive-client-upload";
 import { Node, mergeAttributes } from "@tiptap/core";
@@ -576,65 +576,7 @@ export function RichEditor({
   const [uploadProgress, setUploadProgress] = useState(0);
   const uploadFn = useServerFn(uploadToGDrive);
   const getGDriveTokenFn = useServerFn(getGDriveClientToken);
-  const deleteFromGDriveFn = useServerFn(deleteFromGDrive);
-
-  const knownFileIdsRef = useRef<string[]>([]);
-  const isInitializedRef = useRef(false);
-
-  const extractFileIds = (html: string): string[] => {
-    if (!html) return [];
-    const ids: string[] = [];
-    const matches = html.match(/(https:\/\/lh3\.googleusercontent\.com\/d\/[a-zA-Z0-9_-]+|https:\/\/drive\.google\.com\/uc\?[^"'\s<>]+|https:\/\/drive\.google\.com\/file\/d\/[a-zA-Z0-9_-]+)/g);
-    if (matches) {
-      for (const match of matches) {
-        const id = getFileIdFromUrl(match.replace(/&amp;/g, "&"));
-        if (id) ids.push(id);
-      }
-    }
-    return Array.from(new Set(ids));
-  };
-
-  if (!isInitializedRef.current && content) {
-    knownFileIdsRef.current = extractFileIds(content);
-    isInitializedRef.current = true;
-  }
-
-  useEffect(() => {
-    if (!isInitializedRef.current && content) {
-      knownFileIdsRef.current = extractFileIds(content);
-      isInitializedRef.current = true;
-    }
-
-    const timer = setTimeout(async () => {
-      const currentIds = extractFileIds(content);
-      const deletedIds = knownFileIdsRef.current.filter((id) => !currentIds.includes(id));
-
-      if (deletedIds.length > 0) {
-        try {
-          for (const fileId of deletedIds) {
-            await deleteFromGDriveFn({ data: { fileId } });
-            console.log("Auto-deleted from GDrive:", fileId);
-          }
-          knownFileIdsRef.current = currentIds;
-        } catch (err) {
-          console.error("Auto-delete error:", err);
-        }
-      } else {
-        knownFileIdsRef.current = currentIds;
-      }
-    }, 300);
-
-    return () => {
-      clearTimeout(timer);
-      const currentIds = extractFileIds(content);
-      const deletedIds = knownFileIdsRef.current.filter((id) => !currentIds.includes(id));
-      if (deletedIds.length > 0) {
-        for (const fileId of deletedIds) {
-          deleteFromGDriveFn({ data: { fileId } }).catch(console.error);
-        }
-      }
-    };
-  }, [content, deleteFromGDriveFn]);
+  const activeUploadsCountRef = useRef(0);
 
   const formatFileSizeLocal = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -652,6 +594,7 @@ export function RichEditor({
       const tempId = Math.random().toString(36).substring(2, 9);
       editor?.chain().focus().insertContent(`<a href="#upload-${tempId}" class="text-primary animate-pulse font-medium">⏳ Enviando "${file.name}" (10%)...</a> `).run();
 
+      activeUploadsCountRef.current++;
       setUploading(true);
       setUploadProgress(10);
       
@@ -761,8 +704,11 @@ export function RichEditor({
           toast.warning("Falha no Google Drive. Salvo em base64.");
         }
       } finally {
-        setUploading(false);
-        setUploadProgress(0);
+        activeUploadsCountRef.current = Math.max(0, activeUploadsCountRef.current - 1);
+        if (activeUploadsCountRef.current === 0) {
+          setUploading(false);
+          setUploadProgress(0);
+        }
       }
     },
     [editor, uploadFn, getGDriveTokenFn, gDrivePath]
@@ -795,6 +741,7 @@ export function RichEditor({
         },
       }).run();
 
+      activeUploadsCountRef.current++;
       setUploading(true);
       setUploadProgress(10);
 
@@ -923,8 +870,11 @@ export function RichEditor({
           toast.error(fallback.error || "Erro ao subir arquivo.");
         }
       } finally {
-        setUploading(false);
-        setUploadProgress(0);
+        activeUploadsCountRef.current = Math.max(0, activeUploadsCountRef.current - 1);
+        if (activeUploadsCountRef.current === 0) {
+          setUploading(false);
+          setUploadProgress(0);
+        }
       }
     },
     [onAttachFile, insertImage, uploadFn, getGDriveTokenFn, gDrivePath, editor]

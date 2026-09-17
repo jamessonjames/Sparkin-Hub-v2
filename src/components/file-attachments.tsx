@@ -106,7 +106,13 @@ export function FileAttachments({
         if (serverRes.success && serverRes.fileId && serverRes.url) {
           res = { success: true, fileId: serverRes.fileId, url: serverRes.url };
         } else {
-          throw new Error(serverRes.error || res.error || "Erro ao conectar com o Google Drive.");
+          // 3. Fallback to Supabase Storage
+          const fallback = await uploadToFallbackStorage(file, pathParts);
+          if (fallback.success && fallback.url) {
+            res = { success: true, fileId: "supabase", url: fallback.url };
+          } else {
+            throw new Error(fallback.error || serverRes.error || res.error || "Erro ao fazer upload do arquivo.");
+          }
         }
       }
 
@@ -122,7 +128,7 @@ export function FileAttachments({
             driveUrl: res.url,
           },
         });
-        toast.success(`"${file.name}" anexado no Google Drive!`);
+        toast.success(`"${file.name}" anexado com sucesso!`);
         qc.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
       }
     } catch (err: any) {

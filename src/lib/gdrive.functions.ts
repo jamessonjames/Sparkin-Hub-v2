@@ -38,6 +38,15 @@ function getGoogleClientSecret(storedSecret?: string | null): string {
     || "";
 }
 
+interface CachedDriveToken {
+  accessToken: string;
+  expiresAt: number;
+  rootFolderId: string | null;
+  accountEmail?: string;
+}
+
+let cachedDriveToken: CachedDriveToken | null = null;
+
 async function readGoogleDriveCredentials(context: { supabase: any }) {
   const { data, error } = await (context.supabase as any)
     .from("system_settings")
@@ -46,7 +55,16 @@ async function readGoogleDriveCredentials(context: { supabase: any }) {
     .maybeSingle();
 
   if (error) throw new Error(`Falha ao ler as credenciais do Google Drive: ${error.message}`);
-  return data?.value as any;
+  const creds = data?.value as any;
+  if (creds && creds.access_token && creds.expires_at) {
+    cachedDriveToken = {
+      accessToken: creds.access_token,
+      expiresAt: creds.expires_at,
+      rootFolderId: creds.folder_id || null,
+      accountEmail: creds.account_email,
+    };
+  }
+  return creds;
 }
 
 async function refreshGoogleDriveAccessToken(context: { supabase: any }, creds: any): Promise<string> {
@@ -84,6 +102,7 @@ async function refreshGoogleDriveAccessToken(context: { supabase: any }, creds: 
     });
 
     if (googleError === "invalid_grant") {
+      cachedDriveToken = null;
       throw new Error(
         "A autorização permanente do Google Drive expirou ou foi revogada. Reconecte a conta em Admin > Integrações. Se isso ocorrer a cada 7 dias, publique o app OAuth como 'Em produção' no Google Cloud."
       );
@@ -103,6 +122,14 @@ async function refreshGoogleDriveAccessToken(context: { supabase: any }, creds: 
     refresh_token: tokenData.refresh_token || creds.refresh_token,
     expires_at: Date.now() + (tokenData.expires_in || 3600) * 1000,
   };
+
+  cachedDriveToken = {
+    accessToken: newCredentials.access_token,
+    expiresAt: newCredentials.expires_at,
+    rootFolderId: creds.folder_id || null,
+    accountEmail: creds.account_email,
+  };
+
   const { error: updateError } = await (context.supabase as any)
     .from("system_settings")
     .update({ value: newCredentials })
@@ -120,6 +147,11 @@ export async function getServerGDriveAccessToken(
   context: { supabase: any },
   options: { forceRefresh?: boolean } = {},
 ): Promise<string> {
+  // 0. Use in-memory cached token if valid (expires in > 60s) and not forcing refresh
+  if (!options.forceRefresh && cachedDriveToken && Date.now() < cachedDriveToken.expiresAt - 60000) {
+    return cachedDriveToken.accessToken;
+  }
+
   const creds = await readGoogleDriveCredentials(context);
   if (!creds) {
     throw new Error("Google Drive não configurado no sistema. Conecte sua conta em Admin > Integrações.");
@@ -127,6 +159,12 @@ export async function getServerGDriveAccessToken(
 
   // 1. If active access_token is valid (not expiring in next 60s)
   if (!options.forceRefresh && creds.access_token && creds.expires_at && Date.now() < creds.expires_at - 60000) {
+    cachedDriveToken = {
+      accessToken: creds.access_token,
+      expiresAt: creds.expires_at,
+      rootFolderId: creds.folder_id || null,
+      accountEmail: creds.account_email,
+    };
     return creds.access_token;
   }
 
@@ -161,6 +199,7 @@ export async function runDriveOperationWithRefresh<T>(
     return await operation(accessToken);
   } catch (error) {
     if (providedToken || !(error instanceof GoogleDriveApiError) || error.status !== 401) throw error;
+    cachedDriveToken = null;
     accessToken = await getServerGDriveAccessToken(context, { forceRefresh: true });
     return operation(accessToken);
   }
@@ -459,29 +498,57 @@ async function createFolder(accessToken: string, name: string, parentId?: string
   return data.id;
 }
 
+// Concurrency mutex and folder cache to avoid duplicate folder creation race condition
+const inFlightFolderPromises = new Map<string, Promise<string>>();
+const folderCache = new Map<string, { id: string; timestamp: number }>();
+const FOLDER_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
 // Create nested folder hierarchy on Google Drive recursively, starting from a given root folder ID if provided
 export async function getOrCreateFolderPath(accessToken: string, pathParts: string[], startRootId?: string): Promise<string> {
-  let currentParentId = startRootId;
+  const cleanParts = pathParts.filter(Boolean);
+  const cacheKey = `${accessToken.slice(-10)}:${startRootId || "root"}:${cleanParts.join("/")}`;
 
-  if (!currentParentId) {
-    // Search/create the default root "Sparkin Hub" folder
-    const rootName = "Sparkin Hub";
-    currentParentId = (await findFolder(accessToken, rootName)) || undefined;
+  const cached = folderCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < FOLDER_CACHE_TTL) {
+    return cached.id;
+  }
+
+  const existingPromise = inFlightFolderPromises.get(cacheKey);
+  if (existingPromise) {
+    return existingPromise;
+  }
+
+  const promise = (async () => {
+    let currentParentId = startRootId;
+
     if (!currentParentId) {
-      currentParentId = await createFolder(accessToken, rootName);
+      // Search/create the default root "Sparkin Hub" folder
+      const rootName = "Sparkin Hub";
+      currentParentId = (await findFolder(accessToken, rootName)) || undefined;
+      if (!currentParentId) {
+        currentParentId = await createFolder(accessToken, rootName);
+      }
     }
-  }
 
-  for (const part of pathParts) {
-    if (!part) continue;
-    let folderId = await findFolder(accessToken, part, currentParentId);
-    if (!folderId) {
-      folderId = await createFolder(accessToken, part, currentParentId);
+    for (const part of cleanParts) {
+      let folderId = await findFolder(accessToken, part, currentParentId);
+      if (!folderId) {
+        folderId = await createFolder(accessToken, part, currentParentId);
+      }
+      currentParentId = folderId;
     }
-    currentParentId = folderId;
-  }
 
-  return currentParentId;
+    folderCache.set(cacheKey, { id: currentParentId, timestamp: Date.now() });
+    return currentParentId;
+  })();
+
+  inFlightFolderPromises.set(cacheKey, promise);
+
+  try {
+    return await promise;
+  } finally {
+    inFlightFolderPromises.delete(cacheKey);
+  }
 }
 
 // Upload file to Google Drive folder using multipart upload
@@ -531,40 +598,76 @@ export async function uploadFile(
   return data.id;
 }
 
-// Grant anyone with link read access to a file on Google Drive (5TB storage)
+// Grant anyone with link read access to a file on Google Drive (5TB storage) with retry mechanism
 export async function makeFilePublic(accessToken: string, fileId: string): Promise<void> {
-  try {
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        role: "reader",
-        type: "anyone",
-        allowFileDiscovery: false,
-      }),
-    });
+  const maxAttempts = 3;
+  let lastError: any = null;
 
-    if (!res.ok) {
-      const err = await res.text();
-      if (res.status !== 400 && res.status !== 409) {
-        console.warn("[GoogleDrive] Warning setting permission:", err);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          role: "reader",
+          type: "anyone",
+          allowFileDiscovery: false,
+        }),
+      });
+
+      if (res.ok) {
+        return;
       }
+
+      const status = res.status;
+      const errText = await res.text();
+
+      // If already has permission (400 or 409 duplicate permission), treat as success
+      if (status === 400 || status === 409) {
+        if (
+          errText.includes("already exists") ||
+          errText.includes("duplicate") ||
+          errText.includes("cannotShareWithAnyone")
+        ) {
+          return;
+        }
+      }
+
+      lastError = new GoogleDriveApiError(status, `Erro ${status} ao tornar arquivo público: ${errText}`);
+      console.warn(`[GoogleDrive] Tentativa ${attempt} de permissão pública falhou:`, errText);
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[GoogleDrive] Falha de rede ao definir permissão pública (tentativa ${attempt}):`, err?.message);
     }
-  } catch (e) {
-    console.warn("[GoogleDrive] Non-fatal error setting file permission:", e);
+
+    if (attempt < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+    }
   }
+
+  console.error("[GoogleDrive] Falha após todas as tentativas de permissão pública:", lastError);
+  throw lastError;
 }
 
 export async function getRootFolderId(context: { supabase: any }): Promise<string | null> {
+  if (cachedDriveToken?.rootFolderId) {
+    return cachedDriveToken.rootFolderId;
+  }
+
   const { data } = await (context.supabase as any)
     .from("system_settings")
     .select("value")
     .eq("key", "google_drive_credentials")
     .maybeSingle();
-  return (data?.value as any)?.folder_id || null;
+
+  const folderId = (data?.value as any)?.folder_id || null;
+  if (cachedDriveToken && folderId) {
+    cachedDriveToken.rootFolderId = folderId;
+  }
+  return folderId;
 }
 
 const uploadSchema = z.object({
@@ -631,6 +734,13 @@ export const getGDriveClientToken = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     try {
+      if (cachedDriveToken && Date.now() < cachedDriveToken.expiresAt - 60000) {
+        return {
+          success: true,
+          accessToken: cachedDriveToken.accessToken,
+          rootFolderId: cachedDriveToken.rootFolderId,
+        };
+      }
       const accessToken = await getServerGDriveAccessToken(context);
       const rootFolderId = await getRootFolderId(context);
       return { success: true, accessToken, rootFolderId };
