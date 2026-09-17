@@ -1055,7 +1055,7 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
           </button>
 
           {/* Action bar top center/left */}
-          <div className="absolute top-4 left-4 flex items-center gap-2 z-50" onClick={(e) => e.stopPropagation()}>
+          <div className="absolute top-4 left-4 flex items-center gap-2.5 z-50" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={handleDownloadLightboxImage}
               className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-lg backdrop-blur-sm"
@@ -1078,6 +1078,17 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
               <Trash2 className="h-3.5 w-3.5" />
               <span>Excluir</span>
             </button>
+
+            {/* Storage indicator badge */}
+            {lightbox.src.includes("supabase.co") || lightbox.src.includes("demand-attachments") ? (
+              <span className="flex items-center gap-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1.5 rounded-lg text-xs font-bold backdrop-blur-sm shadow-md">
+                ⚡ Salvo no Supabase (Contingência)
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1.5 rounded-lg text-xs font-bold backdrop-blur-sm shadow-md">
+                ✓ Google Drive (5TB)
+              </span>
+            )}
           </div>
 
           {/* Centered Image */}

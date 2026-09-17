@@ -255,23 +255,38 @@ export function FileAttachments({
           {/* Completed Files list */}
           {files.map((file: any) => {
             const Icon = getFileIcon(file.file_type);
+            const isSupabase = file.drive_file_id === "supabase" || Boolean(file.drive_url && (file.drive_url.includes("supabase.co") || file.drive_url.includes("demand-attachments")));
             return (
               <div
                 key={file.id}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-border bg-muted/10 hover:bg-muted/20 transition-colors group"
+                className={cn(
+                  "flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors group",
+                  isSupabase
+                    ? "border-amber-500/50 bg-amber-950/20 hover:bg-amber-950/30"
+                    : "border-border bg-muted/10 hover:bg-muted/20"
+                )}
               >
-                <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <Icon className={cn("h-4 w-4 shrink-0", isSupabase ? "text-amber-400" : "text-muted-foreground")} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-foreground truncate">{file.file_name}</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {formatFileSize(file.file_size)}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{file.file_name}</p>
+                    {isSupabase && (
+                      <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">
+                        ⚡ CONTINGÊNCIA
+                      </span>
+                    )}
+                  </div>
+                  <p className={cn("text-[10px] font-medium flex items-center gap-1 mt-0.5", isSupabase ? "text-amber-400" : "text-muted-foreground")}>
+                    <span>{formatFileSize(file.file_size)}</span>
+                    <span>•</span>
+                    <span>{isSupabase ? "⚡ Salvo no Supabase (Contingência)" : "Google Drive"}</span>
                   </p>
                 </div>
                 <a
                   href={getGoogleDriveViewUrl(file.drive_url)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  className={cn("transition-colors cursor-pointer", isSupabase ? "text-amber-400 hover:text-amber-300" : "text-muted-foreground hover:text-foreground")}
                   title="Abrir arquivo"
                 >
                   <Download className="h-3.5 w-3.5" />

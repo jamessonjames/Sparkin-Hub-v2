@@ -203,11 +203,19 @@ export const AttachmentCardExtension = Node.create({
       ];
     }
 
+    const isSupabase = Boolean(
+      HTMLAttributes.src &&
+      (String(HTMLAttributes.src).includes("supabase.co") || String(HTMLAttributes.src).includes("demand-attachments"))
+    );
+
     return [
       "div",
       mergeAttributes(HTMLAttributes, {
         "data-type": "attachment-card",
-        class: "attachment-card-box not-prose my-2.5 p-3 rounded-xl border border-zinc-700/80 bg-zinc-900/80 backdrop-blur-sm flex items-center justify-between gap-3 shadow-sm group transition-all hover:border-zinc-500 select-none",
+        "data-storage": isSupabase ? "supabase" : "gdrive",
+        class: isSupabase
+          ? "attachment-card-box not-prose my-2.5 p-3 rounded-xl border border-amber-500/50 bg-amber-950/20 backdrop-blur-sm flex items-center justify-between gap-3 shadow-sm group transition-all hover:border-amber-400 select-none ring-1 ring-amber-500/20"
+          : "attachment-card-box not-prose my-2.5 p-3 rounded-xl border border-zinc-700/80 bg-zinc-900/80 backdrop-blur-sm flex items-center justify-between gap-3 shadow-sm group transition-all hover:border-zinc-500 select-none",
       }),
       [
         "div",
@@ -217,23 +225,48 @@ export const AttachmentCardExtension = Node.create({
         },
         [
           "div",
-          { class: "h-9 w-9 rounded-lg bg-zinc-800 text-zinc-300 flex items-center justify-center font-extrabold text-[11px] tracking-wider uppercase shrink-0 border border-zinc-700" },
+          {
+            class: isSupabase
+              ? "h-9 w-9 rounded-lg bg-amber-900/40 text-amber-300 flex items-center justify-center font-extrabold text-[11px] tracking-wider uppercase shrink-0 border border-amber-600/40 shadow-xs"
+              : "h-9 w-9 rounded-lg bg-zinc-800 text-zinc-300 flex items-center justify-center font-extrabold text-[11px] tracking-wider uppercase shrink-0 border border-zinc-700",
+          },
           ext,
         ],
         [
           "div",
           { class: "min-w-0 flex flex-col justify-center" },
           [
-            "span",
-            {
-              class: "text-xs font-bold text-zinc-200 truncate hover:underline transition-colors cursor-pointer",
-            },
-            HTMLAttributes.fileName || "Arquivo",
+            "div",
+            { class: "flex items-center gap-1.5 min-w-0" },
+            [
+              "span",
+              {
+                class: "text-xs font-bold text-zinc-200 truncate hover:underline transition-colors cursor-pointer",
+              },
+              HTMLAttributes.fileName || "Arquivo",
+            ],
+            ...(isSupabase
+              ? [
+                  [
+                    "span",
+                    {
+                      class: "inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 tracking-wider shrink-0",
+                    },
+                    "⚡ CONTINGÊNCIA",
+                  ],
+                ]
+              : []),
           ],
           [
             "span",
-            { class: "text-[10px] text-zinc-400 font-medium mt-0.5" },
-            HTMLAttributes.fileSize ? `${HTMLAttributes.fileSize} • Google Drive` : "Google Drive",
+            {
+              class: isSupabase
+                ? "text-[10px] text-amber-400 font-semibold mt-0.5"
+                : "text-[10px] text-zinc-400 font-medium mt-0.5",
+            },
+            isSupabase
+              ? (HTMLAttributes.fileSize ? `${HTMLAttributes.fileSize} • ⚡ Supabase (Contingência)` : "⚡ Salvo no Supabase (Contingência)")
+              : (HTMLAttributes.fileSize ? `${HTMLAttributes.fileSize} • Google Drive` : "Google Drive"),
           ],
         ],
       ],
@@ -667,7 +700,7 @@ export function RichEditor({
             editor?.chain().focus().setImage({ src: finalUrl }).run();
           }
           if (supabaseUrl) {
-            toast.success("Imagem enviada para o servidor com sucesso!");
+            toast.warning("⚡ Salvo no Supabase (Armazenamento de contingência).");
           } else {
             toast.warning("Hospedagem em nuvem indisponível. Salvo em base64.");
           }
@@ -699,7 +732,7 @@ export function RichEditor({
           editor?.chain().focus().setImage({ src: finalUrl }).run();
         }
         if (supabaseUrl) {
-          toast.success("Imagem enviada para o servidor com sucesso!");
+          toast.warning("⚡ Salvo no Supabase (Armazenamento de contingência).");
         } else {
           toast.warning("Falha no Google Drive. Salvo em base64.");
         }
@@ -827,7 +860,7 @@ export function RichEditor({
             } else {
               editor?.chain().focus().insertContent(cardData).run();
             }
-            toast.success(`Arquivo "${file.name}" salvo na nuvem de contingência.`);
+            toast.warning(`⚡ Arquivo "${file.name}" salvo no Supabase (Contingência).`);
           } else {
             if (foundRange) editor?.chain().focus().deleteRange(foundRange).run();
             toast.error(fallback.error || response.error || "Erro ao carregar arquivo.");
@@ -864,7 +897,7 @@ export function RichEditor({
           } else {
             editor?.chain().focus().insertContent(cardData).run();
           }
-          toast.success(`Arquivo "${file.name}" salvo na nuvem de contingência.`);
+          toast.warning(`⚡ Arquivo "${file.name}" salvo no Supabase (Contingência).`);
         } else {
           if (foundRange) editor?.chain().focus().deleteRange(foundRange).run();
           toast.error(fallback.error || "Erro ao subir arquivo.");
