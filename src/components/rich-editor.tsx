@@ -429,6 +429,10 @@ export function RichEditor({
         ),
       },
       handleClickOn: (view, pos, node, nodePos, event) => {
+        // Apenas botão esquerdo principal (button === 0) deve abrir links ou executar ações.
+        // Botão direito (button === 2) ou outros devem permitir o menu de contexto nativo sem abrir guia.
+        if (event.button !== 0) return false;
+
         const target = event.target as HTMLElement;
 
         if (target.closest("[data-action='delete-attachment']")) {
