@@ -197,6 +197,7 @@ function AgendaPage() {
   const overlay = useDemandOverlay();
   const qc = useQueryClient();
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [activeOverSlotId, setActiveOverSlotId] = useState<string | null>(null);
   const { currentUserRole, selectedUserId, setSelectedUserId, defaultUserId, setDefaultUserId, profiles, currentUser } = useUserContext();
   const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
   const activeUserId = selectedUserId ?? currentUser?.id ?? null;
@@ -737,26 +738,8 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
       return toISO(dt) === targetDayStr;
     });
 
-    // Demands that start BEFORE targetDate and do not collide with [targetDate, droppedEnd] stay intact
-    for (const d of sameDayDemands) {
-      const dt = safeParseDate(d.due_date!);
-      const dur = getDemandDurationHours(d);
-      const dEnd = addHours(dt, dur);
-      if (dt.getTime() < targetDate.getTime() && !rangesOverlap(targetDate, droppedEnd, dt, dEnd)) {
-        blockSlots(dt, dur, takenSlots);
-      }
-    }
-
-    // Demands on the same day that collide with the dropped range OR start at/after targetDate
-    const demandsToCascade = sameDayDemands.filter((d) => {
-      const dt = safeParseDate(d.due_date!);
-      const dur = getDemandDurationHours(d);
-      const dEnd = addHours(dt, dur);
-      return rangesOverlap(targetDate, droppedEnd, dt, dEnd) || dt.getTime() >= targetDate.getTime();
-    });
-
-    // Sort to preserve previous relative order and priority
-    demandsToCascade.sort((a, b) => {
+    // Sort chronologically by existing scheduled time
+    sameDayDemands.sort((a, b) => {
       const dtA = safeParseDate(a.due_date!).getTime();
       const dtB = safeParseDate(b.due_date!).getTime();
       if (dtA !== dtB) return dtA - dtB;
@@ -766,18 +749,31 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
       return wB - wA;
     });
 
-    // 5. Cascade allocation cursor starts right after droppedDemand
-    let search = new Date(droppedEnd);
-    const m = search.getMinutes();
-    if (m > 0 && m < 30) search.setMinutes(30, 0, 0);
-    else if (m > 30) {
-      search.setHours(search.getHours() + 1, 0, 0, 0);
-    } else {
-      search.setSeconds(0, 0);
-    }
-
-    for (const d of demandsToCascade) {
+    // 5. Evaluate each demand on the same day:
+    // If it does NOT collide with taken slots, IT STAYS EXACTLY AT ITS CURRENT TIME! (Never pull earlier!)
+    // If it DOES collide with taken slots, push it down to the next available free slot.
+    for (const d of sameDayDemands) {
+      const dt = safeParseDate(d.due_date!);
       const dur = getDemandDurationHours(d);
+
+      // If its current slot is completely free, KEEP IT AT ITS CURRENT TIME
+      if (areSlotsFree(dt, dur, takenSlots)) {
+        blockSlots(dt, dur, takenSlots);
+        continue;
+      }
+
+      // If it collides with taken slots, we must find the next available slot AFTER the collision.
+      // Search starts from dt or droppedEnd (whichever is later, guaranteeing it only pushes forward/down, never earlier!)
+      let search = new Date(Math.max(dt.getTime(), droppedEnd.getTime()));
+      const m = search.getMinutes();
+      if (m > 0 && m < 30) {
+        search.setMinutes(30, 0, 0);
+      } else if (m > 30) {
+        search.setHours(search.getHours() + 1, 0, 0, 0);
+      } else {
+        search.setSeconds(0, 0);
+      }
+
       let found = false;
       let safety = 0;
 
@@ -798,7 +794,6 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
             });
           }
           blockSlots(search, dur, takenSlots);
-          search = addHours(search, dur);
           found = true;
           break;
         }
@@ -817,7 +812,6 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
             is_manually_scheduled: d.is_manually_scheduled ?? false,
           });
           blockSlots(search, dur, takenSlots);
-          search = addHours(search, dur);
         }
       }
     }
@@ -979,6 +973,61 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
     return meetings.find((meeting) => meeting.id === activeDragId.slice("meeting:".length)) || null;
   }, [activeDragId, meetings]);
 
+  const dragHighlightedSlots = useMemo(() => {
+    if (!activeOverSlotId || !activeDragId) {
+      return new Map<string, { isFirst: boolean; isLast: boolean; isConflict: boolean }>();
+    }
+
+    const targetDate = parseSlotId(activeOverSlotId);
+    if (!targetDate) {
+      return new Map<string, { isFirst: boolean; isLast: boolean; isConflict: boolean }>();
+    }
+
+    let durationHours = 1.0;
+    if (activeDragDemand) {
+      durationHours = getDemandDurationHours(activeDragDemand);
+    } else if (activeDragMeeting) {
+      durationHours = activeDragMeeting.estimated_hours ? Number(activeDragMeeting.estimated_hours) : 1.0;
+    } else if (activeDragReminder) {
+      durationHours = 0.5;
+    }
+
+    const slotCount = Math.max(1, Math.ceil(durationHours / 0.5));
+    const targetDayStr = toISO(targetDate);
+    const targetEnd = addHours(targetDate, durationHours);
+
+    // Check conflict with meetings
+    let isConflict = false;
+    for (const m of meetings) {
+      if (!m.due_date) continue;
+      if (activeDragMeeting && m.id === activeDragMeeting.id) continue;
+      const mStart = safeParseDate(m.due_date);
+      const mEnd = addHours(mStart, m.estimated_hours || 1);
+      if (rangesOverlap(targetDate, targetEnd, mStart, mEnd)) {
+        isConflict = true;
+        break;
+      }
+    }
+
+    const map = new Map<string, { isFirst: boolean; isLast: boolean; isConflict: boolean }>();
+    const cursor = new Date(targetDate);
+
+    for (let i = 0; i < slotCount; i++) {
+      if (toISO(cursor) !== targetDayStr || cursor.getHours() >= 24) break;
+      const hStr = String(cursor.getHours()).padStart(2, "0");
+      const mStr = String(cursor.getMinutes() >= 30 ? 30 : 0).padStart(2, "0");
+      const slotId = `slot_${targetDayStr}_${hStr}_${mStr}`;
+      map.set(slotId, {
+        isFirst: i === 0,
+        isLast: i === slotCount - 1 || (cursor.getHours() === 23 && cursor.getMinutes() >= 30),
+        isConflict,
+      });
+      cursor.setMinutes(cursor.getMinutes() + 30);
+    }
+
+    return map;
+  }, [activeOverSlotId, activeDragId, activeDragDemand, activeDragMeeting, activeDragReminder, meetings]);
+
   async function handleSaveReminder(data: ReminderData) {
     try {
       await upsertReminderFn({ data });
@@ -1048,9 +1097,30 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
   return (
     <DndContext
       sensors={sensors}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveDragId(null)}
+      onDragStart={(e) => {
+        handleDragStart(e);
+        setActiveOverSlotId(null);
+      }}
+      onDragOver={(e) => {
+        const overId = e.over?.id ? String(e.over.id) : null;
+        if (overId !== activeOverSlotId) {
+          setActiveOverSlotId(overId);
+        }
+      }}
+      onDragMove={(e) => {
+        const overId = e.over?.id ? String(e.over.id) : null;
+        if (overId !== activeOverSlotId) {
+          setActiveOverSlotId(overId);
+        }
+      }}
+      onDragEnd={(e) => {
+        setActiveOverSlotId(null);
+        handleDragEnd(e);
+      }}
+      onDragCancel={() => {
+        setActiveOverSlotId(null);
+        setActiveDragId(null);
+      }}
       collisionDetection={customCollisionDetection}
     >
       <div className="w-full flex flex-col h-[calc(100vh-60px)] bg-background text-foreground overflow-hidden relative">
@@ -1265,12 +1335,15 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                         const remindersInSlot = remindersBySlot.get(slotKey) || [];
                         const meetingsInSlot = meetingsBySlot.get(slotKey) || [];
                         const isBusiness = isValidSlot(new Date(`${iso}T${hStr}:${mStr}:00`), config);
+                        const slotId = `slot_${iso}_${hStr}_${mStr}`;
+                        const highlightInfo = dragHighlightedSlots.get(slotId);
 
                         return (
                           <DroppableHourCell
                             key={index}
-                            id={`slot_${iso}_${hStr}_${mStr}`}
+                            id={slotId}
                             isBusiness={isBusiness}
+                            highlightInfo={highlightInfo}
                             onClick={() => handleSlotClick(iso, slot.h, slot.m)}
                           >
                             {demandsInSlot.map((demand) => (
@@ -1442,15 +1515,22 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
 function DroppableHourCell({
   id,
   isBusiness,
+  highlightInfo,
   onClick,
   children,
 }: {
   id: string;
   isBusiness: boolean;
+  highlightInfo?: { isFirst: boolean; isLast: boolean; isConflict: boolean };
   onClick?: (e: React.MouseEvent) => void;
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
+  const isHighlighted = !!highlightInfo || isOver;
+  const isFirst = highlightInfo ? highlightInfo.isFirst : true;
+  const isLast = highlightInfo ? highlightInfo.isLast : true;
+  const isConflict = highlightInfo?.isConflict ?? false;
+
   return (
     <div
       ref={setNodeRef}
@@ -1464,8 +1544,28 @@ function DroppableHourCell({
       }}
       className={cn(
         "h-10 border-t border-border/15 p-0.5 relative transition-colors duration-150 cursor-pointer hover:bg-white/5",
-        !isBusiness && "bg-muted/30 opacity-70",
-        isOver && (isBusiness ? "bg-primary/25 border-t-primary" : "bg-red-500/10 border-t-red-700")
+        !isBusiness && !isHighlighted && "bg-muted/30 opacity-70",
+        isHighlighted && (
+          isConflict
+            ? "bg-red-500/20 border-l-2 border-r-2 border-l-red-500 border-r-red-500 z-20"
+            : isBusiness
+            ? "bg-primary/25 border-l-2 border-r-2 border-l-primary border-r-primary z-20"
+            : "bg-amber-500/20 border-l-2 border-r-2 border-l-amber-500 border-r-amber-500 z-20"
+        ),
+        isHighlighted && isFirst && (
+          isConflict
+            ? "!border-t-2 !border-t-red-500 rounded-t-sm"
+            : isBusiness
+            ? "!border-t-2 !border-t-primary rounded-t-sm"
+            : "!border-t-2 !border-t-amber-500 rounded-t-sm"
+        ),
+        isHighlighted && isLast && (
+          isConflict
+            ? "!border-b-2 !border-b-red-500 rounded-b-sm"
+            : isBusiness
+            ? "!border-b-2 !border-b-primary rounded-b-sm"
+            : "!border-b-2 !border-b-amber-500 rounded-b-sm"
+        ),
       )}
     >
       {children}

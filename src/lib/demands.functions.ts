@@ -38,6 +38,7 @@ const upsertSchema = z.object({
   assignee_user_id: z.string().uuid().optional().nullable(),
   client_edition_id: z.string().uuid().optional().nullable(),
   price: z.number().optional().nullable(),
+  is_manually_scheduled: z.boolean().optional().nullable(),
 });
 
 export const listDemands = createServerFn({ method: "GET" })
@@ -135,6 +136,7 @@ export const createDemand = createServerFn({ method: "POST" })
       created_by_user_id: context.userId,
       client_edition_id: data.client_edition_id || null,
       price: data.price ?? null,
+      is_manually_scheduled: data.is_manually_scheduled !== undefined ? data.is_manually_scheduled : Boolean(data.due_date),
     };
 
     // Gracefully handle database schema transition where estimated_hours might not exist yet
@@ -193,6 +195,7 @@ export const updateDemand = createServerFn({ method: "POST" })
       assignee_user_id: rest.assignee_user_id || null,
       client_edition_id: rest.client_edition_id || null,
       price: rest.price ?? null,
+      ...(typeof rest.is_manually_scheduled === "boolean" ? { is_manually_scheduled: rest.is_manually_scheduled } : {}),
     };
 
     // Gracefully handle database schema transition where estimated_hours might not exist yet

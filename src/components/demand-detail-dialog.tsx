@@ -855,6 +855,7 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
             assignee_user_id: assigneeId || (profiles as any[]).find((p: any) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
             client_edition_id: clientEditionId || null,
             price: price ?? null,
+            is_manually_scheduled: Boolean(finalDueDate),
           },
         });
         toast.success("Demanda criada com sucesso!");
@@ -876,6 +877,7 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
             assignee_user_id: assigneeId || (profiles as any[]).find((p: any) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
             client_edition_id: clientEditionId || null,
             price: price ?? null,
+            is_manually_scheduled: demand?.is_manually_scheduled !== undefined ? demand.is_manually_scheduled : Boolean(finalDueDate),
           },
         });
         toast.success("Alterações salvas!");
