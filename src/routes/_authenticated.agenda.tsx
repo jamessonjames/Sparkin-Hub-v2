@@ -15,7 +15,7 @@ import { useUserContext } from "@/contexts/user-context";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check, Repeat, Star, Video } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check, Repeat, Star, Video, ArrowUpDown } from "lucide-react";
 import { MeetingDialog } from "@/components/meeting-dialog";
 import { listMeetings, upsertMeeting, type Meeting } from "@/lib/meetings.functions";
 import { STATUS_LABELS } from "@/lib/demand-labels";
@@ -40,6 +40,8 @@ import {
   getTzTime,
   isValidSlot,
   safeParseDate,
+  buildBrasiliaIso,
+  reorderDayDemandsByPriority,
 } from "@/utils/scheduler";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1060,9 +1062,41 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
 
   function handleSlotClick(iso: string, hour: number, minute: number) {
     if (isDragOrResizeInProgressRef.current) return;
-    const slotIso = `${iso}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    const timeStr = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    const slotIso = buildBrasiliaIso(iso, timeStr);
     setSelectedSlotDateTime(slotIso);
     setSlotModalOpen(true);
+  }
+
+  async function handleReorganizeDay(targetDayStr: string) {
+    const dayDemands = demands.filter((d) => d.due_date && d.due_date.slice(0, 10) === targetDayStr) as any[];
+    const dayMeetings = meetings.filter((m) => m.due_date && m.due_date.slice(0, 10) === targetDayStr);
+    const updates = reorderDayDemandsByPriority(targetDayStr, dayDemands, dayMeetings, config);
+
+    if (updates.length === 0) {
+      toast.info("As demandas deste dia já estão na ordem ideal de prioridade.");
+      return;
+    }
+
+    // Optimistic UI update
+    qc.setQueryData<typeof demands>(["demands", targetAgendaUserId, isAdminOrOwner], (prev) => {
+      const updateMap = new Map(updates.map((u) => [u.id, u.due_date]));
+      return (prev ?? []).map((d) => {
+        if (updateMap.has(d.id)) {
+          return { ...d, due_date: updateMap.get(d.id)! };
+        }
+        return d;
+      });
+    });
+
+    try {
+      await batchUpdateFn({ data: { updates } });
+      toast.success("Demandas organizadas por prioridade!");
+      qc.invalidateQueries({ queryKey: ["demands"] });
+    } catch (err: any) {
+      toast.error("Erro ao organizar demandas.");
+      qc.invalidateQueries({ queryKey: ["demands"] });
+    }
   }
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1219,7 +1253,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                       "nao_iniciado",
                       undefined,
                       isAdminOrOwner && activeUserId ? activeUserId : undefined,
-                      `${iso}T12:00:00`,
+                      buildBrasiliaIso(iso, "09:00"),
                       1.0
                     )}
                     className={cn(
@@ -1288,6 +1322,15 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                         onOpenDemand={(id) => overlay.open(id, clientsForOverlay)}
                       />
                     )}
+                    <button
+                      type="button"
+                      title="Organizar demandas do dia por prioridade e ordem de cadastro"
+                      onClick={() => handleReorganizeDay(iso)}
+                      className="mt-1 text-[9px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-muted/40 cursor-pointer"
+                    >
+                      <ArrowUpDown className="h-2.5 w-2.5" />
+                      <span>Organizar</span>
+                    </button>
                   </div>
                 );
               })}
@@ -1346,11 +1389,13 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                             highlightInfo={highlightInfo}
                             onClick={() => handleSlotClick(iso, slot.h, slot.m)}
                           >
-                            {demandsInSlot.map((demand) => (
+                            {demandsInSlot.map((demand, dIdx) => (
                               <DraggableDemandCard
                                 key={demand.id}
                                 demand={demand}
                                 now={now}
+                                colIndex={dIdx}
+                                totalCols={demandsInSlot.length}
                                 onResize={handleResizeDemand}
                                 onTogglePin={handleTogglePin}
                                 onClick={() => {
@@ -1997,6 +2042,8 @@ function DraggableDemandCard({
   onTogglePin,
   isDragOrResizeRef,
   now,
+  colIndex = 0,
+  totalCols = 1,
 }: {
   demand: any;
   now?: Date;
@@ -2004,6 +2051,8 @@ function DraggableDemandCard({
   onResize: (demandId: string, hours: number) => Promise<void>;
   onTogglePin: (demandId: string, nextValue: boolean) => Promise<void>;
   isDragOrResizeRef?: React.RefObject<boolean>;
+  colIndex?: number;
+  totalCols?: number;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: demand.id,
@@ -2091,9 +2140,20 @@ function DraggableDemandCard({
 
   const isMeeting = Boolean((demand as any).internal_notes && (demand as any).internal_notes.includes('"is_meeting":true'));
 
-  const style = {
+  const isMulti = totalCols > 1;
+  const colWidthPct = isMulti ? 100 / totalCols : 100;
+  const colLeftPct = isMulti ? colIndex * colWidthPct : 0;
+
+  const style: React.CSSProperties = {
     height: `${cardHeight}px`,
     zIndex: isResizing || isDragging ? 50 : 20,
+    ...(isMulti
+      ? {
+          width: `calc(${colWidthPct}% - 4px)`,
+          left: `calc(${colLeftPct}% + 2px)`,
+          right: "auto",
+        }
+      : {}),
   };
 
   return (
@@ -2101,7 +2161,8 @@ function DraggableDemandCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group absolute inset-x-0.5 top-0.5 rounded border-l-4 p-1.5 text-[10px] font-medium cursor-pointer shadow-sm select-none",
+        "group absolute top-0.5 rounded border-l-4 p-1.5 text-[10px] font-medium cursor-pointer shadow-sm select-none",
+        !isMulti && "inset-x-0.5",
         "transition-all flex flex-col justify-between overflow-hidden",
         isMeeting
           ? "bg-[#6b21a8] text-white border-l-purple-300"

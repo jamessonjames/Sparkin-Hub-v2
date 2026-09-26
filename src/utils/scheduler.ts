@@ -81,40 +81,73 @@ export function getNextSlot(date: Date, config: SchedulingConfig): Date {
 }
 
 /** Helper to convert date to local YYYY-MM-DD string */
-function toISO(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+export function toISO(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/** Format a Date object to YYYY-MM-DDTHH:mm:ss with the correct local timezone offset */
+/**
+ * Builds a standardized Brasília ISO datetime string (UTC-3).
+ * Always attaches explicit '-03:00' offset so Supabase/PostgreSQL TIMESTAMPTZ
+ * never shifts hours to UTC or local discrepancy.
+ */
+export function buildBrasiliaIso(dateStr: string, timeStr = "09:00"): string {
+  const d = (dateStr || "").slice(0, 10);
+  const cleanTime = (timeStr || "09:00").slice(0, 5);
+  const t = cleanTime.length === 5 ? cleanTime : "09:00";
+  return `${d}T${t}:00-03:00`;
+}
+
+/** Format a Date object to YYYY-MM-DDTHH:mm:ss-03:00 with explicit Brasília timezone offset */
 export function formatTzString(date: Date): string {
-  const tzo = -date.getTimezoneOffset();
-  const dif = tzo >= 0 ? "+" : "-";
-  const pad = (num: number) => String(Math.floor(Math.abs(num))).padStart(2, "0");
-  
-  const y = date.getFullYear();
-  const m = pad(date.getMonth() + 1);
-  const d = pad(date.getDate());
-  const hh = pad(date.getHours());
-  const mm = pad(date.getMinutes());
-  const ss = pad(date.getSeconds());
-  
-  return `${y}-${m}-${d}T${hh}:${mm}:${ss}${dif}${pad(tzo / 60)}:${pad(tzo % 60)}`;
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(date);
+    const getVal = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+    const y = getVal("year");
+    const m = getVal("month");
+    const d = getVal("day");
+    let hh = getVal("hour");
+    if (hh === "24") hh = "00";
+    const mm = getVal("minute");
+    const ss = getVal("second");
+    return `${y}-${m}-${d}T${hh}:${mm}:${ss}-03:00`;
+  } catch (e) {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}-03:00`;
+  }
 }
 
-/** Parse a date string safely avoiding UTC midnight shifting on YYYY-MM-DD or T00:00:00 */
+/** Parse a date string safely, ensuring strings without timezone are treated as Brasília (-03:00) */
 export function safeParseDate(dateStr: string): Date {
   if (!dateStr) return new Date();
-  
-  // If it's a date-only format like YYYY-MM-DD or a midnight timestamp T00:00:00...
-  const dateOnlyMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00.*)?$/);
+
+  // If it's a date-only format like YYYY-MM-DD
+  const dateOnlyMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.000)?(?:Z|[+-]\d{2}:\d{2})?)?$/);
   if (dateOnlyMatch) {
     const y = parseInt(dateOnlyMatch[1], 10);
     const m = parseInt(dateOnlyMatch[2], 10);
     const d = parseInt(dateOnlyMatch[3], 10);
-    return new Date(y, m - 1, d, 12, 0, 0); // local noon fallback
+    return new Date(y, m - 1, d, 12, 0, 0); // local noon fallback for date-only
   }
-  
-  const cleaned = dateStr.replace(" ", "T");
+
+  let cleaned = dateStr.replace(" ", "T");
+  // If string has no timezone offset (neither Z, nor + nor trailing -HH:MM), treat as Brasília time
+  if (!cleaned.includes("Z") && !cleaned.includes("+") && !/[+-]\d{2}:\d{2}$/.test(cleaned)) {
+    if (/T\d{2}:\d{2}(:\d{2})?/.test(cleaned)) {
+      cleaned = `${cleaned}-03:00`;
+    }
+  }
+
   const parsed = new Date(cleaned);
   if (!isNaN(parsed.getTime())) {
     return parsed;
@@ -133,8 +166,8 @@ export interface UnscheduledDemand {
   is_manually_scheduled?: boolean | null;
 }
 
-/** Helper to block slots occupied by a demand */
-function blockSlots(startDate: Date, durationHours: number, takenSlots: Set<string>) {
+/** Helper to block slots occupied by a demand or meeting */
+export function blockSlots(startDate: Date, durationHours: number, takenSlots: Set<string>) {
   const steps = Math.ceil(durationHours / 0.5);
   const current = new Date(startDate);
   for (let i = 0; i < steps; i++) {
@@ -144,13 +177,30 @@ function blockSlots(startDate: Date, durationHours: number, takenSlots: Set<stri
 }
 
 /** Helper to check if slots are free for a demand */
-function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<string>): boolean {
+export function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<string>): boolean {
   const steps = Math.ceil(durationHours / 0.5);
   const current = new Date(startDate);
   for (let i = 0; i < steps; i++) {
     if (takenSlots.has(formatTzString(current))) {
       return false;
     }
+    current.setMinutes(current.getMinutes() + 30);
+  }
+  return true;
+}
+
+/** Check if all slots in the interval are valid working slots and free */
+export function areWorkingSlotsFree(
+  startDate: Date,
+  durationHours: number,
+  takenSlots: Set<string>,
+  config: SchedulingConfig = DEFAULT_CONFIG
+): boolean {
+  const steps = Math.ceil(durationHours / 0.5);
+  const current = new Date(startDate);
+  for (let i = 0; i < steps; i++) {
+    if (!isValidSlot(current, config)) return false;
+    if (takenSlots.has(formatTzString(current))) return false;
     current.setMinutes(current.getMinutes() + 30);
   }
   return true;
@@ -495,4 +545,292 @@ export function getAdjustmentTargetDate(
     return getNextWorkingDayStr(now, config);
   }
 }
+
+export interface AvailableSlotResult {
+  dateStr: string;           // YYYY-MM-DD
+  timeStr: string;           // HH:mm
+  fullIso: string;           // YYYY-MM-DDTHH:mm:ss-03:00
+  isOvertime: boolean;       // true if scheduled outside 09:00-18:00 because day is full
+  nextFreeWorkingSlot?: {    // Alternative next working day slot if day is full
+    dateStr: string;
+    timeStr: string;
+    fullIso: string;
+  };
+}
+
+/**
+ * Checks if a specific day is full and cannot fit a demand of durationHours within working hours.
+ */
+export function isDayFullForWorkingHours(
+  targetDayStr: string,
+  durationHours: number = 1.0,
+  existingDemands: { id?: string; due_date: string | null; estimated_hours?: number | null; status?: string }[] = [],
+  existingMeetings: { id?: string; due_date: string | null; estimated_hours?: number | null }[] = [],
+  config: SchedulingConfig = DEFAULT_CONFIG
+): boolean {
+  const [y, m, d] = targetDayStr.split("-").map(Number);
+  const targetDate = new Date(y, m - 1, d);
+  if (!config.workingDays.includes(targetDate.getDay())) return true; // weekends are full for normal hours
+
+  const takenSlots = new Set<string>();
+  for (const meet of existingMeetings) {
+    if (meet.due_date && meet.due_date.slice(0, 10) === targetDayStr) {
+      blockSlots(safeParseDate(meet.due_date), meet.estimated_hours ? Number(meet.estimated_hours) : 1.0, takenSlots);
+    }
+  }
+  for (const dem of existingDemands) {
+    if (dem.status === "concluido" || dem.status === "para_analise" || dem.status === "rascunho") continue;
+    if (dem.due_date && dem.due_date.slice(0, 10) === targetDayStr) {
+      blockSlots(safeParseDate(dem.due_date), dem.estimated_hours ? Number(dem.estimated_hours) : 1.0, takenSlots);
+    }
+  }
+
+  // Scan all 30m slots on targetDay between startHour and endHour
+  const cursor = new Date(y, m - 1, d, config.startHour, 0, 0);
+  while (cursor.getHours() < config.endHour) {
+    if (areWorkingSlotsFree(cursor, durationHours, takenSlots, config)) {
+      const endCandidate = new Date(cursor.getTime() + durationHours * 3600 * 1000);
+      if (endCandidate.getHours() < config.endHour || (endCandidate.getHours() === config.endHour && endCandidate.getMinutes() === 0)) {
+        return false; // Found a free business slot!
+      }
+    }
+    cursor.setMinutes(cursor.getMinutes() + 30);
+  }
+  return true; // No free business slot
+}
+
+/**
+ * Finds the next available working slot for a demand with durationHours.
+ * If preferredDateStr is supplied:
+ *   - If the day has space within 09:00-18:00, returns that slot (isOvertime = false).
+ *   - If the day is full within 09:00-18:00, calculates next free slot on the next working day,
+ *     and also provides the first free slot after 18:00 on preferredDate (isOvertime = true).
+ * If preferredDateStr is not supplied:
+ *   - Finds next available working slot starting from now/next working day within 09:00-18:00.
+ */
+export function findNextAvailableWorkingSlot(
+  durationHours: number = 1.0,
+  preferredDateStr?: string | null,
+  existingDemands: { id?: string; due_date: string | null; estimated_hours?: number | null; status?: string; assignee_user_id?: string | null }[] = [],
+  existingMeetings: { id?: string; due_date: string | null; estimated_hours?: number | null }[] = [],
+  config: SchedulingConfig = DEFAULT_CONFIG
+): AvailableSlotResult {
+  const now = getTzTime(config.timezone);
+  const nowDayStr = toISO(now);
+
+  const takenSlots = new Set<string>();
+  for (const meet of existingMeetings) {
+    if (meet.due_date) {
+      blockSlots(safeParseDate(meet.due_date), meet.estimated_hours ? Number(meet.estimated_hours) : 1.0, takenSlots);
+    }
+  }
+  for (const dem of existingDemands) {
+    if (dem.status === "concluido" || dem.status === "para_analise" || dem.status === "rascunho") continue;
+    if (dem.due_date) {
+      blockSlots(safeParseDate(dem.due_date), dem.estimated_hours ? Number(dem.estimated_hours) : 1.0, takenSlots);
+    }
+  }
+
+  // Helper to find first free working slot on or after a given day
+  const findFreeInDays = (startDayStr: string, limitDays = 30): { dateStr: string; timeStr: string; fullIso: string } | null => {
+    const [y, m, d] = startDayStr.split("-").map(Number);
+    const checkDate = new Date(y, m - 1, d);
+
+    for (let dayOffset = 0; dayOffset < limitDays; dayOffset++) {
+      if (config.workingDays.includes(checkDate.getDay())) {
+        const checkDayStr = toISO(checkDate);
+        let cursor = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate(), config.startHour, 0, 0);
+
+        // If checking today, cursor cannot be in the past
+        if (checkDayStr === nowDayStr) {
+          const currentHourDec = now.getHours() + now.getMinutes() / 60;
+          if (currentHourDec > config.startHour) {
+            const next30Mins = Math.ceil(now.getMinutes() / 30) * 30;
+            cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0);
+            cursor.setMinutes(next30Mins, 0, 0);
+          }
+        }
+
+        while (cursor.getHours() < config.endHour) {
+          if (areWorkingSlotsFree(cursor, durationHours, takenSlots, config)) {
+            const endCand = new Date(cursor.getTime() + durationHours * 3600 * 1000);
+            if (endCand.getHours() < config.endHour || (endCand.getHours() === config.endHour && endCand.getMinutes() === 0)) {
+              const timeStr = `${String(cursor.getHours()).padStart(2, "0")}:${String(cursor.getMinutes()).padStart(2, "0")}`;
+              return {
+                dateStr: checkDayStr,
+                timeStr,
+                fullIso: buildBrasiliaIso(checkDayStr, timeStr),
+              };
+            }
+          }
+          cursor.setMinutes(cursor.getMinutes() + 30);
+        }
+      }
+      checkDate.setDate(checkDate.getDate() + 1);
+    }
+    return null;
+  };
+
+  // If a specific preferred day was given
+  if (preferredDateStr) {
+    const isFull = isDayFullForWorkingHours(preferredDateStr, durationHours, existingDemands, existingMeetings, config);
+    if (!isFull) {
+      const freeSlot = findFreeInDays(preferredDateStr, 1);
+      if (freeSlot && freeSlot.dateStr === preferredDateStr) {
+        return {
+          dateStr: freeSlot.dateStr,
+          timeStr: freeSlot.timeStr,
+          fullIso: freeSlot.fullIso,
+          isOvertime: false,
+        };
+      }
+    }
+
+    // Preferred day is full within business hours!
+    // 1) Calculate overtime slot on preferredDateStr (starts from 18:00 or first free slot after 18:00)
+    const [py, pm, pd] = preferredDateStr.split("-").map(Number);
+    let overtimeCursor = new Date(py, pm - 1, pd, config.endHour, 0, 0);
+    while (!areSlotsFree(overtimeCursor, durationHours, takenSlots) && overtimeCursor.getHours() < 23) {
+      overtimeCursor.setMinutes(overtimeCursor.getMinutes() + 30);
+    }
+    const overtimeTimeStr = `${String(overtimeCursor.getHours()).padStart(2, "0")}:${String(overtimeCursor.getMinutes()).padStart(2, "0")}`;
+
+    // 2) Calculate next free slot in upcoming working days
+    const nextWorkingDay = new Date(py, pm - 1, pd);
+    nextWorkingDay.setDate(nextWorkingDay.getDate() + 1);
+    const nextFree = findFreeInDays(toISO(nextWorkingDay), 30);
+
+    return {
+      dateStr: preferredDateStr,
+      timeStr: overtimeTimeStr,
+      fullIso: buildBrasiliaIso(preferredDateStr, overtimeTimeStr),
+      isOvertime: true,
+      nextFreeWorkingSlot: nextFree || undefined,
+    };
+  }
+
+  // No preferredDateStr: Auto-schedule to next working day or today
+  const freeSlot = findFreeInDays(nowDayStr, 30);
+  if (freeSlot) {
+    return {
+      dateStr: freeSlot.dateStr,
+      timeStr: freeSlot.timeStr,
+      fullIso: freeSlot.fullIso,
+      isOvertime: false,
+    };
+  }
+
+  // Absolute fallback
+  const nextWorkDay = getNextWorkingDayStr(now, config);
+  return {
+    dateStr: nextWorkDay,
+    timeStr: "09:00",
+    fullIso: buildBrasiliaIso(nextWorkDay, "09:00"),
+    isOvertime: false,
+  };
+}
+
+/**
+ * Reorders demands on a specific day by priority and registration order.
+ * - Priority: urgent (4) > high (3) > medium (2) > low (1)
+ * - Tie-break: created_at ASC (FIFO)
+ * - Fixed meetings and pinned demands (is_manually_scheduled = true) stay in their places.
+ * - The remaining demands are placed into the earliest available slots starting at 09:00,
+ *   respecting duration, skipping meetings, and skipping lunch (13:00 - 14:00).
+ * - If working hours overflow, they continue after 18:00 sequentially without overlapping.
+ */
+export function reorderDayDemandsByPriority(
+  targetDayStr: string,
+  dayDemands: { id: string; priority: string; created_at: string; due_date: string | null; estimated_hours?: number | null; is_manually_scheduled?: boolean | null; status?: string }[],
+  meetingsOnDay: { due_date: string | null; estimated_hours?: number | null }[] = [],
+  config: SchedulingConfig = DEFAULT_CONFIG
+): { id: string; due_date: string; is_manually_scheduled?: boolean }[] {
+  const updates: { id: string; due_date: string; is_manually_scheduled?: boolean }[] = [];
+  const takenSlots = new Set<string>();
+
+  // 1. Block meetings
+  for (const m of meetingsOnDay) {
+    if (m.due_date && m.due_date.slice(0, 10) === targetDayStr) {
+      blockSlots(safeParseDate(m.due_date), m.estimated_hours ? Number(m.estimated_hours) : 1.0, takenSlots);
+    }
+  }
+
+  // 2. Filter active demands on this day
+  const activeDemands = dayDemands.filter((d) => {
+    if (d.status === "concluido" || d.status === "para_analise" || d.status === "rascunho") return false;
+    return !d.due_date || d.due_date.slice(0, 10) === targetDayStr;
+  });
+
+  // 3. Keep pinned demands in place and block their slots
+  const pinned = activeDemands.filter((d) => Boolean(d.is_manually_scheduled));
+  for (const p of pinned) {
+    const dt = safeParseDate(p.due_date!);
+    const dur = p.estimated_hours ? Number(p.estimated_hours) : 1.0;
+    blockSlots(dt, dur, takenSlots);
+  }
+
+  // 4. Sort unpinned demands by Priority DESC, created_at ASC
+  const unpinned = activeDemands.filter((d) => !d.is_manually_scheduled);
+  unpinned.sort((a, b) => {
+    const pwA = (PRIORITY_WEIGHT as any)[a.priority] ?? 2;
+    const pwB = (PRIORITY_WEIGHT as any)[b.priority] ?? 2;
+    if (pwA !== pwB) return pwB - pwA;
+    return (a.created_at || "").localeCompare(b.created_at || "");
+  });
+
+  // 5. Pack unpinned demands into the day
+  const [y, m, d] = targetDayStr.split("-").map(Number);
+  let cursor = new Date(y, m - 1, d, config.startHour, 0, 0);
+
+  for (const dem of unpinned) {
+    const dur = dem.estimated_hours ? Number(dem.estimated_hours) : 1.0;
+    let placed: Date | null = null;
+    let search = new Date(cursor);
+    let safety = 0;
+
+    // Search during business hours first
+    while (safety < 48 && search.getHours() < config.endHour) {
+      if (areWorkingSlotsFree(search, dur, takenSlots, config)) {
+        const endCand = new Date(search.getTime() + dur * 3600 * 1000);
+        if (endCand.getHours() < config.endHour || (endCand.getHours() === config.endHour && endCand.getMinutes() === 0)) {
+          placed = new Date(search);
+          break;
+        }
+      }
+      search.setMinutes(search.getMinutes() + 30);
+      safety++;
+    }
+
+    // If business hours full, search after business hours (from 18:00 onward)
+    if (!placed) {
+      search = new Date(y, m - 1, d, config.endHour, 0, 0);
+      safety = 0;
+      while (safety < 48 && search.getHours() < 24) {
+        if (areSlotsFree(search, dur, takenSlots)) {
+          placed = new Date(search);
+          break;
+        }
+        search.setMinutes(search.getMinutes() + 30);
+        safety++;
+      }
+    }
+
+    if (placed) {
+      const newIso = formatTzString(placed);
+      if (dem.due_date !== newIso) {
+        updates.push({
+          id: dem.id,
+          due_date: newIso,
+          is_manually_scheduled: false,
+        });
+      }
+      blockSlots(placed, dur, takenSlots);
+      // Advance cursor for next item
+      cursor = new Date(placed.getTime() + dur * 3600 * 1000);
+    }
+  }
+
+  return updates;
+}
+
 

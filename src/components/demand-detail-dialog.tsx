@@ -47,6 +47,31 @@ import {
 import { Trash2, Send, Calendar, X, Save, User, Users, Loader2, Pencil, Upload, Download, Lock, Share2, MoreVertical, Building2, Sparkles, AlertCircle, Clock, Coins, Layers, DollarSign, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getClientCreditTiers, calculateCreditsFromHours } from "@/lib/credit-tiers";
+import {
+  buildBrasiliaIso,
+  safeParseDate,
+  findNextAvailableWorkingSlot,
+  isDayFullForWorkingHours,
+} from "@/utils/scheduler";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+
+function extractBrasiliaDateAndTime(isoStr: string | null | undefined): { datePart: string; timePart: string } {
+  if (!isoStr) return { datePart: "", timePart: "09:00" };
+  const dt = safeParseDate(isoStr);
+  if (isNaN(dt.getTime())) return { datePart: "", timePart: "09:00" };
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const datePart = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+  const timePart = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  return { datePart, timePart };
+}
 
 const STATUS_CHIP: Record<string, string> = {
   rascunho:     "bg-zinc-700 text-zinc-200 hover:bg-zinc-600",
@@ -335,7 +360,9 @@ export function DemandDetailDialog({
   const [status, setStatus] = useState<DemandStatus>("nao_iniciado");
   const [priority, setPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
   const [dueDate, setDueDate] = useState("");
-  const [dueTime, setDueTime] = useState("12:00");
+  const [dueTime, setDueTime] = useState("09:00");
+  const [overtimeWarningOpen, setOvertimeWarningOpen] = useState(false);
+  const [overtimeNextSlot, setOvertimeNextSlot] = useState<{ dateStr: string; timeStr: string; fullIso: string } | null>(null);
   const [assigneeId, setAssigneeId] = useState("");
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
@@ -551,8 +578,17 @@ export function DemandDetailDialog({
       setDescription("");
       setStatus((defaultStatus as DemandStatus) || "nao_iniciado");
       setPriority("medium");
-      setDueDate(defaultDueDate ? defaultDueDate.slice(0, 10) : "");
-      setDueTime(defaultDueDate && defaultDueDate.includes("T") ? defaultDueDate.split("T")[1].slice(0, 5) : "12:00");
+      if (defaultDueDate) {
+        const { datePart, timePart } = extractBrasiliaDateAndTime(defaultDueDate);
+        setDueDate(datePart);
+        setDueTime(timePart);
+      } else {
+        const allDemandsList = (qc.getQueryData<any[]>(["demands"]) || []);
+        const allMeetingsList = (qc.getQueryData<any[]>(["meetings"]) || []);
+        const nextSlot = findNextAvailableWorkingSlot(defaultEstimatedHours ?? 1.0, null, allDemandsList, allMeetingsList);
+        setDueDate(nextSlot.dateStr);
+        setDueTime(nextSlot.timeStr);
+      }
       setAssigneeId(defaultAssigneeId || "");
       setEstimatedHours(defaultEstimatedHours ?? 1.0);
       setEstimatedCredits(0);
@@ -567,8 +603,14 @@ export function DemandDetailDialog({
       setDescription(initialDemandData.description || "");
       setStatus((initialDemandData.status as DemandStatus) || "nao_iniciado");
       setPriority((initialDemandData.priority as any) || "medium");
-      setDueDate(initialDemandData.due_date ? initialDemandData.due_date.slice(0, 10) : "");
-      setDueTime(initialDemandData.due_date && initialDemandData.due_date.includes("T") ? initialDemandData.due_date.split("T")[1].slice(0, 5) : "12:00");
+      if (initialDemandData.due_date) {
+        const { datePart, timePart } = extractBrasiliaDateAndTime(initialDemandData.due_date);
+        setDueDate(datePart);
+        setDueTime(timePart);
+      } else {
+        setDueDate("");
+        setDueTime("09:00");
+      }
       setEstimatedCredits(initialDemandData.estimated_credits ? Number(initialDemandData.estimated_credits) : 0);
     } else if (!portalMode && demand) {
       setClientId(demand.client_id);
@@ -576,8 +618,14 @@ export function DemandDetailDialog({
       setDescription(demand.description || "");
       setStatus(demand.status as DemandStatus);
       setPriority(demand.priority as "low" | "medium" | "high" | "urgent");
-      setDueDate(demand.due_date ? demand.due_date.slice(0, 10) : "");
-      setDueTime(demand.due_date && demand.due_date.includes("T") ? demand.due_date.split("T")[1].slice(0, 5) : "12:00");
+      if (demand.due_date) {
+        const { datePart, timePart } = extractBrasiliaDateAndTime(demand.due_date);
+        setDueDate(datePart);
+        setDueTime(timePart);
+      } else {
+        setDueDate("");
+        setDueTime("09:00");
+      }
       setAssigneeId(demand.assignee_user_id || "");
       setEstimatedHours(demand.estimated_hours ? Number(demand.estimated_hours) : 1.0);
       setEstimatedCredits(demand.estimated_credits ? Number(demand.estimated_credits) : 0);
@@ -768,18 +816,85 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
           price !== (demand.price ? Number(demand.price) : null)
         );
 
-  // ── Save ──
+  async function executeAdminSave(saveDueDate: string | null, saveDueTime: string | null, isManual: boolean) {
+    if (!clientId) { toast.error("Selecione um cliente."); return; }
+    if (!title.trim()) { toast.error("O título não pode ficar vazio."); return; }
+
+    let finalDueDate = null;
+    if (saveDueDate) {
+      finalDueDate = buildBrasiliaIso(saveDueDate, saveDueTime || "09:00");
+    }
+
+    setSaving(true);
+    try {
+      if (isNew) {
+        await createFn({
+          data: {
+            client_id: clientId,
+            title,
+            description,
+            status,
+            priority,
+            due_date: finalDueDate,
+            estimated_credits: estimatedCredits,
+            estimated_hours: estimatedHours,
+            assignee_user_id: assigneeId || (profiles as any[]).find((p: any) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
+            client_edition_id: clientEditionId || null,
+            price: price ?? null,
+            is_manually_scheduled: isManual,
+          },
+        });
+        toast.success("Demanda criada com sucesso!");
+        qc.invalidateQueries({ queryKey: ["demands"] });
+        onClose();
+      } else {
+        await updateFn({
+          data: {
+            id,
+            client_id: clientId,
+            title,
+            description,
+            status,
+            priority,
+            due_date: finalDueDate,
+            estimated_credits: estimatedCredits,
+            estimated_hours: estimatedHours,
+            internal_notes: demand?.internal_notes,
+            assignee_user_id: assigneeId || (profiles as any[]).find((p: any) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
+            client_edition_id: clientEditionId || null,
+            price: price ?? null,
+            is_manually_scheduled: isManual,
+          },
+        });
+        toast.success("Alterações salvas!");
+        qc.invalidateQueries({ queryKey: ["demand", id] });
+        qc.invalidateQueries({ queryKey: ["demands"] });
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSave() {
     if (portalMode && isNew) {
-      // Portal create
-      if (!title.trim()) return;
+      // Portal creation
+      if (!title.trim()) { toast.error("O título não pode ficar vazio."); return; }
       setSaving(true);
       try {
-        const row = await createPortalFn({
-          data: { slug: portalSlug!, title: title.trim(), description: description || null, priority },
+        const created = await createPortalFn({
+          data: {
+            slug: portalSlug!,
+            title: title.trim(),
+            description: description || null,
+            status,
+            priority,
+            due_date: dueDate || null,
+          },
         });
         onPortalDemandCreated?.({
-          id: row.id,
+          id: (created as any)?.id || "new",
           title: title.trim(),
           status,
           priority,
@@ -833,62 +948,27 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
     if (!clientId) { toast.error("Selecione um cliente."); return; }
     if (!title.trim()) { toast.error("O título não pode ficar vazio."); return; }
 
-    let finalDueDate = null;
+    // Check if saving exceeds business hours (09:00 - 18:00) or if the day is full
     if (dueDate) {
-      const timePart = dueTime || (demand?.due_date && demand.due_date.includes("T") ? demand.due_date.split("T")[1].slice(0, 5) : "12:00");
-      finalDueDate = `${dueDate}T${timePart.length === 5 ? `${timePart}:00` : timePart}`;
+      const timePart = dueTime || "09:00";
+      const [h, m] = timePart.split(":").map(Number);
+      const estHours = estimatedHours ?? 1.0;
+      const endHourDec = h + m / 60 + estHours;
+      const isOutsideHours = h < 9 || endHourDec > 18 || (h >= 13 && h < 14);
+
+      const allDemandsList = (qc.getQueryData<any[]>(["demands"]) || []);
+      const allMeetingsList = (qc.getQueryData<any[]>(["meetings"]) || []);
+      const isDayFull = isDayFullForWorkingHours(dueDate, estHours, allDemandsList, allMeetingsList);
+
+      if (isOutsideHours || isDayFull) {
+        const slotCalc = findNextAvailableWorkingSlot(estHours, dueDate, allDemandsList, allMeetingsList);
+        setOvertimeNextSlot(slotCalc.nextFreeWorkingSlot || null);
+        setOvertimeWarningOpen(true);
+        return;
+      }
     }
 
-    setSaving(true);
-    try {
-      if (isNew) {
-        await createFn({
-          data: {
-            client_id: clientId,
-            title,
-            description,
-            status,
-            priority,
-            due_date: finalDueDate,
-            estimated_credits: estimatedCredits,
-            estimated_hours: estimatedHours,
-            assignee_user_id: assigneeId || (profiles as any[]).find((p: any) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
-            client_edition_id: clientEditionId || null,
-            price: price ?? null,
-            is_manually_scheduled: Boolean(finalDueDate),
-          },
-        });
-        toast.success("Demanda criada com sucesso!");
-        qc.invalidateQueries({ queryKey: ["demands"] });
-        onClose();
-      } else {
-        await updateFn({
-          data: {
-            id,
-            client_id: clientId,
-            title,
-            description,
-            status,
-            priority,
-            due_date: finalDueDate,
-            estimated_credits: estimatedCredits,
-            estimated_hours: estimatedHours,
-            internal_notes: demand?.internal_notes,
-            assignee_user_id: assigneeId || (profiles as any[]).find((p: any) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
-            client_edition_id: clientEditionId || null,
-            price: price ?? null,
-            is_manually_scheduled: demand?.is_manually_scheduled !== undefined ? demand.is_manually_scheduled : Boolean(finalDueDate),
-          },
-        });
-        toast.success("Alterações salvas!");
-        qc.invalidateQueries({ queryKey: ["demand", id] });
-        qc.invalidateQueries({ queryKey: ["demands"] });
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
-    } finally {
-      setSaving(false);
-    }
+    await executeAdminSave(dueDate, dueTime, Boolean(dueDate));
   }
 
   function extractAllGDriveUrls(htmls: string[]): string[] {
@@ -1801,6 +1881,54 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
             </div>
           </>
         )}
+
+        {/* Overtime / Full Day capacity warning dialog */}
+        <AlertDialog open={overtimeWarningOpen} onOpenChange={setOvertimeWarningOpen}>
+          <AlertDialogContent className="max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-amber-500">
+                <AlertCircle className="h-5 w-5" />
+                Expediente Cheio / Fora do Horário
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-sm text-muted-foreground pt-1 space-y-2">
+                <p>
+                  O dia <strong>{dueDate}</strong> já está com o expediente de trabalho comercial preenchido ou a demanda (com {estimatedHours}h estimadas) ultrapassa as 18:00.
+                </p>
+                <p>
+                  Como você prefere proceder com o agendamento desta demanda?
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-col sm:flex-row gap-2 mt-4">
+              <AlertDialogCancel onClick={() => setOvertimeWarningOpen(false)}>
+                Voltar e editar
+              </AlertDialogCancel>
+              <Button
+                variant="outline"
+                className="text-xs"
+                onClick={async () => {
+                  setOvertimeWarningOpen(false);
+                  await executeAdminSave(dueDate, dueTime || "18:00", true);
+                }}
+              >
+                Manter neste dia (após 18h)
+              </Button>
+              {overtimeNextSlot && (
+                <Button
+                  className="bg-primary text-primary-foreground text-xs"
+                  onClick={async () => {
+                    setOvertimeWarningOpen(false);
+                    setDueDate(overtimeNextSlot.dateStr);
+                    setDueTime(overtimeNextSlot.timeStr);
+                    await executeAdminSave(overtimeNextSlot.dateStr, overtimeNextSlot.timeStr, true);
+                  }}
+                >
+                  Agendar no próx. dia útil ({overtimeNextSlot.dateStr} às {overtimeNextSlot.timeStr})
+                </Button>
+              )}
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

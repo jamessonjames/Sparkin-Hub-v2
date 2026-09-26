@@ -1,7 +1,21 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { getAdjustmentTargetDate } from "@/utils/scheduler";
+import { getAdjustmentTargetDate, buildBrasiliaIso } from "@/utils/scheduler";
+
+function normalizeDueDate(dateStr?: string | null): string | null {
+  if (!dateStr) return null;
+  const clean = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    return clean;
+  }
+  if (!clean.includes("Z") && !clean.includes("+") && !/[+-]\d{2}:\d{2}$/.test(clean)) {
+    if (/T\d{2}:\d{2}/.test(clean)) {
+      return `${clean.slice(0, 19)}-03:00`;
+    }
+  }
+  return clean;
+}
 
 export const DEMAND_STATUSES = [
   "rascunho",
@@ -129,7 +143,7 @@ export const createDemand = createServerFn({ method: "POST" })
       status: dbStatus,
       status_id: dbStatusId,
       priority: data.priority,
-      due_date: data.due_date || null,
+      due_date: normalizeDueDate(data.due_date),
       estimated_credits: data.estimated_credits ?? undefined,
       internal_notes: data.internal_notes || null,
       assignee_user_id: data.assignee_user_id || null,
@@ -189,7 +203,7 @@ export const updateDemand = createServerFn({ method: "POST" })
       status: dbStatus,
       status_id: dbStatusId,
       priority: rest.priority,
-      due_date: rest.due_date || null,
+      due_date: normalizeDueDate(rest.due_date),
       estimated_credits: rest.estimated_credits ?? undefined,
       ...(rest.internal_notes !== undefined ? { internal_notes: rest.internal_notes || null } : {}),
       assignee_user_id: rest.assignee_user_id || null,
@@ -324,7 +338,7 @@ export const batchUpdateDueDates = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     for (const u of data.updates) {
-      const patch: Record<string, unknown> = { due_date: u.due_date };
+      const patch: Record<string, unknown> = { due_date: normalizeDueDate(u.due_date) };
       if (typeof u.is_manually_scheduled === "boolean") {
         patch.is_manually_scheduled = u.is_manually_scheduled;
       }
