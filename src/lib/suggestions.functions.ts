@@ -681,22 +681,26 @@ Retorne APENAS o JSON abaixo, sem blocos markdown extras de código (retorne raw
           console.warn("[analyzeMeetingTranscript] Nenhum modelo Gemini respondeu (erros vazios). Usando fallback.");
         }
       } else {
-        console.warn("[analyzeMeetingTranscript] GEMINI_API_KEY não configurada no servidor. Usando fallback.");
+        console.warn("[analyzeMeetingTranscript] GEMINI_API_KEY não configurada no servidor. Usando analisador inteligente local.");
       }
     } catch (err: any) {
       console.error("[analyzeMeetingTranscript] Erro inesperado (usando fallback):", err.message);
     }
 
-    if (aiSummary.length === 0) {
-      const hasKey = !!(process.env.GEMINI_API_KEY || clientApiKey);
-      const errMsg = apiErrors.length > 0 ? apiErrors.join(" | ") : "";
-      aiSummary = transcript
-        ? [
-            `# 📌 Tema: ${title || "Alinhamento de Reunião"}\n\n### 📑 Resumo Executivo\nReunião registrada no sistema. Transcrição gravada com sucesso.\n\n${
-              errMsg ? `> ⚠️ **Aviso de Processamento IA:** ${errMsg}\n\n` : ""
-            }### 💬 Tópicos Discutidos\n- **Transcrição**: O áudio da reunião foi capturado com sucesso.\n\n### 📋 Próximos Passos (Action Items)\n- **Equipe**: Reveja a transcrição bruta para extrair as ações necessárias.`,
-          ]
-        : ["Ata indisponível."];
+    if (aiSummary.length === 0 || aiSuggestions.length === 0) {
+      const { generateStructuredMeetingAnalysis } = await import("@/lib/meeting-analyzer");
+      const localAnalysis = generateStructuredMeetingAnalysis(transcript, {
+        title: title || "Alinhamento de Reunião",
+        clientName,
+        userName,
+      });
+
+      if (aiSummary.length === 0) {
+        aiSummary = [localAnalysis.summary_markdown];
+      }
+      if (aiSuggestions.length === 0 && localAnalysis.suggestions.length > 0) {
+        aiSuggestions = localAnalysis.suggestions;
+      }
     }
 
     // 3. Save or update generated suggestions into demand_suggestions table
@@ -892,10 +896,6 @@ export const reanalyzeMeetingSummary = createServerFn({ method: "POST" })
     const rawApiKey = process.env.GEMINI_API_KEY || data.clientApiKey || "";
     const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
 
-    if (!apiKey) {
-      throw new Error("API Key do Gemini não configurada.");
-    }
-
     const clientName = suggestion.clients?.name || "Cliente";
     const promptText = `Você é um analista de projetos sênior. Sua função é gerar APENAS a Ata de Reunião Estruturada da transcrição abaixo.
 
@@ -937,7 +937,8 @@ Retorne APENAS o JSON no formato:
 
     let newSummaryMarkdown = "";
 
-    for (const model of candidateModels) {
+    if (apiKey) {
+      for (const model of candidateModels) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 45000);
@@ -975,9 +976,15 @@ Retorne APENAS o JSON no formato:
         console.warn(`[reanalyzeMeetingSummary] ${model} falhou:`, e.message);
       }
     }
+  }
 
     if (!newSummaryMarkdown) {
-      throw new Error("Não foi possível regerar o resumo com a IA. Tente novamente.");
+      const { generateStructuredMeetingAnalysis } = await import("@/lib/meeting-analyzer");
+      const localAnalysis = generateStructuredMeetingAnalysis(transcript, {
+        title: suggestion.suggested_title || "Alinhamento",
+        clientName,
+      });
+      newSummaryMarkdown = localAnalysis.summary_markdown;
     }
 
     // Update ONLY ai_summary in Supabase
@@ -1026,10 +1033,6 @@ export const reanalyzeMeetingSuggestionsList = createServerFn({ method: "POST" }
     const rawApiKey = process.env.GEMINI_API_KEY || data.clientApiKey || "";
     const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
 
-    if (!apiKey) {
-      throw new Error("API Key do Gemini não configurada.");
-    }
-
     const clientName = suggestion.clients?.name || "Cliente";
     const promptText = `Você é um gerente de produto sênior. Sua função é analisar a transcrição da reunião e gerar APENAS as Sugestões de Novas Demandas Estruturadas (briefings).
 
@@ -1074,47 +1077,60 @@ Retorne APENAS o JSON no formato:
       estimated_hours: number;
     }> = [];
 
-    for (const model of candidateModels) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 45000);
+    if (apiKey) {
+      for (const model of candidateModels) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 45000);
 
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: promptText }] }],
-              generationConfig: { response_mime_type: "application/json" },
-            }),
-            signal: controller.signal,
-          }
-        );
-        clearTimeout(timeoutId);
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: promptText }] }],
+                generationConfig: { response_mime_type: "application/json" },
+              }),
+              signal: controller.signal,
+            }
+          );
+          clearTimeout(timeoutId);
 
-        if (res.ok) {
-          const resData = await res.json();
-          const rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          let cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
-          const firstBrace = cleaned.indexOf("{");
-          const lastBrace = cleaned.lastIndexOf("}");
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+          if (res.ok) {
+            const resData = await res.json();
+            const rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            let cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+            const firstBrace = cleaned.indexOf("{");
+            const lastBrace = cleaned.lastIndexOf("}");
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+              cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+            }
+            const parsed = safeParseJSON(cleaned);
+            if (Array.isArray(parsed.suggestions) && parsed.suggestions.length > 0) {
+              newSuggestions = parsed.suggestions;
+              break;
+            }
           }
-          const parsed = safeParseJSON(cleaned);
-          if (Array.isArray(parsed.suggestions) && parsed.suggestions.length > 0) {
-            newSuggestions = parsed.suggestions;
-            break;
-          }
+        } catch (e: any) {
+          console.warn(`[reanalyzeMeetingSuggestionsList] ${model} falhou:`, e.message);
         }
-      } catch (e: any) {
-        console.warn(`[reanalyzeMeetingSuggestionsList] ${model} falhou:`, e.message);
       }
     }
 
     if (newSuggestions.length === 0) {
-      throw new Error("Não foi possível regerar as sugestões com a IA. Tente novamente.");
+      const { generateStructuredMeetingAnalysis } = await import("@/lib/meeting-analyzer");
+      const localAnalysis = generateStructuredMeetingAnalysis(transcript, {
+        title: suggestion.suggested_title || "Alinhamento",
+        clientName,
+      });
+      newSuggestions = localAnalysis.suggestions.map((s) => ({
+        suggested_type: "NOVA_DEMANDA" as const,
+        target_demand_id: null,
+        suggested_title: s.suggested_title,
+        suggested_description: s.suggested_description,
+        estimated_hours: s.estimated_hours,
+      }));
     }
 
     // Update ONLY the suggestion briefings / titles of existing suggestion (DO NOT TOUCH ai_summary!)

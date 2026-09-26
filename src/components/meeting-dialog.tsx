@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,17 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Video, Calendar, Clock, Mic, Sparkles, FileText, Trash2, Save,
-  Square, Loader2, CheckCircle2
+  Square, Loader2, CheckCircle2, ListTodo, Copy, Volume2, Info, ChevronDown, ChevronUp, Radio
 } from "lucide-react";
 import { listClients } from "@/lib/clients.functions";
 import { upsertMeeting, deleteMeeting, type Meeting } from "@/lib/meetings.functions";
+import { createDemand } from "@/lib/demands.functions";
 import { RichEditor } from "./rich-editor";
 import { MarkdownView } from "./markdown-view";
 import { useUserContext } from "@/contexts/user-context";
-import {
-  analyzeMeetingTranscript,
-  type DemandSuggestion
-} from "@/lib/suggestions.functions";
+import { createMeetingAudioRecorder, type MeetingAudioCaptureController } from "@/utils/audio-recorder";
+import { generateStructuredMeetingAnalysis, type MeetingAnalysisResult } from "@/lib/meeting-analyzer";
 
 interface MeetingDialogProps {
   open: boolean;
@@ -31,11 +30,6 @@ interface MeetingDialogProps {
   defaultClientId?: string;
   defaultAssigneeId?: string;
   onSuccess?: () => void;
-}
-
-function getSupportedMimeType(): string {
-  const types = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
-  return types.find((t) => MediaRecorder.isTypeSupported(t)) ?? "audio/webm";
 }
 
 function toLocalDateTime(value?: string) {
@@ -59,7 +53,7 @@ export function MeetingDialog({
   const listClientsFn = useServerFn(listClients);
   const upsertMeetingFn = useServerFn(upsertMeeting);
   const deleteMeetingFn = useServerFn(deleteMeeting);
-  const analyzeFn = useServerFn(analyzeMeetingTranscript);
+  const createDemandFn = useServerFn(createDemand);
 
   const { data: clients = [] } = useQuery({
     queryKey: ["clients"],
@@ -76,17 +70,24 @@ export function MeetingDialog({
   const [aiSummary, setAiSummary] = useState("");
   const [rawTranscript, setRawTranscript] = useState("");
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState("notes");
+  const [activeTab, setActiveTab] = useState("transcription");
 
-  // Audio recording & AI transcription states
+  // Audio recording & capture states
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [captureTabAudio, setCaptureTabAudio] = useState(true);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [suggestions, setSuggestions] = useState<DemandSuggestion[]>([]);
+  const [micAudioLevel, setMicAudioLevel] = useState(0);
+  const [tabAudioLevel, setTabAudioLevel] = useState(0);
+  const [hasTabAudioDetected, setHasTabAudioDetected] = useState(false);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  // Suggestions state
+  const [suggestions, setSuggestions] = useState<MeetingAnalysisResult["suggestions"]>([]);
+  const [expandedSugIndex, setExpandedSugIndex] = useState<number | null>(0);
+  const [approvingIndices, setApprovingIndices] = useState<number[]>([]);
+
+  const recorderControllerRef = useRef<MeetingAudioCaptureController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -114,6 +115,16 @@ export function MeetingDialog({
       setIsRecording(false);
       setRecordingSeconds(0);
       setSuggestions([]);
+      setActiveTab(meeting?.transcript ? "transcription" : "notes");
+    } else {
+      if (recorderControllerRef.current) {
+        recorderControllerRef.current.cleanup();
+        recorderControllerRef.current = null;
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
   }, [open, meeting, defaultSlotDateTime, defaultClientId, defaultAssigneeId, currentUser?.id]);
 
@@ -131,74 +142,154 @@ export function MeetingDialog({
 
   const handleStartRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = getSupportedMimeType();
-      const recorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = recorder;
-      audioChunksRef.current = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
-      recorder.start(1000);
-      setIsRecording(true);
       setRecordingSeconds(0);
-      toast.info("Gravação de áudio iniciada.");
+      const controller = await createMeetingAudioRecorder({
+        captureTabAudio,
+        onMicLevel: setMicAudioLevel,
+        onTabLevel: setTabAudioLevel,
+        onLog: (type, msg) => {
+          if (type === "warning") toast.warning(msg);
+          if (type === "error") toast.error(msg);
+        },
+      });
+
+      recorderControllerRef.current = controller;
+      setHasTabAudioDetected(controller.hasTabAudio);
+      controller.start();
+      setIsRecording(true);
+      toast.success(
+        controller.hasTabAudio
+          ? "Gravação iniciada: capturando seu microfone e a janela/guia da reunião!"
+          : "Gravação iniciada com seu microfone."
+      );
     } catch (err: any) {
-      toast.error("Não foi possível acessar o microfone: " + (err.message || err));
+      toast.error("Erro ao iniciar gravação: " + (err.message || err));
     }
   };
 
   const handleStopRecording = async () => {
-    if (!mediaRecorderRef.current || !isRecording) return;
+    if (!recorderControllerRef.current || !isRecording) return;
     setIsRecording(false);
-
     setIsTranscribing(true);
-    toast.info("Transcrevendo localmente, sem consumir créditos de IA...");
+    toast.info("Processando e transcrevendo áudio localmente (100% gratuito)...", { id: "transcribing-toast" });
 
     try {
-      const recorder = mediaRecorderRef.current;
-      await new Promise<void>((resolve) => {
-        recorder.addEventListener("stop", () => resolve(), { once: true });
-        recorder.stop();
-      });
-      recorder.stream.getTracks().forEach((t) => t.stop());
-      const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || getSupportedMimeType() });
-      const { transcribeAudio } = await import("@/lib/local-whisper");
-      const text = (await transcribeAudio(blob, (message) => toast.info(message, { id: "local-transcription" }))).trim();
-      toast.dismiss("local-transcription");
+      const { blob } = await recorderControllerRef.current.stop();
+      recorderControllerRef.current = null;
 
-      if (text) {
-        setRawTranscript((prev) => (prev ? `${prev}\n${text}` : text));
-        toast.success("Áudio transcrito localmente com sucesso!");
+      const { transcribeAudio } = await import("@/lib/local-whisper");
+      const text = await transcribeAudio(blob, (progress) => {
+        toast.info(progress, { id: "transcribing-toast" });
+      });
+
+      toast.dismiss("transcribing-toast");
+
+      if (text.trim()) {
+        const fullTranscript = rawTranscript ? `${rawTranscript}\n\n${text}` : text;
+        setRawTranscript(fullTranscript);
+
+        // Pre-generate structured summary locally
+        const selectedClient = clients.find((c: any) => c.id === clientId);
+        const analysis = generateStructuredMeetingAnalysis(fullTranscript, {
+          title: title.trim() || "Reunião de Alinhamento",
+          clientName: selectedClient?.name || "Cliente",
+          userName: currentUser?.name || "Equipe",
+        });
+        setAiSummary(analysis.summary_markdown);
+
+        toast.success("Áudio transcrito e ata gerada com sucesso!");
+        setActiveTab("transcription");
       } else {
-        toast.warning("Nenhuma fala foi identificada no áudio.");
+        toast.warning("Nenhuma fala compreensível identificada no áudio gravado.");
       }
     } catch (err: any) {
+      toast.dismiss("transcribing-toast");
       toast.error("Erro na transcrição: " + (err.message || "Tente novamente."));
     } finally {
       setIsTranscribing(false);
+    }
+  };
+
+  const handleGenerateSummary = () => {
+    if (!rawTranscript.trim()) {
+      toast.warning("Grave ou adicione uma transcrição antes de gerar o resumo.");
+      return;
+    }
+    const selectedClient = clients.find((c: any) => c.id === clientId);
+    const analysis = generateStructuredMeetingAnalysis(rawTranscript, {
+      title: title.trim() || "Reunião de Alinhamento",
+      clientName: selectedClient?.name || "Cliente",
+      userName: currentUser?.name || "Equipe",
+    });
+    setAiSummary(analysis.summary_markdown);
+    toast.success("Resumo rico estruturado com sucesso!");
+    setActiveTab("summary");
+  };
+
+  const handleAnalyzeAndSuggestDemands = () => {
+    if (!rawTranscript.trim()) {
+      toast.warning("Grave ou adicione uma transcrição antes de sugerir demandas.");
+      return;
+    }
+    setIsAnalyzing(true);
+    try {
+      const selectedClient = clients.find((c: any) => c.id === clientId);
+      const analysis = generateStructuredMeetingAnalysis(rawTranscript, {
+        title: title.trim() || "Reunião de Alinhamento",
+        clientName: selectedClient?.name || "Cliente",
+        userName: currentUser?.name || "Equipe",
+      });
+
+      setSuggestions(analysis.suggestions);
+      if (analysis.suggestions.length > 0) {
+        setExpandedSugIndex(0);
+        toast.success(`${analysis.suggestions.length} sugestões de demandas extraídas da reunião!`);
+      } else {
+        toast.info("Nenhuma demanda imediata detectada na transcrição.");
+      }
+      setActiveTab("suggestions");
+    } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const handleAnalyze = async () => {
-    if (!rawTranscript.trim() || clientId === "none") return;
-    setIsAnalyzing(true);
-    try {
-      const result = await analyzeFn({
-        data: { clientId, title: title.trim() || "Reunião", transcript: rawTranscript },
-      });
-      setAiSummary(result.summary?.join("\n") || "");
-      setRawTranscript(result.rawTranscript || rawTranscript);
-      setSuggestions(result.suggestions || []);
-      toast.success("Resumo e sugestões gerados.");
-    } catch (err: any) {
-      toast.error(err.message || "Não foi possível gerar a análise.");
-    } finally {
-      setIsAnalyzing(false);
+  const handleApproveSuggestion = async (index: number) => {
+    const sug = suggestions[index];
+    if (!sug) return;
+    if (clientId === "none") {
+      toast.error("Vincule um cliente à reunião antes de criar a demanda.");
+      return;
     }
+
+    setApprovingIndices((prev) => [...prev, index]);
+    try {
+      await createDemandFn({
+        data: {
+          client_id: clientId,
+          title: sug.suggested_title,
+          description: sug.suggested_description,
+          status: "rascunho",
+          priority: "medium",
+          estimated_hours: sug.estimated_hours || 2.0,
+          assignee_user_id: assigneeUserId || currentUser?.id || null,
+        },
+      });
+
+      toast.success(`Demanda "${sug.suggested_title}" criada com sucesso!`);
+      qc.invalidateQueries({ queryKey: ["demands"] });
+      // Remove approved suggestion from list
+      setSuggestions((prev) => prev.filter((_, i) => i !== index));
+    } catch (err: any) {
+      toast.error("Erro ao criar demanda: " + (err.message || err));
+    } finally {
+      setApprovingIndices((prev) => prev.filter((i) => i !== index));
+    }
+  };
+
+  const handleCopyTranscript = () => {
+    if (!rawTranscript) return;
+    navigator.clipboard.writeText(rawTranscript);
+    toast.success("Transcrição copiada para a área de transferência!");
   };
 
   const handleSave = async () => {
@@ -219,8 +310,6 @@ export function MeetingDialog({
           title: title.trim(),
           client_id: clientId === "none" ? null : clientId,
           assignee_user_id: assigneeUserId || currentUser?.id || null,
-          // datetime-local has no timezone; convert in the browser so 09:00 remains
-          // 09:00 in the user's timezone when persisted as timestamptz.
           due_date: new Date(dueDate).toISOString(),
           estimated_hours: Number(estimatedHours),
           notes,
@@ -268,7 +357,7 @@ export function MeetingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[760px] max-h-[90vh] p-0 bg-[#18181b] border border-zinc-800 text-foreground rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-[840px] max-h-[92vh] p-0 bg-[#18181b] border border-zinc-800 text-foreground rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
         <DialogHeader className="p-4 border-b border-zinc-800/80 bg-zinc-900/60 shrink-0">
           <div className="flex items-center justify-between gap-3">
@@ -305,7 +394,7 @@ export function MeetingDialog({
               </Select>
             </div>
 
-            {/* Date Time */}
+            {/* Assignee */}
             <div className="flex items-center gap-1.5">
               <Label className="text-[11px] font-semibold text-zinc-400">Responsável:</Label>
               <Select value={assigneeUserId} onValueChange={setAssigneeUserId}>
@@ -314,7 +403,9 @@ export function MeetingDialog({
                 </SelectTrigger>
                 <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-200">
                   {profiles.map((profile: any) => (
-                    <SelectItem key={profile.id} value={profile.id}>{profile.name || profile.email}</SelectItem>
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.name || profile.email}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -327,7 +418,11 @@ export function MeetingDialog({
                 type="datetime-local"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }}
+                onClick={(e) => {
+                  try {
+                    e.currentTarget.showPicker?.();
+                  } catch {}
+                }}
                 className="h-7 text-xs bg-zinc-900 border-zinc-700 text-zinc-200 w-auto cursor-pointer"
               />
             </div>
@@ -355,133 +450,356 @@ export function MeetingDialog({
           </div>
         </DialogHeader>
 
-        {/* Notes and transcription are available only after the meeting exists. */}
-        {meeting?.id ? (
+        {/* 4 Tabs: 1) Transcrição Completa, 2) Resumo Rico, 3) Sugestões de Demandas, 4) Anotações Manuais */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-          <div className="px-4 pt-2 border-b border-zinc-800/80 bg-zinc-900/40">
+          <div className="px-4 pt-2 border-b border-zinc-800/80 bg-zinc-900/40 shrink-0">
             <TabsList className="bg-zinc-900 border border-zinc-800 p-1 rounded-xl h-auto gap-1">
-              <TabsTrigger value="notes" className="text-xs font-semibold gap-1.5">
-                <FileText className="h-3.5 w-3.5" /> Anotações Manuais
+              <TabsTrigger value="transcription" className="text-xs font-semibold gap-1.5 cursor-pointer">
+                <FileText className="h-3.5 w-3.5 text-blue-400" /> Transcrição Completa
               </TabsTrigger>
-              <TabsTrigger value="ai_transcription" className="text-xs font-semibold gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-purple-400" /> Transcrição & IA
+              <TabsTrigger value="summary" className="text-xs font-semibold gap-1.5 cursor-pointer">
+                <Sparkles className="h-3.5 w-3.5 text-purple-400" /> Resumo Rico
+              </TabsTrigger>
+              <TabsTrigger value="suggestions" className="text-xs font-semibold gap-1.5 cursor-pointer">
+                <ListTodo className="h-3.5 w-3.5 text-emerald-400" /> Sugestões de Demandas
+                {suggestions.length > 0 && (
+                  <Badge variant="outline" className="ml-1 text-[10px] py-0 px-1 border-emerald-500/30 text-emerald-300">
+                    {suggestions.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="notes" className="text-xs font-semibold gap-1.5 cursor-pointer">
+                <Video className="h-3.5 w-3.5 text-zinc-400" /> Anotações Manuais
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4">
-            {/* Tab 1: Manual Notes */}
+          <div className="flex-1 overflow-y-auto p-4 min-h-0">
+            {/* ── TAB 1: TRANSCRIÇÃO COMPLETA ── */}
+            <TabsContent value="transcription" className="m-0 space-y-4">
+              {/* Dual Audio Recording Box */}
+              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    {isRecording ? (
+                      <div className="h-10 w-10 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center animate-pulse border border-red-500/40">
+                        <Mic className="h-5 w-5" />
+                      </div>
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-zinc-800 text-zinc-400 flex items-center justify-center border border-zinc-700">
+                        <Mic className="h-5 w-5" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs font-bold text-zinc-200">
+                        {isRecording ? `Gravando Reunião (${formatTimer(recordingSeconds)})` : "Gravação de Reunião & Transcrição Gratuita"}
+                      </p>
+                      <p className="text-[11px] text-zinc-400">
+                        {isRecording
+                          ? "Capturando fala de ambas as partes. Clique em encerrar quando terminar."
+                          : "Transcreve sua voz e o áudio da reunião localmente, 100% gratuito e sem custos."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {isRecording ? (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleStopRecording}
+                      className="gap-1.5 text-xs font-bold shadow-lg shadow-red-600/20"
+                    >
+                      <Square className="h-3.5 w-3.5 fill-white" /> Encerrar e Transcrever
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={handleStartRecording}
+                      disabled={isTranscribing || isAnalyzing}
+                      className="gap-1.5 text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20"
+                    >
+                      {isTranscribing ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Transcrevendo...
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="h-3.5 w-3.5" /> Iniciar Gravação
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+
+                {/* Tab Audio Option & Helpful Tip */}
+                {!isRecording && (
+                  <div className="pt-2 border-t border-zinc-800/60 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="chk-meeting-tab"
+                        checked={captureTabAudio}
+                        onChange={(e) => setCaptureTabAudio(e.target.checked)}
+                        className="rounded border-zinc-700 cursor-pointer"
+                      />
+                      <label htmlFor="chk-meeting-tab" className="text-xs text-zinc-300 font-medium cursor-pointer select-none">
+                        Capturar áudio da reunião (Google Meet, Zoom, Teams ou aba do Chrome)
+                      </label>
+                    </div>
+                    {captureTabAudio && (
+                      <div className="flex items-start gap-1.5 text-[11px] text-purple-300/90 bg-purple-950/20 border border-purple-500/20 rounded-lg p-2.5 leading-relaxed">
+                        <Info className="h-4 w-4 shrink-0 text-purple-400 mt-0.5" />
+                        <span>
+                          <strong>Dica Importante:</strong> Na tela de compartilhamento que o Chrome abrir, selecione a aba da reunião em <strong>"Guia do Chrome"</strong> e confirme que a caixa <strong>"Compartilhar áudio da guia"</strong> está marcada.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Audio Visualizers during recording */}
+                {isRecording && (
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-800">
+                    {/* Mic Visualizer */}
+                    <div className="rounded-lg bg-black/40 border border-purple-500/20 p-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Mic className="h-4 w-4 text-purple-400" />
+                        <span className="text-[11px] font-semibold text-purple-300">Meu Microfone</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div
+                          className="h-2 rounded-full bg-purple-500 transition-all duration-75"
+                          style={{ width: `${Math.max(8, micAudioLevel)}px` }}
+                        />
+                        <span className="text-[10px] text-zinc-500 font-mono">{micAudioLevel}%</span>
+                      </div>
+                    </div>
+
+                    {/* Tab Audio Visualizer */}
+                    <div className="rounded-lg bg-black/40 border border-emerald-500/20 p-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Volume2 className="h-4 w-4 text-emerald-400" />
+                        <span className="text-[11px] font-semibold text-emerald-300">Áudio da Reunião</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div
+                          className="h-2 rounded-full bg-emerald-500 transition-all duration-75"
+                          style={{ width: `${Math.max(8, tabAudioLevel)}px` }}
+                        />
+                        <span className="text-[10px] text-zinc-500 font-mono">{tabAudioLevel}%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Full Verbatim Transcript Content */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5 text-blue-400" /> Texto Transcrito da Reunião:
+                  </Label>
+                  {rawTranscript && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCopyTranscript}
+                      className="h-7 text-xs text-zinc-400 hover:text-zinc-200 gap-1.5"
+                    >
+                      <Copy className="h-3 w-3" /> Copiar Texto
+                    </Button>
+                  )}
+                </div>
+
+                <textarea
+                  value={rawTranscript}
+                  onChange={(e) => setRawTranscript(e.target.value)}
+                  placeholder="A transcrição das falas da reunião aparecerá aqui após o término da gravação. Você também pode colar o texto aqui..."
+                  className="w-full min-h-[220px] rounded-xl bg-zinc-950/60 border border-zinc-800 p-3.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-purple-500 leading-relaxed font-sans"
+                />
+              </div>
+
+              {/* Action Bar at bottom of transcription */}
+              {rawTranscript && (
+                <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-zinc-800 bg-zinc-900/40">
+                  <span className="text-[11px] text-zinc-400">
+                    Deseja gerar a ata estruturada ou extrair demandas?
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleGenerateSummary}
+                      className="text-xs border-zinc-700 gap-1.5"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-purple-400" /> Gerar Resumo Rico
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleAnalyzeAndSuggestDemands}
+                      className="text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1.5"
+                    >
+                      <ListTodo className="h-3.5 w-3.5" /> Analisar & Sugerir Demandas
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* ── TAB 2: RESUMO RICO (ATA DA REUNIÃO) ── */}
+            <TabsContent value="summary" className="m-0 space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                <div>
+                  <h3 className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                    <Sparkles className="h-4 w-4 text-purple-400" /> Ata & Resumo Rico da Reunião
+                  </h3>
+                  <p className="text-[11px] text-zinc-400">
+                    Organização automática de tópicos, pendências do cliente e tarefas da equipe.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleGenerateSummary}
+                  disabled={!rawTranscript.trim()}
+                  className="h-7 text-xs border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 gap-1.5"
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> Atualizar Resumo
+                </Button>
+              </div>
+
+              {aiSummary ? (
+                <div className="p-4 rounded-xl border border-purple-500/20 bg-purple-950/10">
+                  <div className="text-xs text-zinc-200 leading-relaxed max-w-none">
+                    <MarkdownView content={aiSummary} />
+                  </div>
+                </div>
+              ) : (
+                <div className="p-10 text-center rounded-xl border border-zinc-800 bg-zinc-900/40 text-xs text-zinc-500 space-y-2">
+                  <Sparkles className="h-6 w-6 text-zinc-600 mx-auto" />
+                  <p>Nenhum resumo gerado ainda.</p>
+                  <p className="text-[11px]">Grave uma reunião ou cole a transcrição na primeira aba e clique em "Gerar Resumo Rico".</p>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* ── TAB 3: SUGESTÕES DE DEMANDAS (SOB COMANDO DO USUÁRIO) ── */}
+            <TabsContent value="suggestions" className="m-0 space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                <div>
+                  <h3 className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                    <ListTodo className="h-4 w-4 text-emerald-400" /> Sugestões de Demandas com Briefing
+                  </h3>
+                  <p className="text-[11px] text-zinc-400">
+                    O sistema analisa a transcrição e sugere tarefas acionáveis apenas quando solicitado por você.
+                  </p>
+                </div>
+
+                <Button
+                  size="sm"
+                  onClick={handleAnalyzeAndSuggestDemands}
+                  disabled={isAnalyzing || !rawTranscript.trim()}
+                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-md shadow-emerald-600/20 font-bold"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analisando...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5" /> Analisar & Sugerir Demandas
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {suggestions.length === 0 ? (
+                <div className="p-10 text-center rounded-xl border border-zinc-800 bg-zinc-900/40 text-xs text-zinc-500 space-y-2">
+                  <ListTodo className="h-6 w-6 text-zinc-600 mx-auto" />
+                  <p className="font-semibold text-zinc-400">Nenhuma sugestão gerada ainda.</p>
+                  <p className="text-[11px] max-w-sm mx-auto">
+                    Para que o sistema analise a reunião e gere briefings prontos para criação de tarefas, clique no botão verde acima.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {suggestions.map((sug, idx) => {
+                    const isExpanded = expandedSugIndex === idx;
+                    const isApproving = approvingIndices.includes(idx);
+
+                    return (
+                      <div
+                        key={idx}
+                        className="rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden transition-all"
+                      >
+                        {/* Card Header */}
+                        <div
+                          onClick={() => setExpandedSugIndex(isExpanded ? null : idx)}
+                          className="p-3.5 flex items-center justify-between cursor-pointer select-none hover:bg-zinc-800/40"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Badge className="bg-emerald-500/10 text-emerald-300 border-emerald-500/30 text-[10px]">
+                              Nova Demanda
+                            </Badge>
+                            <span className="text-xs font-bold text-zinc-200">{sug.suggested_title}</span>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="text-[11px] text-zinc-400 font-mono flex items-center gap-1">
+                              <Clock className="h-3 w-3 text-purple-400" /> ~{sug.estimated_hours || 2}h
+                            </span>
+                            {isExpanded ? (
+                              <ChevronUp className="h-4 w-4 text-zinc-400" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-zinc-400" />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Expanded Briefing Details */}
+                        {isExpanded && (
+                          <div className="p-3.5 border-t border-zinc-800 bg-zinc-950/40 space-y-3">
+                            <div className="text-xs text-zinc-300 leading-relaxed font-sans">
+                              <MarkdownView content={sug.suggested_description} />
+                            </div>
+
+                            <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between">
+                              <span className="text-[11px] text-zinc-500 italic">
+                                Será criada como rascunho vinculada ao cliente selecionado.
+                              </span>
+                              <Button
+                                size="sm"
+                                onClick={() => handleApproveSuggestion(idx)}
+                                disabled={isApproving}
+                                className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5"
+                              >
+                                {isApproving ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                )}
+                                Aprovar & Criar Demanda
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* ── TAB 4: ANOTAÇÕES MANUAIS ── */}
             <TabsContent value="notes" className="m-0 h-full flex flex-col">
               <RichEditor
                 content={notes}
                 onChange={setNotes}
-                placeholder="Faça anotações em tempo real sobre a reunião..."
+                placeholder="Faça anotações em tempo real durante a reunião..."
               />
-            </TabsContent>
-
-            {/* Tab 2: AI Transcription & Recording */}
-            <TabsContent value="ai_transcription" className="m-0 space-y-4">
-              {/* Recording Controls Card */}
-              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  {isRecording ? (
-                    <div className="h-10 w-10 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center animate-pulse border border-red-500/40">
-                      <Mic className="h-5 w-5" />
-                    </div>
-                  ) : (
-                    <div className="h-10 w-10 rounded-full bg-zinc-800 text-zinc-400 flex items-center justify-center border border-zinc-700">
-                      <Mic className="h-5 w-5" />
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-xs font-bold text-zinc-200">
-                      {isRecording ? `Gravando áudio (${formatTimer(recordingSeconds)})` : "Transcrição local gratuita"}
-                    </p>
-                    <p className="text-[11px] text-zinc-400">
-                      {isRecording ? "Fale normalmente. Clique em encerrar para transcrever." : "O áudio é transcrito no seu navegador, sem créditos de IA."}
-                    </p>
-                  </div>
-                </div>
-
-                {isRecording ? (
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={handleStopRecording}
-                    className="gap-1.5 text-xs font-bold"
-                  >
-                    <Square className="h-3.5 w-3.5" /> Encerrar e Transcrever
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    onClick={handleStartRecording}
-                    disabled={isTranscribing || isAnalyzing}
-                    className="gap-1.5 text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white"
-                  >
-                    {isTranscribing ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Transcrevendo...
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="h-3.5 w-3.5" /> Iniciar Gravação
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
-
-              {/* AI Summary Section */}
-              {aiSummary ? (
-                <div className="p-4 rounded-xl border border-purple-500/30 bg-purple-950/20 space-y-2">
-                  <div className="flex items-center gap-2 text-purple-400 font-bold text-xs">
-                    <Sparkles className="h-4 w-4" /> Resumo Gerado por IA
-                  </div>
-                  <div className="text-xs text-zinc-200 prose prose-invert max-w-none">
-                    <MarkdownView content={aiSummary} />
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Transcript Text Output */}
-              {rawTranscript ? (
-                <div className="p-3 rounded-xl border border-zinc-800 bg-zinc-900/40 space-y-1.5">
-                  <p className="text-xs font-bold text-zinc-300">Transcrição Completa:</p>
-                  <p className="text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed">{rawTranscript}</p>
-                </div>
-              ) : null}
-
-              {rawTranscript && (
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-                  <p className="text-[11px] text-zinc-400">
-                    O resumo e as sugestões usam o Gemini e exigem um cliente vinculado.
-                  </p>
-                  <Button size="sm" onClick={handleAnalyze} disabled={isAnalyzing || clientId === "none"} className="gap-1.5 text-xs">
-                    {isAnalyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                    Gerar resumo e sugestões
-                  </Button>
-                </div>
-              )}
-
-              {suggestions.length > 0 && (
-                <div className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-                  <p className="flex items-center gap-1.5 text-xs font-bold text-zinc-300"><CheckCircle2 className="h-4 w-4" /> Sugestões enviadas para a Triagem</p>
-                  {suggestions.map((suggestion) => (
-                    <div key={suggestion.id} className="rounded-lg border border-zinc-800 p-2 text-xs text-zinc-300">{suggestion.suggested_title}</div>
-                  ))}
-                </div>
-              )}
             </TabsContent>
           </div>
         </Tabs>
-        ) : (
-          <div className="flex min-h-[110px] flex-1 items-center justify-center border-t border-zinc-800/80 px-6 text-center">
-            <p className="max-w-md text-xs leading-relaxed text-zinc-500">
-              Depois de criar a reunião, clique nela na Agenda ou em Reuniões para adicionar anotações, gravar e transcrever o áudio.
-            </p>
-          </div>
-        )}
 
         {/* Footer */}
         <div className="p-3.5 border-t border-zinc-800/80 bg-zinc-900/60 flex items-center justify-between shrink-0">
