@@ -246,7 +246,7 @@ export function scheduleDemands(
   demands: UnscheduledDemand[],
   config: SchedulingConfig = DEFAULT_CONFIG
 ): Record<string, string> {
-  const active = demands.filter(d => !(d as any).deleted_at && (d.status === "nao_iniciado" || d.status === "fazendo" || d.status === "com_ajustes"));
+  const active = demands.filter(d => !(d as any).deleted_at && (d.status === "nao_iniciado" || d.status === "fazendo" || (d.status === "com_ajustes" && d.is_manually_scheduled)));
   
   // Categorize demands
   const fixed = active.filter(d => d.due_date && d.due_date.length > 10);
@@ -613,7 +613,7 @@ export function isDayFullForWorkingHours(
   }
   for (const dem of existingDemands) {
     if ((dem as any).deleted_at) continue;
-    if (dem.status === "concluido" || dem.status === "para_analise" || dem.status === "rascunho") continue;
+    if (dem.status === "concluido" || dem.status === "para_analise" || dem.status === "rascunho" || (dem.status === "com_ajustes" && !(dem as any).is_manually_scheduled)) continue;
     if (dem.due_date && dem.due_date.slice(0, 10) === targetDayStr) {
       blockSlots(safeParseDate(dem.due_date), dem.estimated_hours ? Number(dem.estimated_hours) : 1.0, takenSlots);
     }
@@ -662,7 +662,7 @@ export function findNextAvailableWorkingSlot(
   }
   for (const dem of existingDemands) {
     if ((dem as any).deleted_at) continue;
-    if (dem.status === "concluido" || dem.status === "para_analise" || dem.status === "rascunho") continue;
+    if (dem.status === "concluido" || dem.status === "para_analise" || dem.status === "rascunho" || (dem.status === "com_ajustes" && !(dem as any).is_manually_scheduled)) continue;
     if (dem.due_date) {
       blockSlots(safeParseDate(dem.due_date), dem.estimated_hours ? Number(dem.estimated_hours) : 1.0, takenSlots);
     }
@@ -799,7 +799,7 @@ export function reorderDayDemandsByPriority(
   // 2. Filter active demands on this day
   const activeDemands = dayDemands.filter((d) => {
     if ((d as any).deleted_at) return false;
-    if (d.status === "concluido" || d.status === "para_analise" || d.status === "rascunho") return false;
+    if (d.status === "concluido" || d.status === "para_analise" || d.status === "rascunho" || (d.status === "com_ajustes" && !d.is_manually_scheduled)) return false;
     return !d.due_date || d.due_date.slice(0, 10) === targetDayStr;
   });
 

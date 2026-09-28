@@ -15,7 +15,7 @@ import { useUserContext } from "@/contexts/user-context";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check, Repeat, Star, Video, ArrowUpDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings, Clock, Calendar as CalendarIcon, Save, Pencil, Trash2, Pin, PinOff, CheckCircle2, Check, Repeat, Star, Video } from "lucide-react";
 import { MeetingDialog } from "@/components/meeting-dialog";
 import { listMeetings, upsertMeeting, type Meeting } from "@/lib/meetings.functions";
 import { STATUS_LABELS } from "@/lib/demand-labels";
@@ -351,7 +351,7 @@ function AgendaPage() {
         const dateKey = d.due_date ? toISO(safeParseDate(d.due_date)) : todayISO;
         const entry = map.get(dateKey) || { concluida: [], para_analise: [], com_ajustes: [], sem_responsavel: [] };
         
-        if (isAdminOrOwner && isUnassigned && d.status !== "concluido" && d.status !== "para_analise") {
+        if (isAdminOrOwner && isUnassigned && d.status !== "concluido" && d.status !== "para_analise" && d.status !== "com_ajustes") {
           entry.sem_responsavel.push(d as AgendaDemand);
         } else if (d.status === "concluido") {
           entry.concluida.push(d as AgendaDemand);
@@ -751,7 +751,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
     // 4. Collect active demands strictly on the SAME DAY (Never touch demands on other days!)
     const sameDayDemands = allDemands.filter((d) => {
       if (d.id === droppedDemandId) return false;
-      if (d.status === "concluido" || d.status === "para_analise" || d.status === "rascunho") return false;
+      if (d.status === "concluido" || d.status === "para_analise" || d.status === "rascunho" || (d.status === "com_ajustes" && !d.is_manually_scheduled)) return false;
       if (!d.due_date) return false;
       const dt = safeParseDate(d.due_date);
       return toISO(dt) === targetDayStr;
@@ -1085,36 +1085,7 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
     setSlotModalOpen(true);
   }
 
-  async function handleReorganizeDay(targetDayStr: string) {
-    const dayDemands = demands.filter((d) => d.due_date && d.due_date.slice(0, 10) === targetDayStr) as any[];
-    const dayMeetings = meetings.filter((m) => m.due_date && m.due_date.slice(0, 10) === targetDayStr);
-    const updates = reorderDayDemandsByPriority(targetDayStr, dayDemands, dayMeetings, config);
 
-    if (updates.length === 0) {
-      toast.info("As demandas deste dia já estão na ordem ideal de prioridade.");
-      return;
-    }
-
-    // Optimistic UI update
-    qc.setQueryData<typeof demands>(["demands", targetAgendaUserId, isAdminOrOwner], (prev) => {
-      const updateMap = new Map(updates.map((u) => [u.id, u.due_date]));
-      return (prev ?? []).map((d) => {
-        if (updateMap.has(d.id)) {
-          return { ...d, due_date: updateMap.get(d.id)! };
-        }
-        return d;
-      });
-    });
-
-    try {
-      await batchUpdateFn({ data: { updates } });
-      toast.success("Demandas organizadas por prioridade!");
-      qc.invalidateQueries({ queryKey: ["demands"] });
-    } catch (err: any) {
-      toast.error("Erro ao organizar demandas.");
-      qc.invalidateQueries({ queryKey: ["demands"] });
-    }
-  }
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -1348,15 +1319,6 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
                         onOpenDemand={(id) => overlay.open(id, clientsForOverlay)}
                       />
                     )}
-                    <button
-                      type="button"
-                      title="Organizar demandas do dia por prioridade e ordem de cadastro"
-                      onClick={() => handleReorganizeDay(iso)}
-                      className="mt-1 text-[9px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-muted/40 cursor-pointer"
-                    >
-                      <ArrowUpDown className="h-2.5 w-2.5" />
-                      <span>Organizar</span>
-                    </button>
                   </div>
                 );
               })}

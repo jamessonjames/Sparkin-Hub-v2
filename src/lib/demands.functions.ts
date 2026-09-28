@@ -7,11 +7,12 @@ function normalizeDueDate(dateStr?: string | null): string | null {
   if (!dateStr) return null;
   const clean = dateStr.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
-    return clean;
+    return `${clean}T12:00:00-03:00`;
   }
   if (!clean.includes("Z") && !clean.includes("+") && !/[+-]\d{2}:\d{2}$/.test(clean)) {
     if (/T\d{2}:\d{2}/.test(clean)) {
-      return `${clean.slice(0, 19)}-03:00`;
+      const base = clean.length >= 19 ? clean.slice(0, 19) : `${clean}:00`.slice(0, 19);
+      return `${base}-03:00`;
     }
   }
   return clean;
@@ -135,6 +136,8 @@ export const createDemand = createServerFn({ method: "POST" })
     const dbStatus = isCustom ? "nao_iniciado" : data.status;
     const dbStatusId = isCustom ? data.status : (data.status_id || null);
 
+    const isComAjustesOrAnalise = dbStatus === "com_ajustes" || dbStatus === "para_analise";
+
     const payload: any = {
       client_id: data.client_id,
       title: data.title,
@@ -150,7 +153,7 @@ export const createDemand = createServerFn({ method: "POST" })
       created_by_user_id: context.userId,
       client_edition_id: data.client_edition_id || null,
       price: data.price ?? null,
-      is_manually_scheduled: data.is_manually_scheduled !== undefined ? data.is_manually_scheduled : Boolean(data.due_date),
+      is_manually_scheduled: data.is_manually_scheduled !== undefined ? data.is_manually_scheduled : (isComAjustesOrAnalise ? false : Boolean(data.due_date)),
     };
 
     // Gracefully handle database schema transition where estimated_hours might not exist yet
@@ -195,6 +198,8 @@ export const updateDemand = createServerFn({ method: "POST" })
     const dbStatus = isCustom ? "nao_iniciado" : rest.status;
     const dbStatusId = isCustom ? rest.status : (rest.status_id || null);
 
+    const isComAjustesOrAnalise = dbStatus === "com_ajustes" || dbStatus === "para_analise";
+
     const payload: any = {
       client_id: rest.client_id,
       title: rest.title,
@@ -209,7 +214,11 @@ export const updateDemand = createServerFn({ method: "POST" })
       assignee_user_id: rest.assignee_user_id || null,
       client_edition_id: rest.client_edition_id || null,
       price: rest.price ?? null,
-      ...(typeof rest.is_manually_scheduled === "boolean" ? { is_manually_scheduled: rest.is_manually_scheduled } : {}),
+      ...(typeof rest.is_manually_scheduled === "boolean"
+        ? { is_manually_scheduled: rest.is_manually_scheduled }
+        : isComAjustesOrAnalise
+          ? { is_manually_scheduled: false }
+          : {}),
     };
 
     // Gracefully handle database schema transition where estimated_hours might not exist yet
@@ -271,7 +280,9 @@ export const moveDemandStatus = createServerFn({ method: "POST" })
         .is("deleted_at", null);
 
       const targetDateStr = getAdjustmentTargetDate(allDemands || []);
-      patch.due_date = targetDateStr;
+      patch.due_date = `${targetDateStr}T12:00:00-03:00`;
+      patch.is_manually_scheduled = false;
+    } else if (dbStatus === "para_analise") {
       patch.is_manually_scheduled = false;
     }
 

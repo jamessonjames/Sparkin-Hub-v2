@@ -735,8 +735,12 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
         } else {
           let finalDueDate = null;
           if (dueDate) {
-            const timePart = dueTime || (demand?.due_date && demand.due_date.includes("T") ? demand.due_date.split("T")[1].slice(0, 5) : "12:00");
-            finalDueDate = `${dueDate}T${timePart.length === 5 ? `${timePart}:00` : timePart}`;
+            if (status === "com_ajustes" || status === "para_analise") {
+              finalDueDate = `${dueDate}T12:00:00-03:00`;
+            } else {
+              const timePart = dueTime || (demand?.due_date && demand.due_date.includes("T") ? demand.due_date.split("T")[1].slice(0, 5) : "12:00");
+              finalDueDate = buildBrasiliaIso(dueDate, timePart);
+            }
           }
 
           await updateFn({
@@ -754,6 +758,7 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
               assignee_user_id: assigneeId || null,
               client_edition_id: clientEditionId || null,
               price: price ?? null,
+              is_manually_scheduled: (status === "com_ajustes" || status === "para_analise") ? false : (demand?.is_manually_scheduled ?? false),
             },
           });
         }
@@ -795,14 +800,18 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
         } else {
           let finalDueDate = null;
           if (dueDate) {
-            const origDatePart = demand?.due_date ? demand.due_date.slice(0, 10) : "";
-            if (dueDate === origDatePart && demand?.due_date) {
-              finalDueDate = demand.due_date;
+            if (status === "com_ajustes" || status === "para_analise") {
+              finalDueDate = `${dueDate}T12:00:00-03:00`;
             } else {
-              const origTimePart = demand?.due_date && demand.due_date.includes("T")
-                ? demand.due_date.split("T")[1]
-                : "12:00:00";
-              finalDueDate = `${dueDate}T${origTimePart}`;
+              const origDatePart = demand?.due_date ? demand.due_date.slice(0, 10) : "";
+              if (dueDate === origDatePart && demand?.due_date) {
+                finalDueDate = demand.due_date;
+              } else {
+                const origTimePart = demand?.due_date && demand.due_date.includes("T")
+                  ? demand.due_date.split("T")[1].slice(0, 5)
+                  : "12:00";
+                finalDueDate = buildBrasiliaIso(dueDate, origTimePart);
+              }
             }
           }
 
@@ -821,6 +830,7 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
               assignee_user_id: assigneeId || null,
               client_edition_id: clientEditionId || null,
               price: price ?? null,
+              is_manually_scheduled: (status === "com_ajustes" || status === "para_analise") ? false : (demand?.is_manually_scheduled ?? false),
             },
           });
         }
@@ -863,9 +873,14 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
     if (!clientId) { toast.error("Selecione um cliente."); return; }
     if (!title.trim()) { toast.error("O título não pode ficar vazio."); return; }
 
+    const isComAjustesOrAnalise = status === "com_ajustes" || status === "para_analise";
+    const finalIsManual = isComAjustesOrAnalise ? false : isManual;
+
     let finalDueDate = null;
     if (saveDueDate) {
-      finalDueDate = buildBrasiliaIso(saveDueDate, saveDueTime || "09:00");
+      finalDueDate = isComAjustesOrAnalise
+        ? `${saveDueDate}T12:00:00-03:00`
+        : buildBrasiliaIso(saveDueDate, saveDueTime || "09:00");
     }
 
     setSaving(true);
@@ -884,7 +899,7 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
             assignee_user_id: assigneeId || (profiles as any[]).find((p: any) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
             client_edition_id: clientEditionId || null,
             price: price ?? null,
-            is_manually_scheduled: isManual,
+            is_manually_scheduled: finalIsManual,
           },
         });
         toast.success("Demanda criada com sucesso!");
@@ -906,7 +921,7 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
             assignee_user_id: assigneeId || (profiles as any[]).find((p: any) => p.name?.toLowerCase().includes("jamesson"))?.id || profiles[0]?.id || null,
             client_edition_id: clientEditionId || null,
             price: price ?? null,
-            is_manually_scheduled: isManual,
+            is_manually_scheduled: finalIsManual,
           },
         });
         toast.success("Alterações salvas!");
@@ -991,8 +1006,10 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
     if (!clientId) { toast.error("Selecione um cliente."); return; }
     if (!title.trim()) { toast.error("O título não pode ficar vazio."); return; }
 
-    // Check if saving exceeds configured business hours or if the day is full
-    if (dueDate) {
+    const isComAjustesOrAnalise = status === "com_ajustes" || status === "para_analise";
+
+    // Check if saving exceeds configured business hours or if the day is full (ONLY for active grid demands, NOT com_ajustes or para_analise!)
+    if (dueDate && !isComAjustesOrAnalise) {
       const timePart = dueTime || `${String(scheduleConfig.startHour).padStart(2, "0")}:00`;
       const [h, m] = timePart.split(":").map(Number);
       const estHours = estimatedHours ?? 1.0;
@@ -1014,8 +1031,8 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
       }
     }
 
-
-    await executeAdminSave(dueDate, dueTime, Boolean(dueDate));
+    const finalIsManual = isComAjustesOrAnalise ? false : Boolean(dueDate);
+    await executeAdminSave(dueDate, isComAjustesOrAnalise ? null : dueTime, finalIsManual);
   }
 
   function extractAllGDriveUrls(htmls: string[]): string[] {
