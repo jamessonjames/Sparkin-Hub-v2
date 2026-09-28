@@ -193,6 +193,7 @@ export interface UnscheduledDemand {
   estimated_hours?: number | null;
   created_at: string;
   is_manually_scheduled?: boolean | null;
+  deleted_at?: string | null;
 }
 
 /** Helper to block slots occupied by a demand or meeting */
@@ -245,7 +246,7 @@ export function scheduleDemands(
   demands: UnscheduledDemand[],
   config: SchedulingConfig = DEFAULT_CONFIG
 ): Record<string, string> {
-  const active = demands.filter(d => d.status === "nao_iniciado" || d.status === "fazendo" || d.status === "com_ajustes");
+  const active = demands.filter(d => !(d as any).deleted_at && (d.status === "nao_iniciado" || d.status === "fazendo" || d.status === "com_ajustes"));
   
   // Categorize demands
   const fixed = active.filter(d => d.due_date && d.due_date.length > 10);
@@ -393,7 +394,7 @@ export function scheduleByPriority(
   _fixed: UnscheduledDemand[] = []
 ): Record<string, string> {
   const active = [..._fixed, ...demands]
-    .filter((d) => d.status === "nao_iniciado" || d.status === "fazendo" || (d.status === "com_ajustes" && d.is_manually_scheduled))
+    .filter((d) => !(d as any).deleted_at && (d.status === "nao_iniciado" || d.status === "fazendo" || (d.status === "com_ajustes" && d.is_manually_scheduled)))
     .filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i);
 
   // 1) Pinned demands (is_manually_scheduled = true and due_date exists)
@@ -554,6 +555,7 @@ export function getAdjustmentTargetDate(
   // Check condition 2: Count booked hours for today
   let bookedHoursToday = 0;
   for (const d of allDemands) {
+    if ((d as any).deleted_at) continue;
     if (d.status === "concluido" || d.status === "para_analise" || d.status === "rascunho") continue;
     if (d.due_date && d.due_date.slice(0, 10) === todayStr) {
       bookedHoursToday += d.estimated_hours ? Number(d.estimated_hours) : 1.0;
@@ -593,8 +595,8 @@ export interface AvailableSlotResult {
 export function isDayFullForWorkingHours(
   targetDayStr: string,
   durationHours: number = 1.0,
-  existingDemands: { id?: string; due_date: string | null; estimated_hours?: number | null; status?: string }[] = [],
-  existingMeetings: { id?: string; due_date: string | null; estimated_hours?: number | null }[] = [],
+  existingDemands: { id?: string; due_date: string | null; estimated_hours?: number | null; status?: string; deleted_at?: string | null }[] = [],
+  existingMeetings: { id?: string; due_date: string | null; estimated_hours?: number | null; deleted_at?: string | null }[] = [],
   config: SchedulingConfig = DEFAULT_CONFIG
 ): boolean {
   const activeCfg = (config && config !== DEFAULT_CONFIG) ? config : getStoredSchedulingConfig();
@@ -604,11 +606,13 @@ export function isDayFullForWorkingHours(
 
   const takenSlots = new Set<string>();
   for (const meet of existingMeetings) {
+    if ((meet as any).deleted_at) continue;
     if (meet.due_date && meet.due_date.slice(0, 10) === targetDayStr) {
       blockSlots(safeParseDate(meet.due_date), meet.estimated_hours ? Number(meet.estimated_hours) : 1.0, takenSlots);
     }
   }
   for (const dem of existingDemands) {
+    if ((dem as any).deleted_at) continue;
     if (dem.status === "concluido" || dem.status === "para_analise" || dem.status === "rascunho") continue;
     if (dem.due_date && dem.due_date.slice(0, 10) === targetDayStr) {
       blockSlots(safeParseDate(dem.due_date), dem.estimated_hours ? Number(dem.estimated_hours) : 1.0, takenSlots);
@@ -641,8 +645,8 @@ export function isDayFullForWorkingHours(
 export function findNextAvailableWorkingSlot(
   durationHours: number = 1.0,
   preferredDateStr?: string | null,
-  existingDemands: { id?: string; due_date: string | null; estimated_hours?: number | null; status?: string; assignee_user_id?: string | null }[] = [],
-  existingMeetings: { id?: string; due_date: string | null; estimated_hours?: number | null }[] = [],
+  existingDemands: { id?: string; due_date: string | null; estimated_hours?: number | null; status?: string; assignee_user_id?: string | null; deleted_at?: string | null }[] = [],
+  existingMeetings: { id?: string; due_date: string | null; estimated_hours?: number | null; deleted_at?: string | null }[] = [],
   config: SchedulingConfig = DEFAULT_CONFIG
 ): AvailableSlotResult {
   const activeCfg = (config && config !== DEFAULT_CONFIG) ? config : getStoredSchedulingConfig();
@@ -651,11 +655,13 @@ export function findNextAvailableWorkingSlot(
 
   const takenSlots = new Set<string>();
   for (const meet of existingMeetings) {
+    if ((meet as any).deleted_at) continue;
     if (meet.due_date) {
       blockSlots(safeParseDate(meet.due_date), meet.estimated_hours ? Number(meet.estimated_hours) : 1.0, takenSlots);
     }
   }
   for (const dem of existingDemands) {
+    if ((dem as any).deleted_at) continue;
     if (dem.status === "concluido" || dem.status === "para_analise" || dem.status === "rascunho") continue;
     if (dem.due_date) {
       blockSlots(safeParseDate(dem.due_date), dem.estimated_hours ? Number(dem.estimated_hours) : 1.0, takenSlots);
@@ -784,6 +790,7 @@ export function reorderDayDemandsByPriority(
 
   // 1. Block meetings
   for (const m of meetingsOnDay) {
+    if ((m as any).deleted_at) continue;
     if (m.due_date && m.due_date.slice(0, 10) === targetDayStr) {
       blockSlots(safeParseDate(m.due_date), m.estimated_hours ? Number(m.estimated_hours) : 1.0, takenSlots);
     }
@@ -791,6 +798,7 @@ export function reorderDayDemandsByPriority(
 
   // 2. Filter active demands on this day
   const activeDemands = dayDemands.filter((d) => {
+    if ((d as any).deleted_at) return false;
     if (d.status === "concluido" || d.status === "para_analise" || d.status === "rascunho") return false;
     return !d.due_date || d.due_date.slice(0, 10) === targetDayStr;
   });

@@ -77,6 +77,36 @@ function extractBrasiliaDateAndTime(isoStr: string | null | undefined): { datePa
   return { datePart, timePart };
 }
 
+function getAllCachedDemands(qc: any): any[] {
+  const map = new Map<string, any>();
+  const queries = qc.getQueriesData({ queryKey: ["demands"] });
+  for (const [, list] of queries) {
+    if (Array.isArray(list)) {
+      for (const item of list) {
+        if (item && item.id && !item.deleted_at) {
+          map.set(item.id, item);
+        }
+      }
+    }
+  }
+  return Array.from(map.values());
+}
+
+function getAllCachedMeetings(qc: any): any[] {
+  const map = new Map<string, any>();
+  const queries = qc.getQueriesData({ queryKey: ["meetings"] });
+  for (const [, list] of queries) {
+    if (Array.isArray(list)) {
+      for (const item of list) {
+        if (item && item.id && !item.deleted_at) {
+          map.set(item.id, item);
+        }
+      }
+    }
+  }
+  return Array.from(map.values());
+}
+
 const STATUS_CHIP: Record<string, string> = {
   rascunho:     "bg-zinc-700 text-zinc-200 hover:bg-zinc-600",
   nao_iniciado: "bg-zinc-700 text-zinc-200 hover:bg-zinc-600",
@@ -596,8 +626,8 @@ export function DemandDetailDialog({
         setDueDate(datePart);
         setDueTime(timePart);
       } else {
-        const allDemandsList = (qc.getQueryData<any[]>(["demands"]) || []);
-        const allMeetingsList = (qc.getQueryData<any[]>(["meetings"]) || []);
+        const allDemandsList = getAllCachedDemands(qc);
+        const allMeetingsList = getAllCachedMeetings(qc);
         const nextSlot = findNextAvailableWorkingSlot(defaultEstimatedHours ?? 1.0, null, allDemandsList, allMeetingsList, scheduleConfig);
         setDueDate(nextSlot.dateStr);
         setDueTime(nextSlot.timeStr);
@@ -972,8 +1002,8 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
         endHourDec > scheduleConfig.endHour ||
         (h >= scheduleConfig.lunchStart && h < scheduleConfig.lunchEnd);
 
-      const allDemandsList = (qc.getQueryData<any[]>(["demands"]) || []);
-      const allMeetingsList = (qc.getQueryData<any[]>(["meetings"]) || []);
+      const allDemandsList = getAllCachedDemands(qc);
+      const allMeetingsList = getAllCachedMeetings(qc);
       const isDayFull = isDayFullForWorkingHours(dueDate, estHours, allDemandsList, allMeetingsList, scheduleConfig);
 
       if (isOutsideHours || isDayFull) {
