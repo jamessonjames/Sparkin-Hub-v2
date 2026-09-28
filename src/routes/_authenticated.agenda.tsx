@@ -42,7 +42,10 @@ import {
   safeParseDate,
   buildBrasiliaIso,
   reorderDayDemandsByPriority,
+  getStoredSchedulingConfig,
 } from "@/utils/scheduler";
+import { getScheduleConfig, saveScheduleConfig } from "@/lib/schedule.functions";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -226,19 +229,33 @@ function AgendaPage() {
     staleTime: 60 * 1000,
   });
 
+  const getScheduleConfigFn = useServerFn(getScheduleConfig);
+  const saveScheduleConfigFn = useServerFn(saveScheduleConfig);
+
+  const { data: serverScheduleConfig } = useQuery({
+    queryKey: ["schedule_config"],
+    queryFn: () => getScheduleConfigFn(),
+    staleTime: 60 * 1000,
+  });
+
   // Config State
   const [config, setConfig] = useState<SchedulingConfig>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("CreativeFlow_ScheduleConfig");
-      if (saved) {
-        try { return JSON.parse(saved); } catch (e) {}
+    return getStoredSchedulingConfig();
+  });
+
+  // Keep state in sync if server has stored config
+  useEffect(() => {
+    if (serverScheduleConfig) {
+      setConfig(serverScheduleConfig);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("CreativeFlow_ScheduleConfig", JSON.stringify(serverScheduleConfig));
       }
     }
-    return DEFAULT_CONFIG;
-  });
+  }, [serverScheduleConfig]);
 
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [showSettings, setShowSettings] = useState(false);
+
 
   // Live real-time clock state (updates every 5s + instantly on tab focus with 0 DB queries)
   const [now, setNow] = useState(() => getTzTime(config.timezone));
@@ -1214,13 +1231,22 @@ function areSlotsFree(startDate: Date, durationHours: number, takenSlots: Set<st
         {showSettings && (
           <SettingsPanel
             config={config}
-            onSave={(newCfg) => {
+            onSave={async (newCfg) => {
               setConfig(newCfg);
-              localStorage.setItem("CreativeFlow_ScheduleConfig", JSON.stringify(newCfg));
+              if (typeof window !== "undefined") {
+                localStorage.setItem("CreativeFlow_ScheduleConfig", JSON.stringify(newCfg));
+              }
               setShowSettings(false);
               toast.success("Expediente salvo!");
+              try {
+                await saveScheduleConfigFn({ data: newCfg });
+              } catch (e) {
+                console.error("Error saving schedule config to server:", e);
+              }
+              qc.invalidateQueries({ queryKey: ["schedule_config"] });
               qc.invalidateQueries({ queryKey: ["demands"] });
             }}
+
             onClose={() => setShowSettings(false)}
           />
         )}

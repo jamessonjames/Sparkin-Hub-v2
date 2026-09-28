@@ -52,7 +52,11 @@ import {
   safeParseDate,
   findNextAvailableWorkingSlot,
   isDayFullForWorkingHours,
+  getStoredSchedulingConfig,
+  SchedulingConfig,
 } from "@/utils/scheduler";
+import { getScheduleConfig } from "@/lib/schedule.functions";
+
 import {
   AlertDialog,
   AlertDialogContent,
@@ -176,9 +180,18 @@ export function DemandDetailDialog({
   const deleteCommentFn = useServerFn(deleteComment);
   const updateCommentFn = useServerFn(updateComment);
   const listProfilesFn = useServerFn(listProfiles);
+  const getScheduleConfigFn = useServerFn(getScheduleConfig);
   const qc = useQueryClient();
   const { selectedUserId } = useUserContext();
   const activeUserId = selectedUserId;
+
+  const { data: serverScheduleConfig } = useQuery({
+    queryKey: ["schedule_config"],
+    queryFn: () => getScheduleConfigFn(),
+    staleTime: 60_000,
+  });
+  const scheduleConfig: SchedulingConfig = serverScheduleConfig || getStoredSchedulingConfig();
+
 
   const [lightbox, setLightbox] = useState<{
     src: string;
@@ -585,7 +598,7 @@ export function DemandDetailDialog({
       } else {
         const allDemandsList = (qc.getQueryData<any[]>(["demands"]) || []);
         const allMeetingsList = (qc.getQueryData<any[]>(["meetings"]) || []);
-        const nextSlot = findNextAvailableWorkingSlot(defaultEstimatedHours ?? 1.0, null, allDemandsList, allMeetingsList);
+        const nextSlot = findNextAvailableWorkingSlot(defaultEstimatedHours ?? 1.0, null, allDemandsList, allMeetingsList, scheduleConfig);
         setDueDate(nextSlot.dateStr);
         setDueTime(nextSlot.timeStr);
       }
@@ -948,25 +961,29 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
     if (!clientId) { toast.error("Selecione um cliente."); return; }
     if (!title.trim()) { toast.error("O título não pode ficar vazio."); return; }
 
-    // Check if saving exceeds business hours (09:00 - 18:00) or if the day is full
+    // Check if saving exceeds configured business hours or if the day is full
     if (dueDate) {
-      const timePart = dueTime || "09:00";
+      const timePart = dueTime || `${String(scheduleConfig.startHour).padStart(2, "0")}:00`;
       const [h, m] = timePart.split(":").map(Number);
       const estHours = estimatedHours ?? 1.0;
       const endHourDec = h + m / 60 + estHours;
-      const isOutsideHours = h < 9 || endHourDec > 18 || (h >= 13 && h < 14);
+      const isOutsideHours =
+        h < scheduleConfig.startHour ||
+        endHourDec > scheduleConfig.endHour ||
+        (h >= scheduleConfig.lunchStart && h < scheduleConfig.lunchEnd);
 
       const allDemandsList = (qc.getQueryData<any[]>(["demands"]) || []);
       const allMeetingsList = (qc.getQueryData<any[]>(["meetings"]) || []);
-      const isDayFull = isDayFullForWorkingHours(dueDate, estHours, allDemandsList, allMeetingsList);
+      const isDayFull = isDayFullForWorkingHours(dueDate, estHours, allDemandsList, allMeetingsList, scheduleConfig);
 
       if (isOutsideHours || isDayFull) {
-        const slotCalc = findNextAvailableWorkingSlot(estHours, dueDate, allDemandsList, allMeetingsList);
+        const slotCalc = findNextAvailableWorkingSlot(estHours, dueDate, allDemandsList, allMeetingsList, scheduleConfig);
         setOvertimeNextSlot(slotCalc.nextFreeWorkingSlot || null);
         setOvertimeWarningOpen(true);
         return;
       }
     }
+
 
     await executeAdminSave(dueDate, dueTime, Boolean(dueDate));
   }
@@ -1892,7 +1909,7 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
               </AlertDialogTitle>
               <AlertDialogDescription className="text-sm text-muted-foreground pt-1 space-y-2">
                 <p>
-                  O dia <strong>{dueDate}</strong> já está com o expediente de trabalho comercial preenchido ou a demanda (com {estimatedHours}h estimadas) ultrapassa as 18:00.
+                  O dia <strong>{dueDate}</strong> já está com o expediente de trabalho comercial preenchido ou a demanda (com {estimatedHours}h estimadas) ultrapassa as {scheduleConfig.endHour}:00 (expediente: {String(scheduleConfig.startHour).padStart(2, "0")}:00 às {String(scheduleConfig.endHour).padStart(2, "0")}:00).
                 </p>
                 <p>
                   Como você prefere proceder com o agendamento desta demanda?
@@ -1908,10 +1925,10 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
                 className="text-xs"
                 onClick={async () => {
                   setOvertimeWarningOpen(false);
-                  await executeAdminSave(dueDate, dueTime || "18:00", true);
+                  await executeAdminSave(dueDate, dueTime || `${String(scheduleConfig.endHour).padStart(2, "0")}:00`, true);
                 }}
               >
-                Manter neste dia (após 18h)
+                Manter neste dia (após {scheduleConfig.endHour}h)
               </Button>
               {overtimeNextSlot && (
                 <Button
@@ -1927,6 +1944,7 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
                 </Button>
               )}
             </AlertDialogFooter>
+
           </AlertDialogContent>
         </AlertDialog>
       </div>

@@ -21,6 +21,35 @@ export const DEFAULT_CONFIG: SchedulingConfig = {
   timezone: "America/Sao_Paulo"
 };
 
+/**
+ * Retrieves the currently active scheduling config.
+ * Checks localStorage if in a browser environment, falls back to DEFAULT_CONFIG.
+ */
+export function getStoredSchedulingConfig(): SchedulingConfig {
+  if (typeof window !== "undefined") {
+    try {
+      const saved = localStorage.getItem("CreativeFlow_ScheduleConfig");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object") {
+          return {
+            workingDays: Array.isArray(parsed.workingDays) ? parsed.workingDays : DEFAULT_CONFIG.workingDays,
+            startHour: typeof parsed.startHour === "number" ? parsed.startHour : DEFAULT_CONFIG.startHour,
+            endHour: typeof parsed.endHour === "number" ? parsed.endHour : DEFAULT_CONFIG.endHour,
+            lunchStart: typeof parsed.lunchStart === "number" ? parsed.lunchStart : DEFAULT_CONFIG.lunchStart,
+            lunchEnd: typeof parsed.lunchEnd === "number" ? parsed.lunchEnd : DEFAULT_CONFIG.lunchEnd,
+            timezone: typeof parsed.timezone === "string" ? parsed.timezone : DEFAULT_CONFIG.timezone,
+          };
+        }
+      }
+    } catch (e) {
+      // Fallback
+    }
+  }
+  return DEFAULT_CONFIG;
+}
+
+
 export const PRIORITY_WEIGHT = {
   urgent: 4,
   high: 3,
@@ -568,9 +597,10 @@ export function isDayFullForWorkingHours(
   existingMeetings: { id?: string; due_date: string | null; estimated_hours?: number | null }[] = [],
   config: SchedulingConfig = DEFAULT_CONFIG
 ): boolean {
+  const activeCfg = (config && config !== DEFAULT_CONFIG) ? config : getStoredSchedulingConfig();
   const [y, m, d] = targetDayStr.split("-").map(Number);
   const targetDate = new Date(y, m - 1, d);
-  if (!config.workingDays.includes(targetDate.getDay())) return true; // weekends are full for normal hours
+  if (!activeCfg.workingDays.includes(targetDate.getDay())) return true; // weekends are full for normal hours
 
   const takenSlots = new Set<string>();
   for (const meet of existingMeetings) {
@@ -586,11 +616,11 @@ export function isDayFullForWorkingHours(
   }
 
   // Scan all 30m slots on targetDay between startHour and endHour
-  const cursor = new Date(y, m - 1, d, config.startHour, 0, 0);
-  while (cursor.getHours() < config.endHour) {
-    if (areWorkingSlotsFree(cursor, durationHours, takenSlots, config)) {
+  const cursor = new Date(y, m - 1, d, activeCfg.startHour, 0, 0);
+  while (cursor.getHours() < activeCfg.endHour) {
+    if (areWorkingSlotsFree(cursor, durationHours, takenSlots, activeCfg)) {
       const endCandidate = new Date(cursor.getTime() + durationHours * 3600 * 1000);
-      if (endCandidate.getHours() < config.endHour || (endCandidate.getHours() === config.endHour && endCandidate.getMinutes() === 0)) {
+      if (endCandidate.getHours() < activeCfg.endHour || (endCandidate.getHours() === activeCfg.endHour && endCandidate.getMinutes() === 0)) {
         return false; // Found a free business slot!
       }
     }
@@ -602,11 +632,11 @@ export function isDayFullForWorkingHours(
 /**
  * Finds the next available working slot for a demand with durationHours.
  * If preferredDateStr is supplied:
- *   - If the day has space within 09:00-18:00, returns that slot (isOvertime = false).
- *   - If the day is full within 09:00-18:00, calculates next free slot on the next working day,
- *     and also provides the first free slot after 18:00 on preferredDate (isOvertime = true).
+ *   - If the day has space within the configured working hours, returns that slot (isOvertime = false).
+ *   - If the day is full within configured working hours, calculates next free slot on the next working day,
+ *     and also provides the first free slot after configured endHour on preferredDate (isOvertime = true).
  * If preferredDateStr is not supplied:
- *   - Finds next available working slot starting from now/next working day within 09:00-18:00.
+ *   - Finds next available working slot starting from now/next working day within configured working hours.
  */
 export function findNextAvailableWorkingSlot(
   durationHours: number = 1.0,
@@ -615,7 +645,8 @@ export function findNextAvailableWorkingSlot(
   existingMeetings: { id?: string; due_date: string | null; estimated_hours?: number | null }[] = [],
   config: SchedulingConfig = DEFAULT_CONFIG
 ): AvailableSlotResult {
-  const now = getTzTime(config.timezone);
+  const activeCfg = (config && config !== DEFAULT_CONFIG) ? config : getStoredSchedulingConfig();
+  const now = getTzTime(activeCfg.timezone);
   const nowDayStr = toISO(now);
 
   const takenSlots = new Set<string>();
@@ -632,29 +663,29 @@ export function findNextAvailableWorkingSlot(
   }
 
   // Helper to find first free working slot on or after a given day
-  const findFreeInDays = (startDayStr: string, limitDays = 30): { dateStr: string; timeStr: string; fullIso: string } | null => {
+  const findFreeInDays = (startDayStr: string, limitDays = 30, allowPastSlotsOnTarget = false): { dateStr: string; timeStr: string; fullIso: string } | null => {
     const [y, m, d] = startDayStr.split("-").map(Number);
     const checkDate = new Date(y, m - 1, d);
 
     for (let dayOffset = 0; dayOffset < limitDays; dayOffset++) {
-      if (config.workingDays.includes(checkDate.getDay())) {
+      if (activeCfg.workingDays.includes(checkDate.getDay())) {
         const checkDayStr = toISO(checkDate);
-        let cursor = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate(), config.startHour, 0, 0);
+        let cursor = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate(), activeCfg.startHour, 0, 0);
 
-        // If checking today, cursor cannot be in the past
-        if (checkDayStr === nowDayStr) {
+        // If checking today and we do NOT allow past slots, cursor cannot be in the past
+        if (checkDayStr === nowDayStr && !allowPastSlotsOnTarget) {
           const currentHourDec = now.getHours() + now.getMinutes() / 60;
-          if (currentHourDec > config.startHour) {
+          if (currentHourDec > activeCfg.startHour) {
             const next30Mins = Math.ceil(now.getMinutes() / 30) * 30;
             cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0);
             cursor.setMinutes(next30Mins, 0, 0);
           }
         }
 
-        while (cursor.getHours() < config.endHour) {
-          if (areWorkingSlotsFree(cursor, durationHours, takenSlots, config)) {
+        while (cursor.getHours() < activeCfg.endHour) {
+          if (areWorkingSlotsFree(cursor, durationHours, takenSlots, activeCfg)) {
             const endCand = new Date(cursor.getTime() + durationHours * 3600 * 1000);
-            if (endCand.getHours() < config.endHour || (endCand.getHours() === config.endHour && endCand.getMinutes() === 0)) {
+            if (endCand.getHours() < activeCfg.endHour || (endCand.getHours() === activeCfg.endHour && endCand.getMinutes() === 0)) {
               const timeStr = `${String(cursor.getHours()).padStart(2, "0")}:${String(cursor.getMinutes()).padStart(2, "0")}`;
               return {
                 dateStr: checkDayStr,
@@ -673,9 +704,10 @@ export function findNextAvailableWorkingSlot(
 
   // If a specific preferred day was given
   if (preferredDateStr) {
-    const isFull = isDayFullForWorkingHours(preferredDateStr, durationHours, existingDemands, existingMeetings, config);
+    const isFull = isDayFullForWorkingHours(preferredDateStr, durationHours, existingDemands, existingMeetings, activeCfg);
     if (!isFull) {
-      const freeSlot = findFreeInDays(preferredDateStr, 1);
+      // Target day has free capacity within configured business hours: search entire day starting at activeCfg.startHour
+      const freeSlot = findFreeInDays(preferredDateStr, 1, true);
       if (freeSlot && freeSlot.dateStr === preferredDateStr) {
         return {
           dateStr: freeSlot.dateStr,
@@ -686,10 +718,10 @@ export function findNextAvailableWorkingSlot(
       }
     }
 
-    // Preferred day is full within business hours!
-    // 1) Calculate overtime slot on preferredDateStr (starts from 18:00 or first free slot after 18:00)
+    // Preferred day is genuinely full within business hours!
+    // 1) Calculate overtime slot on preferredDateStr (starts from activeCfg.endHour or first free slot after activeCfg.endHour)
     const [py, pm, pd] = preferredDateStr.split("-").map(Number);
-    let overtimeCursor = new Date(py, pm - 1, pd, config.endHour, 0, 0);
+    let overtimeCursor = new Date(py, pm - 1, pd, activeCfg.endHour, 0, 0);
     while (!areSlotsFree(overtimeCursor, durationHours, takenSlots) && overtimeCursor.getHours() < 23) {
       overtimeCursor.setMinutes(overtimeCursor.getMinutes() + 30);
     }
@@ -698,7 +730,7 @@ export function findNextAvailableWorkingSlot(
     // 2) Calculate next free slot in upcoming working days
     const nextWorkingDay = new Date(py, pm - 1, pd);
     nextWorkingDay.setDate(nextWorkingDay.getDate() + 1);
-    const nextFree = findFreeInDays(toISO(nextWorkingDay), 30);
+    const nextFree = findFreeInDays(toISO(nextWorkingDay), 30, false);
 
     return {
       dateStr: preferredDateStr,
@@ -710,7 +742,7 @@ export function findNextAvailableWorkingSlot(
   }
 
   // No preferredDateStr: Auto-schedule to next working day or today
-  const freeSlot = findFreeInDays(nowDayStr, 30);
+  const freeSlot = findFreeInDays(nowDayStr, 30, false);
   if (freeSlot) {
     return {
       dateStr: freeSlot.dateStr,
@@ -721,11 +753,12 @@ export function findNextAvailableWorkingSlot(
   }
 
   // Absolute fallback
-  const nextWorkDay = getNextWorkingDayStr(now, config);
+  const nextWorkDay = getNextWorkingDayStr(now, activeCfg);
+  const fallbackTime = `${String(activeCfg.startHour).padStart(2, "0")}:00`;
   return {
     dateStr: nextWorkDay,
-    timeStr: "09:00",
-    fullIso: buildBrasiliaIso(nextWorkDay, "09:00"),
+    timeStr: fallbackTime,
+    fullIso: buildBrasiliaIso(nextWorkDay, fallbackTime),
     isOvertime: false,
   };
 }
@@ -735,9 +768,9 @@ export function findNextAvailableWorkingSlot(
  * - Priority: urgent (4) > high (3) > medium (2) > low (1)
  * - Tie-break: created_at ASC (FIFO)
  * - Fixed meetings and pinned demands (is_manually_scheduled = true) stay in their places.
- * - The remaining demands are placed into the earliest available slots starting at 09:00,
- *   respecting duration, skipping meetings, and skipping lunch (13:00 - 14:00).
- * - If working hours overflow, they continue after 18:00 sequentially without overlapping.
+ * - The remaining demands are placed into the earliest available slots starting at startHour,
+ *   respecting duration, skipping meetings, and skipping lunch (lunchStart - lunchEnd).
+ * - If working hours overflow, they continue after endHour sequentially without overlapping.
  */
 export function reorderDayDemandsByPriority(
   targetDayStr: string,
@@ -745,6 +778,7 @@ export function reorderDayDemandsByPriority(
   meetingsOnDay: { due_date: string | null; estimated_hours?: number | null }[] = [],
   config: SchedulingConfig = DEFAULT_CONFIG
 ): { id: string; due_date: string; is_manually_scheduled?: boolean }[] {
+  const activeCfg = (config && config !== DEFAULT_CONFIG) ? config : getStoredSchedulingConfig();
   const updates: { id: string; due_date: string; is_manually_scheduled?: boolean }[] = [];
   const takenSlots = new Set<string>();
 
@@ -780,7 +814,7 @@ export function reorderDayDemandsByPriority(
 
   // 5. Pack unpinned demands into the day
   const [y, m, d] = targetDayStr.split("-").map(Number);
-  let cursor = new Date(y, m - 1, d, config.startHour, 0, 0);
+  let cursor = new Date(y, m - 1, d, activeCfg.startHour, 0, 0);
 
   for (const dem of unpinned) {
     const dur = dem.estimated_hours ? Number(dem.estimated_hours) : 1.0;
@@ -789,10 +823,10 @@ export function reorderDayDemandsByPriority(
     let safety = 0;
 
     // Search during business hours first
-    while (safety < 48 && search.getHours() < config.endHour) {
-      if (areWorkingSlotsFree(search, dur, takenSlots, config)) {
+    while (safety < 48 && search.getHours() < activeCfg.endHour) {
+      if (areWorkingSlotsFree(search, dur, takenSlots, activeCfg)) {
         const endCand = new Date(search.getTime() + dur * 3600 * 1000);
-        if (endCand.getHours() < config.endHour || (endCand.getHours() === config.endHour && endCand.getMinutes() === 0)) {
+        if (endCand.getHours() < activeCfg.endHour || (endCand.getHours() === activeCfg.endHour && endCand.getMinutes() === 0)) {
           placed = new Date(search);
           break;
         }
@@ -801,9 +835,9 @@ export function reorderDayDemandsByPriority(
       safety++;
     }
 
-    // If business hours full, search after business hours (from 18:00 onward)
+    // If business hours full, search after business hours (from activeCfg.endHour onward)
     if (!placed) {
-      search = new Date(y, m - 1, d, config.endHour, 0, 0);
+      search = new Date(y, m - 1, d, activeCfg.endHour, 0, 0);
       safety = 0;
       while (safety < 48 && search.getHours() < 24) {
         if (areSlotsFree(search, dur, takenSlots)) {
