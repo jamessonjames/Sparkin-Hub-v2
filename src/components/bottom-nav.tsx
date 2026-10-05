@@ -15,9 +15,7 @@ export function BottomNav() {
   const isActive = (path: string, exact?: boolean) =>
     exact ? pathname === path : pathname === path || pathname.startsWith(path + "/");
 
-  const items = isAdminOrOwner
-    ? ALL_ITEMS
-    : ALL_ITEMS.filter((it) => it.to === "/" || it.to === "/agenda");
+  const items = ALL_ITEMS;
 
   return (
     <nav

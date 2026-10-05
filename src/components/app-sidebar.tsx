@@ -174,7 +174,7 @@ export function AppSidebar() {
 
   const filteredItems = isAdminOrOwner
     ? DEFAULT_NAV_ITEMS
-    : DEFAULT_NAV_ITEMS.filter((item) => item.to === "/" || item.to === "/agenda");
+    : DEFAULT_NAV_ITEMS.filter((item) => item.to === "/" || item.to === "/agenda" || item.to === "/clients");
 
   const [orderedItems, setOrderedItems] = useState<NavItem[]>(() => {
     const stored = localStorage.getItem("CF_SidebarOrder");
@@ -455,18 +455,20 @@ export function AppSidebar() {
                     {isProjOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    window.dispatchEvent(new CustomEvent("open-client-form", { detail: { parentId: mc.id, isProject: true } }));
-                  }}
-                  className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors sidebar-action-btn opacity-0 group-hover/link:opacity-100"
-                  title={`Novo projeto em ${mc.name}`}
-                >
-                  <Plus className="h-3 w-3" />
-                </button>
+                {isAdminOrOwner && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.dispatchEvent(new CustomEvent("open-client-form", { detail: { parentId: mc.id, isProject: true } }));
+                    }}
+                    className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors sidebar-action-btn opacity-0 group-hover/link:opacity-100"
+                    title={`Novo projeto em ${mc.name}`}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
+                )}
               </Link>
             </SidebarMenuSubButton>
           </SidebarMenuSubItem>
@@ -532,7 +534,7 @@ export function AppSidebar() {
                 {!collapsed && <span>Clientes</span>}
               </Link>
             </SidebarMenuButton>
-            {!collapsed && isAdminOrOwner && (
+            {!collapsed && (
               <div className="flex items-center gap-0.5 pr-1">
                 <button
                   type="button"
@@ -541,20 +543,22 @@ export function AppSidebar() {
                 >
                   {clientsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                 </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.dispatchEvent(new CustomEvent("open-client-form"));
-                  }}
-                  className="sidebar-action-btn p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
+                {isAdminOrOwner && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.dispatchEvent(new CustomEvent("open-client-form"));
+                    }}
+                    className="sidebar-action-btn p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-zinc-800/60 transition-colors cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             )}
           </div>
-          {!collapsed && clientsOpen && isAdminOrOwner && (
+          {!collapsed && clientsOpen && (
             <SidebarMenuSub className="gap-[1px] pl-4">
               {groupedClients.map((group) => (
                 <div key={group.key} className="space-y-[1px] pb-1 last:pb-0">

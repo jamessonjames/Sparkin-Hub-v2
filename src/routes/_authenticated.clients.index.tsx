@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { listClients } from "@/lib/clients.functions";
+import { useUserContext } from "@/contexts/user-context";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/_authenticated/clients/")({
 });
 
 function ClientsList() {
+  const { isAdminOrOwner } = useUserContext();
   const listFn = useServerFn(listClients);
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => listFn() });
   const [q, setQ] = useState("");
@@ -35,9 +37,11 @@ function ClientsList() {
             {clients.length} {clients.length === 1 ? "cliente" : "clientes"}
           </p>
         </div>
-        <Button onClick={() => window.dispatchEvent(new CustomEvent("open-client-form"))}>
-          <Plus className="h-4 w-4 mr-1" /> Novo cliente
-        </Button>
+        {isAdminOrOwner && (
+          <Button onClick={() => window.dispatchEvent(new CustomEvent("open-client-form"))}>
+            <Plus className="h-4 w-4 mr-1" /> Novo cliente
+          </Button>
+        )}
       </div>
 
       <div className="relative">
