@@ -44,18 +44,40 @@ export const listClients = createServerFn({ method: "GET" })
         
       if (demandError) throw new Error(demandError.message);
       
-      const clientIds = Array.from(new Set((assignedDemands ?? []).map(d => d.client_id)));
-      if (clientIds.length === 0) return [];
+      const directClientIds = Array.from(
+        new Set((assignedDemands ?? []).map((d) => d.client_id).filter(Boolean))
+      ) as string[];
+      if (directClientIds.length === 0) return [];
       
-      const { data, error } = await context.supabase
+      const { data: clientsData, error } = await context.supabase
         .from("clients")
         .select("id, name, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, slug, updated_at, color, parent_id, is_project")
-        .in("id", clientIds)
+        .in("id", directClientIds)
         .is("deleted_at", null)
         .order("name", { ascending: true });
         
       if (error) throw new Error(error.message);
-      return data ?? [];
+
+      const parentIds = Array.from(
+        new Set((clientsData ?? []).map((c) => c.parent_id).filter(Boolean))
+      ) as string[];
+
+      if (parentIds.length > 0) {
+        const { data: parentsData, error: parentErr } = await context.supabase
+          .from("clients")
+          .select("id, name, contact_name, email, phone, billing_model, fixed_type, monthly_value, credits_enabled, access_active, slug, updated_at, color, parent_id, is_project")
+          .in("id", parentIds)
+          .is("deleted_at", null)
+          .order("name", { ascending: true });
+        if (!parentErr && parentsData) {
+          const allMap = new Map<string, any>();
+          for (const c of clientsData ?? []) allMap.set(c.id, c);
+          for (const p of parentsData) allMap.set(p.id, p);
+          return Array.from(allMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+        }
+      }
+
+      return clientsData ?? [];
     }
 
     const { data, error } = await context.supabase

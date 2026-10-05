@@ -138,6 +138,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   const [isStandalone, setIsStandalone] = useState(true);
   const [isGlobalMeetingOpen, setIsGlobalMeetingOpen] = useState(false);
+  const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
 
   useEffect(() => {
     setIsStandalone(window.matchMedia("(display-mode: standalone)").matches);
@@ -190,6 +191,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
         if (demandsTimer) clearTimeout(demandsTimer);
         demandsTimer = setTimeout(() => {
           qc.invalidateQueries({ queryKey: ["demands"], refetchType: "active" });
+          qc.invalidateQueries({ queryKey: ["clients"], refetchType: "active" });
         }, 3000);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "clients" }, () => {
@@ -232,16 +234,18 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               </div>
               
               <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsGlobalMeetingOpen(true)}
-                  className="h-8 text-xs font-medium border-purple-500/30 text-purple-300 hover:bg-purple-500/10 gap-1.5 mr-2 cursor-pointer"
-                  title="Transcrever áudio/anotações de reunião"
-                >
-                  <Mic className="h-3.5 w-3.5 text-purple-400" />
-                  <span className="hidden md:inline">Transcrever Reunião</span>
-                </Button>
+                {isAdminOrOwner && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsGlobalMeetingOpen(true)}
+                    className="h-8 text-xs font-medium border-purple-500/30 text-purple-300 hover:bg-purple-500/10 gap-1.5 mr-2 cursor-pointer"
+                    title="Transcrever áudio/anotações de reunião"
+                  >
+                    <Mic className="h-3.5 w-3.5 text-purple-400" />
+                    <span className="hidden md:inline">Transcrever Reunião</span>
+                  </Button>
+                )}
 
                 <HeaderUserWorkSelector />
                 {currentUser && (

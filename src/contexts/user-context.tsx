@@ -18,6 +18,7 @@ interface Profile {
 interface UserContextValue {
   currentUser: any;
   currentUserRole: AppRole | null;
+  isAdminOrOwner: boolean;
   selectedUserId: string | null;
   setSelectedUserId: (id: string | null) => void;
   defaultUserId: string | null;
@@ -32,6 +33,7 @@ interface UserContextValue {
 const UserContext = createContext<UserContextValue>({
   currentUser: null,
   currentUserRole: null,
+  isAdminOrOwner: false,
   selectedUserId: null,
   setSelectedUserId: () => {},
   defaultUserId: null,
@@ -136,11 +138,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
     load();
   }, [listProfilesFn]);
 
+  const isAdminOrOwner = currentUserRole === "owner" || currentUserRole === "admin";
+
   return (
     <UserContext.Provider
       value={{
         currentUser,
         currentUserRole,
+        isAdminOrOwner,
         selectedUserId,
         setSelectedUserId,
         defaultUserId,

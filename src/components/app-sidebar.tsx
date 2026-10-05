@@ -172,9 +172,9 @@ export function AppSidebar() {
     localStorage.setItem("CF_ClientsSectionOpen", String(clientsOpen));
   }, [clientsOpen]);
 
-  const filteredItems = DEFAULT_NAV_ITEMS.filter(
-    (item) => isAdminOrOwner || (item.to !== "/finance" && item.to !== "/clients" && item.to !== "/crm"),
-  );
+  const filteredItems = isAdminOrOwner
+    ? DEFAULT_NAV_ITEMS
+    : DEFAULT_NAV_ITEMS.filter((item) => item.to === "/" || item.to === "/agenda");
 
   const [orderedItems, setOrderedItems] = useState<NavItem[]>(() => {
     const stored = localStorage.getItem("CF_SidebarOrder");
@@ -595,7 +595,7 @@ export function AppSidebar() {
               <div className="font-display font-bold text-sm text-foreground">{systemName}</div>
             )}
           </div>
-          {!collapsed && (
+          {!collapsed && isAdminOrOwner && (
             <Link
               to="/admin"
               title="Painel Admin"

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useDemandOverlay } from "@/contexts/demand-overlay";
+import { useUserContext } from "@/contexts/user-context";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { getClientActivityStatus, getStatusColor, getStatusLabel } from "@/lib/activity.functions";
 import { cn } from "@/lib/utils";
@@ -62,6 +63,7 @@ const STATUS_BADGES: Record<string, { label: string; className: string }> = {
 };
 
 function Dashboard() {
+  const { isAdminOrOwner } = useUserContext();
   const demandsFn = useServerFn(listDemands);
   const clientsFn = useServerFn(listClients);
   const activityFn = useServerFn(getClientActivityStatus);
@@ -70,6 +72,7 @@ function Dashboard() {
   const { data: _clientActivities } = useQuery({
     queryKey: ["clientActivity"],
     queryFn: () => activityFn(),
+    enabled: isAdminOrOwner,
   });
   const clientActivities = Array.isArray(_clientActivities) ? _clientActivities : [];
   const overlay = useDemandOverlay();
@@ -140,6 +143,35 @@ function Dashboard() {
   } else if (activeFilter === "refacao") {
     displayedDemands = [...refacaoList].sort((a, b) => (a.due_date && b.due_date ? a.due_date.localeCompare(b.due_date) : 0));
   }
+
+  // Empresas para colaboradores e clientes ativos para admins
+  const collaboratorCompanies = useMemo(() => {
+    const compMap = new Map<string, { id: string; name: string; billing_model?: string }>();
+
+    for (const c of clients) {
+      if (c && c.id && c.name) {
+        compMap.set(c.id, { id: c.id, name: c.name, billing_model: c.billing_model });
+      }
+    }
+
+    for (const d of demands) {
+      if (d.clients?.id && d.clients?.name && !compMap.has(d.clients.id)) {
+        compMap.set(d.clients.id, {
+          id: d.clients.id,
+          name: d.clients.name,
+          billing_model: (d as any).billing_model || "fixed",
+        });
+      }
+    }
+
+    return Array.from(compMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [clients, demands]);
+
+  const activeClientsForAdmin = useMemo(() => {
+    return clients.filter((c) => c.access_active);
+  }, [clients]);
+
+  const displayedList = isAdminOrOwner ? activeClientsForAdmin : collaboratorCompanies;
 
   return (
     <div className="w-full max-w-[1400px] mx-auto p-6 space-y-6">
@@ -383,85 +415,106 @@ function Dashboard() {
           </div>
         </Card>
 
-        {/* Clientes Ativos */}
+        {/* Clientes Ativos (Admin) / Minhas Empresas (Colaborador) */}
         <Card className="p-5 border-border/60 bg-surface-2/30 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" /> Clientes Ativos
+                {isAdminOrOwner ? (
+                  <>
+                    <Users className="h-4 w-4 text-primary" /> Clientes Ativos
+                  </>
+                ) : (
+                  <>
+                    <Building2 className="h-4 w-4 text-primary" /> Minhas Empresas
+                  </>
+                )}
               </h3>
               <span className="text-xs text-muted-foreground font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                {clients.filter((c) => c.access_active).length} ativos
+                {isAdminOrOwner
+                  ? `${activeClientsForAdmin.length} ativos`
+                  : `${collaboratorCompanies.length} ${collaboratorCompanies.length === 1 ? "empresa" : "empresas"}`}
               </span>
             </div>
             <div className="divide-y divide-border/60 max-h-[380px] overflow-y-auto">
-              {clients.filter((c) => c.access_active).slice(0, 8).map((c) => (
-                <Link
+              {displayedList.slice(0, 8).map((c) => (
+                <div
                   key={c.id}
-                  to="/clients/$id"
-                  params={{ id: c.id }}
                   className="flex items-center justify-between text-sm py-2.5 hover:text-primary transition-colors group"
                 >
                   <span className="truncate font-medium text-foreground group-hover:text-primary">{c.name}</span>
-                  <span className="text-xs text-muted-foreground shrink-0 ml-2 bg-surface-2 px-2 py-0.5 rounded border border-border/50">
-                    {c.billing_model === "credits" ? "Créditos" : c.billing_model === "seasonal" ? "Sazonal" : "Fixo"}
-                  </span>
-                </Link>
+                  {isAdminOrOwner && (
+                    <span className="text-xs text-muted-foreground shrink-0 ml-2 bg-surface-2 px-2 py-0.5 rounded border border-border/50">
+                      {c.billing_model === "credits" ? "Créditos" : c.billing_model === "seasonal" ? "Sazonal" : "Fixo"}
+                    </span>
+                  )}
+                  {!isAdminOrOwner && (
+                    <span className="text-xs text-muted-foreground shrink-0 ml-2 bg-surface-2 px-2 py-0.5 rounded border border-border/50">
+                      Atribuído
+                    </span>
+                  )}
+                </div>
               ))}
-              {clients.length === 0 && (
-                <p className="text-sm text-muted-foreground py-4">Nenhum cliente ativo.</p>
+              {displayedList.length === 0 && (
+                <p className="text-sm text-muted-foreground py-4">
+                  {isAdminOrOwner ? "Nenhum cliente ativo." : "Nenhuma empresa com demandas atribuídas."}
+                </p>
               )}
             </div>
           </div>
 
-          <Link
-            to="/clients"
-            className="mt-4 text-xs font-bold text-primary flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-center"
-          >
-            Ver todos os clientes <ChevronRight className="h-3.5 w-3.5" />
-          </Link>
+          {isAdminOrOwner && (
+            <Link
+              to="/clients"
+              className="mt-4 text-xs font-bold text-primary flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all text-center"
+            >
+              Ver todos os clientes <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
         </Card>
       </div>
 
-      {/* Saúde & Ritmo dos Clientes */}
-      <Card className="p-5 border-border/60 bg-surface-2/30">
-        <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary" /> Saúde & Ritmo dos Clientes
-        </h3>
-        <div className="divide-y divide-border/60">
-          {clientActivities.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">Nenhum cliente ativo.</p>
-          ) : (
-            clientActivities.map((a) => (
-              <Link
-                key={a.clientId}
-                to="/clients/$id"
-                params={{ id: a.clientId }}
-                className="flex items-center gap-3 text-sm py-3 hover:bg-surface-2/50 px-2 rounded-lg transition-all group"
-              >
-                <span
-                  className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: getStatusColor(a.status) }}
-                />
-                <span className="truncate flex-1 font-medium text-foreground group-hover:text-primary">{a.clientName}</span>
-                <span
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 uppercase tracking-wider"
-                  style={{
-                    color: getStatusColor(a.status),
-                    backgroundColor: `${getStatusColor(a.status)}18`,
-                  }}
+      {/* Saúde & Ritmo dos Clientes (Apenas Admin/Owner) */}
+      {isAdminOrOwner && (
+        <Card className="p-5 border-border/60 bg-surface-2/30">
+          <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" /> Saúde & Ritmo dos Clientes
+          </h3>
+          <div className="divide-y divide-border/60">
+            {clientActivities.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4">Nenhum cliente ativo.</p>
+            ) : (
+              clientActivities.map((a) => (
+                <Link
+                  key={a.clientId}
+                  to="/clients/$id"
+                  params={{ id: a.clientId }}
+                  className="flex items-center gap-3 text-sm py-3 hover:bg-surface-2/50 px-2 rounded-lg transition-all group"
                 >
-                  {getStatusLabel(a.status)}
-                </span>
-                <span className="text-xs text-muted-foreground shrink-0 tabular-nums font-medium">
-                  {a.estoqueTotal} na fila | {a.entregasRecentes} entregues
-                </span>
-                <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-primary transition-colors" />
-              </Link>
-            ))
-          )}
-        </div>
-      </Card>
+                  <span
+                    className="h-2.5 w-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: getStatusColor(a.status) }}
+                  />
+                  <span className="truncate flex-1 font-medium text-foreground group-hover:text-primary">{a.clientName}</span>
+                  <span
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 uppercase tracking-wider"
+                    style={{
+                      color: getStatusColor(a.status),
+                      backgroundColor: `${getStatusColor(a.status)}18`,
+                    }}
+                  >
+                    {getStatusLabel(a.status)}
+                  </span>
+                  <span className="text-xs text-muted-foreground shrink-0 tabular-nums font-medium">
+                    {a.estoqueTotal} na fila | {a.entregasRecentes} entregues
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-primary transition-colors" />
+                </Link>
+              ))
+            )}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
