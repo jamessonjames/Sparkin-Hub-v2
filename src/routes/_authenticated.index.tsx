@@ -87,10 +87,38 @@ function Dashboard() {
   // Tab filter state for main demands box
   const [activeFilter, setActiveFilter] = useState<"cronologica" | "em_aberto" | "atrasadas" | "refacao">("cronologica");
 
-  if (demandsLoading || clientsLoading) return <LoadingSpinner />;
-
   const safeDemands = Array.isArray(demands) ? demands : [];
   const safeClients = Array.isArray(clients) ? clients : [];
+
+  // Empresas para colaboradores e clientes ativos para admins
+  const collaboratorCompanies = useMemo(() => {
+    const compMap = new Map<string, { id: string; name: string; billing_model?: string }>();
+
+    for (const c of safeClients) {
+      if (c && c.id && c.name) {
+        compMap.set(c.id, { id: c.id, name: c.name, billing_model: c.billing_model });
+      }
+    }
+
+    for (const d of safeDemands) {
+      const clientObj = getDemandClient(d);
+      if (clientObj?.id && clientObj?.name && !compMap.has(clientObj.id)) {
+        compMap.set(clientObj.id, {
+          id: clientObj.id,
+          name: clientObj.name,
+          billing_model: (d as any).billing_model || "fixed",
+        });
+      }
+    }
+
+    return Array.from(compMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [safeClients, safeDemands]);
+
+  const activeClientsForAdmin = useMemo(() => {
+    return safeClients.filter((c) => c && c.access_active);
+  }, [safeClients]);
+
+  if (demandsLoading || clientsLoading) return <LoadingSpinner />;
 
   // "Em aberto": demandas com status nao_iniciado, fazendo ou com_ajustes
   const open = safeDemands.filter(
@@ -154,33 +182,7 @@ function Dashboard() {
     displayedDemands = [...refacaoList].sort((a, b) => (a.due_date && b.due_date ? a.due_date.localeCompare(b.due_date) : 0));
   }
 
-  // Empresas para colaboradores e clientes ativos para admins
-  const collaboratorCompanies = useMemo(() => {
-    const compMap = new Map<string, { id: string; name: string; billing_model?: string }>();
 
-    for (const c of safeClients) {
-      if (c && c.id && c.name) {
-        compMap.set(c.id, { id: c.id, name: c.name, billing_model: c.billing_model });
-      }
-    }
-
-    for (const d of safeDemands) {
-      const clientObj = getDemandClient(d);
-      if (clientObj?.id && clientObj?.name && !compMap.has(clientObj.id)) {
-        compMap.set(clientObj.id, {
-          id: clientObj.id,
-          name: clientObj.name,
-          billing_model: (d as any).billing_model || "fixed",
-        });
-      }
-    }
-
-    return Array.from(compMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [safeClients, safeDemands]);
-
-  const activeClientsForAdmin = useMemo(() => {
-    return safeClients.filter((c) => c && c.access_active);
-  }, [safeClients]);
 
   const displayedList = isAdminOrOwner ? activeClientsForAdmin : collaboratorCompanies;
 
