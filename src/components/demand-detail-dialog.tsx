@@ -212,7 +212,7 @@ export function DemandDetailDialog({
   const listProfilesFn = useServerFn(listProfiles);
   const getScheduleConfigFn = useServerFn(getScheduleConfig);
   const qc = useQueryClient();
-  const { selectedUserId } = useUserContext();
+  const { selectedUserId, isAdminOrOwner } = useUserContext();
   const activeUserId = selectedUserId;
 
   const { data: serverScheduleConfig } = useQuery({
@@ -1916,7 +1916,7 @@ function isHtmlEmpty(html: string | null | undefined): boolean {
             <div className="shrink-0 border-t border-border px-6 py-3.5 flex items-center justify-between bg-card/90">
               <div className="flex items-center gap-4">
                 {/* Admin-only: delete */}
-                {!isNew && !portalMode && (
+                {!isNew && !portalMode && isAdminOrOwner && (
                   <Button
                     variant="ghost"
                     onClick={handleDelete}

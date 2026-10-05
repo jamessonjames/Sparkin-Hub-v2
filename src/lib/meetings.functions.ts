@@ -55,10 +55,23 @@ export const listMeetings = createServerFn({ method: "GET" })
       query = query.ilike("title", `%${data.search.trim()}%`);
     }
 
-    const { data: rows, error } = await query;
+    // Filter out soft-deleted meetings (gracefully fallback if column not yet applied)
+    let rows: any[] | null = null;
+    const { data: nonDeletedRows, error } = await query.is("deleted_at", null);
     if (error) {
-      console.error("[listMeetings] Error fetching meetings:", error);
-      return [];
+      if (error.message?.includes("deleted_at") || error.code === "42703") {
+        const { data: fallbackRows, error: fallbackError } = await query;
+        if (fallbackError) {
+          console.error("[listMeetings] Error fetching meetings fallback:", fallbackError);
+          return [];
+        }
+        rows = fallbackRows;
+      } else {
+        console.error("[listMeetings] Error fetching meetings:", error);
+        return [];
+      }
+    } else {
+      rows = nonDeletedRows;
     }
 
     const meetings: Meeting[] = (rows || []).map((row: any) => {
@@ -155,10 +168,23 @@ export const deleteMeeting = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
-    const { error } = await (context.supabase as any)
+    // Try soft-deleting first
+    const { error: softErr } = await (context.supabase as any)
       .from("meetings")
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq("id", data.id);
-    if (error) throw new Error(`Erro ao excluir reunião: ${error.message}`);
+
+    if (softErr) {
+      if (softErr.message?.includes("deleted_at") || softErr.code === "42703") {
+        // Fallback to hard delete if deleted_at column is not yet present in DB
+        const { error: hardErr } = await (context.supabase as any)
+          .from("meetings")
+          .delete()
+          .eq("id", data.id);
+        if (hardErr) throw new Error(`Erro ao excluir reunião: ${hardErr.message}`);
+      } else {
+        throw new Error(`Erro ao excluir reunião: ${softErr.message}`);
+      }
+    }
     return { success: true };
   });

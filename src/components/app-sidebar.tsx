@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Users, ListChecks, Plus, CalendarDays, Settings, DollarSign, TrendingUp, GripVertical, ChevronDown, ChevronRight, FolderKanban, Inbox as InboxIcon, Video } from "lucide-react";
+import { LayoutDashboard, Users, ListChecks, Plus, CalendarDays, Settings, DollarSign, TrendingUp, GripVertical, ChevronDown, ChevronRight, FolderKanban, Inbox as InboxIcon, Video, Trash2 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -7,6 +7,7 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -19,6 +20,8 @@ import {
   SidebarHeader,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { TrashDialog } from "@/components/trash-dialog";
+import { listTrashItems } from "@/lib/trash.functions";
 import { listClients } from "@/lib/clients.functions";
 import { saveSidebarOrder, getSystemBranding } from "@/lib/users.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -101,6 +104,15 @@ export function AppSidebar() {
       for (const a of data) map.set(a.clientId, a);
       return map;
     },
+  });
+
+  const [trashOpen, setTrashOpen] = useState(false);
+  const trashFn = useServerFn(listTrashItems);
+  const { data: trashSummary } = useQuery({
+    queryKey: ["trash-items"],
+    queryFn: () => trashFn(),
+    enabled: isAdminOrOwner,
+    staleTime: 30_000,
   });
 
   const [systemName, setSystemName] = useState("Sparkin Hub");
@@ -639,6 +651,39 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      {isAdminOrOwner && (
+        <SidebarFooter className="border-t border-border/60 p-2">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setTrashOpen(true)}
+                tooltip={collapsed ? `Lixeira (${trashSummary?.counts.total ?? 0})` : undefined}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer",
+                  trashOpen && "bg-red-500/10 text-red-400"
+                )}
+              >
+                <Trash2 className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-red-400" />
+                {!collapsed && (
+                  <div className="flex items-center justify-between w-full min-w-0">
+                    <span className="truncate">Lixeira</span>
+                    {(trashSummary?.counts.total ?? 0) > 0 && (
+                      <span className="ml-auto px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+                        {trashSummary?.counts.total}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      )}
+
+      {isAdminOrOwner && (
+        <TrashDialog open={trashOpen} onOpenChange={setTrashOpen} />
+      )}
     </Sidebar>
   );
 }

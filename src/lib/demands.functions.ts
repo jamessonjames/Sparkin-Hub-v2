@@ -303,6 +303,17 @@ export const deleteDemand = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { id: string }) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
+    const { data: roleRow } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    const role = roleRow?.role ?? "collaborator";
+    if (role === "collaborator") {
+      throw new Error("Colaboradores não têm permissão para excluir demandas.");
+    }
+
     const { error } = await context.supabase
       .from("demands")
       .update({ deleted_at: new Date().toISOString() })
