@@ -41,26 +41,32 @@ export const listMeetings = createServerFn({ method: "GET" })
     }).optional().parse(input ?? {})
   )
   .handler(async ({ data, context }) => {
-    let query = (context.supabase as any)
-      .from("meetings")
-      .select("id, client_id, title, starts_at, duration_minutes, notes, transcript, audio_url, ai_summary, created_at, created_by_user_id, assignee_user_id, clients(id, name)")
-      .order("starts_at", { ascending: false });
+    function buildQuery(includeDeletedFilter = true) {
+      let q = (context.supabase as any)
+        .from("meetings")
+        .select("id, client_id, title, starts_at, duration_minutes, notes, transcript, audio_url, ai_summary, created_at, created_by_user_id, assignee_user_id, clients(id, name)")
+        .order("starts_at", { ascending: false });
 
-    if (data?.clientId) {
-      query = query.eq("client_id", data.clientId);
+      if (data?.clientId) {
+        q = q.eq("client_id", data.clientId);
+      }
+      if (data?.assigneeUserId) q = q.eq("assignee_user_id", data.assigneeUserId);
+
+      if (data?.search && data.search.trim() !== "") {
+        q = q.ilike("title", `%${data.search.trim()}%`);
+      }
+
+      if (includeDeletedFilter) {
+        q = q.is("deleted_at", null);
+      }
+      return q;
     }
-    if (data?.assigneeUserId) query = query.eq("assignee_user_id", data.assigneeUserId);
 
-    if (data?.search && data.search.trim() !== "") {
-      query = query.ilike("title", `%${data.search.trim()}%`);
-    }
-
-    // Filter out soft-deleted meetings (gracefully fallback if column not yet applied)
     let rows: any[] | null = null;
-    const { data: nonDeletedRows, error } = await query.is("deleted_at", null);
+    const { data: nonDeletedRows, error } = await buildQuery(true);
     if (error) {
       if (error.message?.includes("deleted_at") || error.code === "42703") {
-        const { data: fallbackRows, error: fallbackError } = await query;
+        const { data: fallbackRows, error: fallbackError } = await buildQuery(false);
         if (fallbackError) {
           console.error("[listMeetings] Error fetching meetings fallback:", fallbackError);
           return [];
