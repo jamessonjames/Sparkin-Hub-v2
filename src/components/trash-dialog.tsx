@@ -170,18 +170,6 @@ export function TrashDialog({ open, onOpenChange }: TrashDialogProps) {
                   Você pode restaurá-los com 1 clique a qualquer momento antes do prazo.
                 </DialogDescription>
               </div>
-
-              {counts.total > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEmptyTrashConfirmOpen(true)}
-                  className="text-xs text-red-500 hover:text-red-400 hover:bg-red-500/10 border-red-500/30 shrink-0 gap-1.5 h-8 font-medium cursor-pointer"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Esvaziar {activeTab === "all" ? "Lixeira" : CATEGORY_CONFIG[activeTab as TrashCategory]?.label}
-                </Button>
-              )}
             </div>
 
             {/* Search Input */}
@@ -340,11 +328,29 @@ export function TrashDialog({ open, onOpenChange }: TrashDialogProps) {
             </div>
           </Tabs>
 
-          {/* Footer stats */}
-          <div className="p-3.5 border-t border-border/80 bg-muted/20 px-6 flex items-center justify-between text-xs text-muted-foreground">
-            <span>
-              Total na lixeira: <strong>{counts.total}</strong> {counts.total === 1 ? "item" : "itens"}
-            </span>
+          {/* Footer stats & actions */}
+          <div className="p-3 border-t border-border/80 bg-muted/20 px-6 flex items-center justify-between text-xs text-muted-foreground">
+            <div className="flex items-center gap-3">
+              <span>
+                Total na lixeira: <strong>{counts.total}</strong> {counts.total === 1 ? "item" : "itens"}
+              </span>
+
+              {counts.total > 0 && (
+                <>
+                  <span className="text-border">•</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEmptyTrashConfirmOpen(true)}
+                    className="h-7 px-2.5 text-xs text-red-500 hover:text-red-400 hover:bg-red-500/10 gap-1.5 font-medium cursor-pointer"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Esvaziar {activeTab === "all" ? "lixeira" : CATEGORY_CONFIG[activeTab as TrashCategory]?.label.toLowerCase()}
+                  </Button>
+                </>
+              )}
+            </div>
+
             <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="h-7 text-xs">
               Fechar
             </Button>
