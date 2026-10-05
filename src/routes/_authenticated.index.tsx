@@ -29,6 +29,13 @@ export const Route = createFileRoute("/_authenticated/")({
   component: Dashboard,
 });
 
+
+function getDemandClient(d: any): { id: string; name: string } | null {
+  if (!d || !d.clients) return null;
+  if (Array.isArray(d.clients)) return d.clients[0] || null;
+  return d.clients;
+}
+
 function formatFriendlyDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return "Sem data";
   const d = new Date(dateStr);
@@ -82,8 +89,11 @@ function Dashboard() {
 
   if (demandsLoading || clientsLoading) return <LoadingSpinner />;
 
+  const safeDemands = Array.isArray(demands) ? demands : [];
+  const safeClients = Array.isArray(clients) ? clients : [];
+
   // "Em aberto": demandas com status nao_iniciado, fazendo ou com_ajustes
-  const open = demands.filter(
+  const open = safeDemands.filter(
     (d) => d.status === "nao_iniciado" || d.status === "fazendo" || d.status === "com_ajustes"
   );
   const now = new Date();
@@ -148,28 +158,29 @@ function Dashboard() {
   const collaboratorCompanies = useMemo(() => {
     const compMap = new Map<string, { id: string; name: string; billing_model?: string }>();
 
-    for (const c of clients) {
+    for (const c of safeClients) {
       if (c && c.id && c.name) {
         compMap.set(c.id, { id: c.id, name: c.name, billing_model: c.billing_model });
       }
     }
 
-    for (const d of demands) {
-      if (d.clients?.id && d.clients?.name && !compMap.has(d.clients.id)) {
-        compMap.set(d.clients.id, {
-          id: d.clients.id,
-          name: d.clients.name,
+    for (const d of safeDemands) {
+      const clientObj = getDemandClient(d);
+      if (clientObj?.id && clientObj?.name && !compMap.has(clientObj.id)) {
+        compMap.set(clientObj.id, {
+          id: clientObj.id,
+          name: clientObj.name,
           billing_model: (d as any).billing_model || "fixed",
         });
       }
     }
 
     return Array.from(compMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [clients, demands]);
+  }, [safeClients, safeDemands]);
 
   const activeClientsForAdmin = useMemo(() => {
-    return clients.filter((c) => c.access_active);
-  }, [clients]);
+    return safeClients.filter((c) => c && c.access_active);
+  }, [safeClients]);
 
   const displayedList = isAdminOrOwner ? activeClientsForAdmin : collaboratorCompanies;
 
@@ -221,7 +232,7 @@ function Dashboard() {
 
           {activeDemand && (
             <button
-              onClick={() => overlay.open(activeDemand.id, activeDemand.clients ? [activeDemand.clients] : undefined)}
+              onClick={() => overlay.open(activeDemand.id, getDemandClient(activeDemand) ? [getDemandClient(activeDemand)!] : undefined)}
               className="mt-4 flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-all cursor-pointer w-full"
             >
               <span className="flex items-center gap-1.5">
@@ -266,7 +277,7 @@ function Dashboard() {
 
           {nextDemand && (
             <button
-              onClick={() => overlay.open(nextDemand.id, nextDemand.clients ? [nextDemand.clients] : undefined)}
+              onClick={() => overlay.open(nextDemand.id, getDemandClient(nextDemand) ? [getDemandClient(nextDemand)!] : undefined)}
               className="mt-4 flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-300 text-xs font-bold transition-all cursor-pointer w-full"
             >
               <span>Ver Detalhes</span>
@@ -304,7 +315,7 @@ function Dashboard() {
 
           {activeRefacao && (
             <button
-              onClick={() => overlay.open(activeRefacao.id, activeRefacao.clients ? [activeRefacao.clients] : undefined)}
+              onClick={() => overlay.open(activeRefacao.id, getDemandClient(activeRefacao) ? [getDemandClient(activeRefacao)!] : undefined)}
               className="mt-4 flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all cursor-pointer w-full"
             >
               <span>Revisar Ajustes</span>
